@@ -1,0 +1,18 @@
+{
+  "name": "argani",
+  "owner": {
+    "name": "tri-suli"
+  },
+  "metadata": {
+    "description": "AI-native SDLC for Claude Code: one artifact loop (intent, spec, plan, work, review, merge request) with an optional factory mode."
+  },
+  "plugins": [
+    {
+      "name": "sdlc",
+      "source": "./plugins/sdlc",
+      "description": "Artifact-driven development loop for any kind of project, run by hand or by the factory orchestrator.",
+      "category": "workflow",
+      "tags": ["sdlc", "intent", "spec", "review", "factory"]
+    }
+  ]
+}

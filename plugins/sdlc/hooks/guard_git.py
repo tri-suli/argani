@@ -119,10 +119,10 @@ def _switched_branch(repo_dir, args):
     for index, arg in enumerate(args):
         if arg in CREATE_FLAGS and index + 1 < len(args):
             return args[index + 1]
-    if "--" in args:
-        return None
-    names = [arg for arg in args if not arg.startswith("-")]
-    if names and sdlc_config.branch_exists(repo_dir, names[0]):
+    before_paths = args[:args.index("--")] if "--" in args else args
+    names = [arg for arg in before_paths if not arg.startswith("-")]
+    # More than one name means `checkout <tree-ish> <paths>`: HEAD does not move.
+    if len(names) == 1 and sdlc_config.branch_exists(repo_dir, names[0]):
         return names[0]
     return None
 
@@ -132,7 +132,7 @@ class ChainAnalyzer:
 
     def __init__(self, directory):
         self.directory = directory
-        self.simulated = None  # (repo_dir, branch) set by checkout/switch earlier in the chain
+        self.simulated = None  # (toplevel, branch) set by checkout/switch earlier in the chain
 
     def analyse(self, command):
         """Return (default_branch, offending segment text) for the first violation, else None."""
@@ -174,14 +174,14 @@ class ChainAnalyzer:
         if config["toplevel"] is None:
             return None
         default = config["defaultBranch"]
-        if self.simulated and self.simulated[0] == repo_dir:
+        if self.simulated and self.simulated[0] == config["toplevel"]:
             current = self.simulated[1]
         else:
             current = config["currentBranch"]
         if subcommand in ("checkout", "switch"):
             branch = _switched_branch(repo_dir, args)
             if branch:
-                self.simulated = (repo_dir, branch)
+                self.simulated = (config["toplevel"], branch)
         elif subcommand == "push":
             if _push_matches(args, default, current):
                 return default, text

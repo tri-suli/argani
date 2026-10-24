@@ -173,3 +173,17 @@ def test_broken_config_does_not_disable_the_guard(feature_repo, content):
 def test_delete_matches_only_when_the_default_branch_is_deleted(feature_repo):
     assert decide("git push origin --delete other", feature_repo) is None
     assert decision_of(decide("git push origin --delete main", feature_repo)) == "ask"
+
+
+def test_simulated_branch_survives_cd_within_the_same_repository(feature_repo):
+    (feature_repo / "sub").mkdir()
+    command = "cd sub && git checkout main && cd .. && git push"
+    assert decision_of(decide(command, feature_repo)) == "ask"
+
+
+def test_checkout_with_paths_does_not_move_head(feature_repo):
+    assert decide("git checkout main file.txt && git pull", feature_repo) is None
+
+
+def test_checkout_with_empty_path_list_moves_head(feature_repo):
+    assert decision_of(decide("git checkout main -- && git pull", feature_repo)) == "ask"

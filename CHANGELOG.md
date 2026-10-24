@@ -15,4 +15,6 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/sdlc_config.py`: reads `.claude/sdlc.json` from the repository toplevel and merges it over defaults.
 - `scripts/artifact_check.py`: slug generation and deterministic checks for `intent.md` and `spec.md`.
 - Skills `/sdlc:intent`, `/sdlc:spec`, `/sdlc:plan`, each with an `approve` gate backed by `artifact_check.py status`.
+- `plan.md` carries a `Status:` line and is checked by `artifact_check.py plan`; `artifact_check.py status` prints `draft` or `approved` for any valid artifact.
+- `sdlc_config.py` fails open: an unusable `.claude/sdlc.json` yields defaults with a note on stderr (the CLI exits 1).
 - pytest suites for both scripts.

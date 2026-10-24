@@ -19,7 +19,9 @@ This skill never writes code.
    prose is in that language. The `# Intent:` title prefix, the `##` section headings, file names,
    `Status:` lines, `AC-n`, `verify:` and verdict words always stay English.
 3. Mode: it is `approve` only when `$ARGUMENTS` is exactly two tokens, `approve <slug>`, and the
-   folder `<artifact dir>/<slug>/` exists. Anything else is a description.
+   folder `<artifact dir>/<slug>/` exists. If `$ARGUMENTS` is exactly `approve <slug>` but the
+   folder does not exist, say the slug was not found and stop; do not start an interview.
+   Anything else is a description.
 
 ## Description mode
 

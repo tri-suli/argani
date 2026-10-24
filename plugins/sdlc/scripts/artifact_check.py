@@ -87,13 +87,19 @@ def placeholder_tokens():
 
 def find_placeholders(text):
     """Template placeholder tokens left in prose (code spans and fences ignored)."""
+    known = placeholder_tokens()
+
+    def keep_bare_token(span):
+        # A code span that is exactly a template token is still a leftover placeholder.
+        inner = span.group(0)[1:-1]
+        return inner if inner in known else ""
+
     prose, in_fence = [], False
     for line in text.splitlines():
         if line.lstrip().startswith("```"):
             in_fence = not in_fence
         elif not in_fence:
-            prose.append(CODE_SPAN_PATTERN.sub("", line))
-    known = placeholder_tokens()
+            prose.append(CODE_SPAN_PATTERN.sub(keep_bare_token, line))
     return sorted({t for t in PLACEHOLDER_PATTERN.findall("\n".join(prose)) if t in known})
 
 
@@ -128,7 +134,7 @@ def check_common(text, kind):
         if name not in sections:
             violations.append(f"missing section '## {name}'")
     for token in find_placeholders(text):
-        violations.append(f"leftover template placeholder {token}")
+        violations.append(f"leftover template placeholder {token} (wrap literal text in backticks)")
     return violations, sections, status
 
 
@@ -148,9 +154,9 @@ def check_acceptance_criteria(lines):
     return violations
 
 
-def check_spec_mapping(lines):
+def check_table_has_rows(lines, section):
     rows = [line for line in lines if line.lstrip().startswith("|")]
-    return [] if len(rows) > 2 else ["Acceptance criteria mapping table has no rows"]
+    return [] if len(rows) > 2 else [f"{section} table has no rows"]
 
 
 def run_check(kind, text):
@@ -159,7 +165,9 @@ def run_check(kind, text):
     if kind == "Intent" and "Acceptance criteria" in sections:
         violations += check_acceptance_criteria(sections["Acceptance criteria"])
     if kind == "Spec" and "Acceptance criteria mapping" in sections:
-        violations += check_spec_mapping(sections["Acceptance criteria mapping"])
+        violations += check_table_has_rows(sections["Acceptance criteria mapping"], "Acceptance criteria mapping")
+    if kind == "Plan" and "Proof" in sections:
+        violations += check_table_has_rows(sections["Proof"], "Proof")
     return violations, status
 
 

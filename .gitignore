@@ -1,2 +1,4 @@
 .idea/
-evals/results/
+**/evals/results/
+__pycache__/
+.pytest_cache/

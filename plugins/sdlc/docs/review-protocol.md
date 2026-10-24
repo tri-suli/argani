@@ -111,6 +111,44 @@ one artifact. Spawn them with `subagent_type: "sdlc:<agent>"`.
 | `sdlc:reviewer` | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md` | `=== END OF REVIEW ===` |
 | `sdlc:approver` | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat | `decision.md` | `=== END OF DECISION ===` |
 
+### Spawn prompts
+
+Agents see nothing but the prompt and the files it names. `Plugin root` is the value of
+`${CLAUDE_PLUGIN_ROOT}` (agent bodies do not rely on it being expanded). Skeletons:
+
+```
+# sdlc:spec-writer
+Plugin root: <plugin root>
+Intent: <abs path to intent.md>
+Spec: <abs path to spec.md>
+Config: <effective config JSON>
+Language: <project language>
+
+# sdlc:builder
+Plugin root: <plugin root>
+Slug folder: <abs slug folder>
+Branch: sdlc/<slug>
+Verify command: <verifyCommand>
+Round: <N>
+Previous round folder: <abs review/round-(N-1)>     # only when N > 1
+
+# sdlc:reviewer
+Plugin root: <plugin root>
+Checklist: <name>
+Checklist file: <plugin root>/checklists/<name>.md
+Slug folder: <abs slug folder>
+Round: <N>
+Default branch: <defaultBranch>
+
+# sdlc:approver
+Plugin root: <plugin root>
+Slug folder: <abs slug folder>
+Round folder: <abs review/round-N>
+Default branch: <defaultBranch>
+Reviewers: <comma-separated checklist names>
+Protected paths: <comma-separated globs, or "none">
+```
+
 ## Accepted bypasses
 
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:
@@ -124,6 +162,7 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is the default branch.
+- `git diff --output=<file>` and `git log --output=<file>` write a file through the allowed `git diff`/`git log` tools, outside `guard_artifacts.py`. The reviewer and approver bodies tell the agent not to use `--output`.
 - A broken `.claude/sdlc.json` makes the git guard use defaults and keep checking, while the
   artifact guard asks (main session) or denies (subagent) for every write in that repository,
   because `protectedPaths` cannot be checked.

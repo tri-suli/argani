@@ -22,11 +22,18 @@ the prompt carries everything you need.
 Write `ESCALATE` if any of these holds, otherwise `APPROVE`:
 
 - A checklist listed in `Reviewers` has no `review-<checklist>.md` in the `Round folder`.
-- Any review file in the round has `CHANGES` on line 1.
-- Any review file lacks its closing line `=== END OF REVIEW ===`.
+- The `review-<checklist>.md` of a listed reviewer has `CHANGES` on line 1.
+- The `review-<checklist>.md` of a listed reviewer lacks its closing line `=== END OF REVIEW ===`.
 - `build.md` is missing or lacks its closing line `=== END OF BUILD ===`.
 - `build.md` has no literal verify output, or the output shows a failure.
 - The diff touches a path matching `Protected paths`.
+
+Judge only the seats named in `Reviewers`. Two other kinds of file may be in the round folder:
+
+- `review-human.md` (line 1 `CHANGES`, written by a human rework note) counts as addressed when
+  `build.md` contains the heading `## Rework after round <N>` for this round's number. If so it does
+  not cause `ESCALATE`; if the heading is missing, `ESCALATE`.
+- Any other file not named in `Reviewers` is listed in `decision.md` but ignored for the verdict.
 
 ## Write
 

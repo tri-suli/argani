@@ -1,11 +1,13 @@
 # Plan: <title>
 
 Spec: <slug>
+Status: draft
 Date: <YYYY-MM-DD>
 
 <!-- Written before any file outside the artifact folder changes. In manual mode the human
      approves it before work starts; in factory mode the builder writes it and it is
-     reviewed together with the diff in the merge request. -->
+     reviewed together with the diff in the merge request.
+     The approved form is: Status: approved by <name> on <YYYY-MM-DD> -->
 
 ## Files that change
 

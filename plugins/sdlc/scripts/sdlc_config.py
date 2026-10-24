@@ -46,21 +46,81 @@ def detect_default_branch(start_dir):
 
 
 def current_branch(start_dir):
-    return _git(start_dir, "rev-parse", "--abbrev-ref", "HEAD")
+    # symbolic-ref also works in a repository without commits; rev-parse reports detached HEAD.
+    return (_git(start_dir, "symbolic-ref", "--short", "-q", "HEAD")
+            or _git(start_dir, "rev-parse", "--abbrev-ref", "HEAD"))
 
 
-def load_config(start_dir="."):
-    config = dict(DEFAULTS)
+def _string_list(value):
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    raise ValueError("expected a list of strings")
+
+
+def _optional_string(value):
+    if isinstance(value, str):
+        return value
+    raise ValueError("expected a string")
+
+
+COERCERS = {
+    "reviewers": _string_list,
+    "protectedPaths": _string_list,
+    "artifactRoot": _optional_string,
+    "defaultBranch": _optional_string,
+    "verifyCommand": _optional_string,
+    "mrCommand": _optional_string,
+}
+
+
+def read_config_file(path):
+    """Return the validated overrides from a config file. Raises ValueError when unusable."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"{path}: {error}") from error
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: top level must be a JSON object")
+    overrides = {}
+    for key, value in data.items():
+        if value is None:
+            continue
+        try:
+            overrides[key] = COERCERS[key](value) if key in COERCERS else value
+        except ValueError as error:
+            raise ValueError(f"{path}: key '{key}': {error}") from error
+    return overrides
+
+
+def load_config(start_dir=".", strict=False):
+    """Effective config. Never raises unless strict=True; a bad file falls back to defaults."""
+    config = {key: (list(value) if isinstance(value, list) else value) for key, value in DEFAULTS.items()}
     root = toplevel(start_dir)
     if root:
         path = Path(root) / ".claude" / "sdlc.json"
         if path.is_file():
-            config.update(json.loads(path.read_text(encoding="utf-8")))
+            try:
+                config.update(read_config_file(path))
+            except ValueError as error:
+                if strict:
+                    raise
+                print(f"sdlc: ignoring config, using defaults: {error}", file=sys.stderr)
     if not config["defaultBranch"]:
         config["defaultBranch"] = detect_default_branch(start_dir) if root else "main"
     config["toplevel"] = root
+    config["currentBranch"] = current_branch(start_dir) if root else None
     return config
 
 
+def main(argv):
+    try:
+        config = load_config(argv[1] if len(argv) > 1 else ".", strict=True)
+    except ValueError as error:
+        print(f"sdlc: invalid config: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(config, indent=2))
+    return 0
+
+
 if __name__ == "__main__":
-    print(json.dumps(load_config(sys.argv[1] if len(sys.argv) > 1 else "."), indent=2))
+    sys.exit(main(sys.argv))

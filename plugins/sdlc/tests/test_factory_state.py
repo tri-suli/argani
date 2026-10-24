@@ -487,3 +487,16 @@ def test_human_note_without_closing_line_is_partial(job):
     job.round(1, {"code": "PASS", "security": "PASS"})
     job.write("review/round-2/review-human.md", "CHANGES x\n")
     assert job.state()["partial"] == ["review:human"]
+
+
+def test_reserved_human_reviewer_exits_two(job):
+    (job.root / ".claude" / "sdlc.json").write_text('{"reviewers": ["code", "human"]}')
+    result = job.run()
+    assert result.returncode == 2
+    assert "human" in result.stdout
+
+
+def test_missing_folder_suggests_job_branch(job):
+    result = job.run("other")
+    assert result.returncode == 1
+    assert "git switch sdlc/other" in result.stdout

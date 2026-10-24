@@ -5,7 +5,8 @@ Branch: <branch>
 Date: <YYYY-MM-DD>
 
 <!-- Written by the builder when work is finished. On rework, append a section
-     "## Rework after round N" instead of rewriting earlier content. -->
+     `## Rework after round <K>` for each round folder whose findings were addressed, instead of
+     rewriting earlier content. -->
 
 ## What was done
 

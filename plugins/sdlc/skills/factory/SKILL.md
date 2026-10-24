@@ -55,7 +55,7 @@ Only paths under `<job_dir>` are ever added. If `git -C <toplevel> status --porc
 non-empty: `git -C <toplevel> add -- <job_dir>` then `git -C <toplevel> commit -m "<message>" -- <job_dir>`
 (no attribution footer). Messages: `chore(sdlc): record <slug> artifacts before build`,
 `chore(sdlc): record <slug> round <N> reviews`, `chore(sdlc): record <slug> decision`. Also record
-before the push in `needs-mr`. The builder commits code, `plan.md`, `build.md`.
+before the push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, `plan.md`, `build.md`.
 
 ### Spec-writer prompt
 
@@ -72,8 +72,9 @@ Language: <language of the repository's CLAUDE.md, else of the intent>
 1. **Stop** if `current_branch` is `HEAD` (detached) or `dirty` is true (job-folder files do not count):
    ask the human to switch branch or commit/stash.
 2. If `on_job_branch` is false: `git switch sdlc/<slug>` if `git rev-parse --verify sdlc/<slug>` succeeds,
-   else `git switch -c sdlc/<slug> <default_branch>`.
-3. Record (`artifacts before build`), then spawn `sdlc:builder`:
+   else `git switch -c sdlc/<slug> <default_branch>`. If the switch fails, **stop** and show the error.
+3. Re-run state; if `on_job_branch` is still false, **stop**. Only then Record (`artifacts before build`;
+   never commit on any other branch), and spawn `sdlc:builder`:
 
 ```
 Plugin root: <plugin root>
@@ -81,7 +82,8 @@ Slug folder: <job_dir>
 Branch: sdlc/<slug>
 Verify command: <verifyCommand>
 Round: <review_round>
-Previous round folder: <job_dir>/review/round-<rework_from>/     (only when rework_from is not null)
+Findings to address: <job_dir>/review/round-<rework_from>/       (only when rework_from is not null;
+                                                                for a human rework this is the round folder holding review-human.md)
 ```
 
 4. If its reply starts with `STOPPED wrong branch`, **stop** and show it. After it returns, re-run state:
@@ -106,7 +108,7 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 
 ### Merge request (`needs-mr`)
 
-Record first. Then:
+Record first (only with `on_job_branch` true). Then:
 - `mrCommand` configured: `git push -u origin sdlc/<slug>`, then `mrCommand` with `{branch}` replaced by
   `sdlc/<slug>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
   (output or URL, branch, today's date), commit it (`chore(sdlc): record <slug> merge request`, local only),

@@ -4,7 +4,8 @@
 Usage: python3 factory_state.py <slug> [dir]
 
 Prints JSON. Reads files and git only, never writes. Exit 0 whenever the slug
-folder exists, exit 1 with a message for a bad slug or missing folder, exit 2 for an invalid config. The JSON is the only state the
+folder exists; exit 1 with a message for a bad slug or a missing folder; exit 2 for an invalid
+config (including a reviewer named 'human', which is reserved). The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
 """
 import json
@@ -182,6 +183,8 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
 
 def build_state(slug, start_dir="."):
     config = sdlc_config.load_config(start_dir, strict=True)
+    if "human" in config["reviewers"]:
+        raise ValueError("reviewers: 'human' is reserved for human rework notes; rename that reviewer")
     if not config["toplevel"]:
         return None
     toplevel = Path(config["toplevel"]).resolve()
@@ -250,7 +253,8 @@ def main(argv):
         print(f"sdlc: invalid config: {error}")
         return 2
     if state is None:
-        print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository.")
+        print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository. "
+              f"After the first build the artifacts live on the job branch: try 'git switch sdlc/{argv[1]}'.")
         return 1
     print(json.dumps(state, indent=2))
     return 0

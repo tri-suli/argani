@@ -1,5 +1,6 @@
 import pytest
 
+from conftest import git
 from hook_helpers import bash_payload, decision_of, run_hook
 
 
@@ -104,3 +105,71 @@ def test_reason_names_branch_segment_and_alternative(feature_repo):
 
 def test_command_without_keyword_produces_no_output(feature_repo):
     assert decide("ls -la && cat README.md", feature_repo) is None
+
+
+@pytest.mark.parametrize("command", [
+    "if true; then git push origin main; fi",
+    "for b in x; do git push origin main; done",
+    "{ git push origin main; }",
+    "! git push origin main",
+    "time git push origin main",
+    "command git push origin main",
+    "exec git push origin main",
+    "nohup git push origin main",
+    "/usr/bin/git push origin main",
+    "env -i git push origin main",
+    "sudo -u root git push origin main",
+    "`git push origin main`",
+    "echo $(git push origin main)",
+    'bash -c "git push origin main"',
+    "sh -c 'git push origin main'",
+    "zsh -c 'cd . && git push origin main'",
+    "bash -lc 'git push origin main'",
+    "git push origin @:main",
+])
+def test_parser_covers_shell_constructs(feature_repo, command):
+    assert decision_of(decide(command, feature_repo)) == "ask", command
+
+
+def test_unparsable_shell_c_string_asks(feature_repo):
+    assert decision_of(decide("bash -c \"git push 'origin main\"", feature_repo)) == "ask"
+
+
+@pytest.mark.parametrize("command,expected", [
+    ("git checkout main && git push", "ask"),
+    ("git checkout main && git push origin HEAD", "ask"),
+    ("git checkout main && git push origin @", "ask"),
+    ("git switch main && git pull", "ask"),
+    ("git switch -c feature2 main && git merge x", None),
+    ("git checkout -b feature3 && git push", None),
+    ("git checkout -b main2 && git push origin HEAD", None),
+])
+def test_current_branch_is_simulated_from_feature(feature_repo, command, expected):
+    assert decision_of(decide(command, feature_repo)) == expected, command
+
+
+@pytest.mark.parametrize("command", [
+    "git checkout feature && git merge main",
+    "git switch -c newb && git push",
+    "git checkout -b newb && git merge x",
+    "git switch feature && git pull",
+])
+def test_current_branch_is_simulated_from_main(repo, command):
+    git(repo, "branch", "feature")
+    assert decide(command, repo) is None, command
+
+
+@pytest.mark.parametrize("content", ["[1]", '{"defaultBranch": "main"', "not json", '{"reviewers": 3}'])
+def test_broken_config_does_not_disable_the_guard(feature_repo, content):
+    (feature_repo / ".claude").mkdir()
+    (feature_repo / ".claude" / "sdlc.json").write_text(content)
+    assert decision_of(decide("git push origin main", feature_repo)) == "ask"
+    assert decision_of(decide("git push origin main", feature_repo, "sdlc:builder")) == "deny"
+    assert decision_of(decide("gh pr merge 1", feature_repo)) == "ask"
+    assert decision_of(decide("glab mr merge 1", feature_repo)) == "ask"
+    assert decide("git push origin feature", feature_repo) is None
+
+
+def test_delete_matches_only_when_the_default_branch_is_deleted(feature_repo):
+    assert decide("git push origin --delete other", feature_repo) is None
+    assert decision_of(decide("git push origin --delete main", feature_repo)) == "ask"

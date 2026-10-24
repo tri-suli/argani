@@ -11,7 +11,7 @@ Every stage ends in a committed artifact that the next stage reads, and humans d
 The loop has two modes: **manual** (you call the skills one by one) and **factory** (an orchestrator
 runs spec, build, review and decision with subagents, and stops at a merge request). Agents never
 merge their own work. See [`plugins/sdlc/docs/sdlc.md`](plugins/sdlc/docs/sdlc.md) for the full
-reference and [`INTENT.md`](INTENT.md) for the project intent.
+reference.
 
 ## Install
 

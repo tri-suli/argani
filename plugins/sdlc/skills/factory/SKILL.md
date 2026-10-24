@@ -17,7 +17,7 @@ Tools: the list above is the minimum, no `Bash(*)`. `mrCommand` runs through `Ba
 permits when asked. Cost: one spec-writer, one builder per round, N reviewers per round, one approver;
 use it for jobs with clear acceptance criteria.
 
-## Step 0
+## Step 1
 
 1. Parse `$ARGUMENTS`: `<slug>` or `rework <slug> <note>`.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sdlc_config.py`. If it exits non-zero, **stop** and show its

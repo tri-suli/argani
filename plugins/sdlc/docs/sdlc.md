@@ -116,3 +116,14 @@ Facts observed by running the plugin (Claude Code 2.1.310), not read from docume
 - **Eval cases.** Quote the version: `schema_version: "1.0"`. A case that writes files needs
   `allowed_tools` in `prompt.md` and the run needs `--allow-tools Write Bash`; headless runs need
   `--trust-plugin`; add `--ablation none` to skip the no-plugin baseline arm.
+- **Scoped Bash in agent `tools` is not enforced.** An agent declared with
+  `tools: ..., Bash(git diff *), Bash(git log *)` (the reviewer) ran `git status` successfully,
+  with and without `Bash` in the parent's `--allowedTools`; the agent reported its tools as
+  `Read, Glob, Grep, Write, Bash`. The `Bash(git diff:*)` spelling behaves the same. The scoped
+  entries only make `Bash` available; they are not a command allowlist, so treat the narrow scope
+  as documentation of intent, and rely on the hooks for enforcement.
+- **`${CLAUDE_PLUGIN_ROOT}` in agent frontmatter.** A spec-writer declared with
+  `Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)` was spawned with the installed plugin path in its
+  prompt, wrote a spec that `artifact_check.py spec` accepted, and ran that script. Because scoped
+  Bash is not enforced (above), this does not prove the variable expands inside `tools`; agent
+  bodies therefore use the `Plugin root` given in the prompt, never the variable.

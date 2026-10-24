@@ -63,6 +63,11 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 - **Two rounds at most.** The hook refuses any write under `review/round-3/` or higher
   (`N >= 3`). If round 2 still has `CHANGES`, stop and escalate to a human; do not try to work
   around the refusal.
+- The approver judges only the seats in `reviewers`. A `review-human.md` counts as addressed once
+  `build.md` has the heading `## Rework after round <N>` for that round, and then does not by itself
+  cause `ESCALATE`; without that heading it does. Any other file in the round folder is reported in
+  `decision.md` and ignored for the verdict.
+- `human` is reserved: a configured reviewer may not be named `human`.
 - `ESCALATE` in `decision.md` stops the job and marks it as needing a human.
 - `APPROVE` still ends in a merge request, never a merge.
 
@@ -168,7 +173,9 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
   because `protectedPaths` cannot be checked.
 
 Acceptable because the reviewer and approver have `Write`, but the hook limits it to their own
-file, and their Bash is limited to `git diff`/`git log` (see the agent definitions). The builder has
+file. Their agent definitions list only `Bash(git diff *)` and `Bash(git log *)`, but that scoping is
+not enforced (see "Verified behaviour" in `sdlc.md`): in practice they have unrestricted Bash, and
+their bodies forbid anything but `git diff`/`git log`. The builder has
 Bash, but its prompt forbids these commands, and the protection that matters (the default branch on
 the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
 rather than widening trust.

@@ -38,11 +38,19 @@ def toplevel(start_dir):
     return _git(start_dir, "rev-parse", "--show-toplevel")
 
 
+def branch_exists(start_dir, name):
+    return _git(start_dir, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}") is not None
+
+
 def detect_default_branch(start_dir):
+    """origin/HEAD, else a local main, else a local master, else init.defaultBranch, else main."""
     ref = _git(start_dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
     if ref and ref.startswith("origin/"):
         return ref[len("origin/"):]
-    return "main"
+    for name in ("main", "master"):
+        if branch_exists(start_dir, name):
+            return name
+    return _git(start_dir, "config", "init.defaultBranch") or "main"
 
 
 def current_branch(start_dir):

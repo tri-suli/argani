@@ -71,3 +71,11 @@ def test_current_branch(tmp_path):
     run_git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
     assert sdlc_config.current_branch(repo) == "trunk"
     assert sdlc_config.current_branch(tmp_path) is None
+
+
+def test_default_branch_detects_local_master(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run_git(repo, "init", "-q", "-b", "master")
+    run_git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i")
+    assert sdlc_config.load_config(repo)["defaultBranch"] == "master"

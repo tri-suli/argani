@@ -65,6 +65,13 @@ def _string_list(value):
     raise ValueError("expected a list of strings")
 
 
+def _reviewer_names(value):
+    names = _string_list(value)
+    if "human" in names:
+        raise ValueError("'human' is reserved and cannot be a reviewer")
+    return names
+
+
 def _optional_string(value):
     if isinstance(value, str):
         return value
@@ -72,7 +79,7 @@ def _optional_string(value):
 
 
 COERCERS = {
-    "reviewers": _string_list,
+    "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
     "artifactRoot": _optional_string,
     "defaultBranch": _optional_string,

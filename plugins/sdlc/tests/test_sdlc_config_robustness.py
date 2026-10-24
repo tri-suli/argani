@@ -2,6 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "sdlc_config.py"
 sys.path.insert(0, str(SCRIPT.parent))
 
@@ -48,3 +50,10 @@ def test_current_branch_in_output(tmp_path):
     repo = make_repo(tmp_path / "repo")
     assert sdlc_config.load_config(repo)["currentBranch"] == "trunk"
     assert sdlc_config.load_config(tmp_path)["currentBranch"] is None
+
+
+def test_human_is_a_reserved_reviewer_name(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"reviewers": ["code", "human"]}')
+    with pytest.raises(ValueError, match="human"):
+        sdlc_config.load_config(repo, strict=True)
+    assert sdlc_config.load_config(repo)["reviewers"] == ["code"]

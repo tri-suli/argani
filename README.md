@@ -52,8 +52,8 @@ claude plugin install sdlc@argani
 
 ## Factory mode
 
-Prerequisites: an approved `intent.md` and `spec.md`, and `verifyCommand` plus `reviewers` in
-`.claude/sdlc.json`.
+Prerequisites: an approved `intent.md` (the factory writes the spec and stops for your approval), and
+`verifyCommand` plus `reviewers` in `.claude/sdlc.json`.
 
 ```
 /sdlc:factory <slug>                 # advances until the next human gate, then stops

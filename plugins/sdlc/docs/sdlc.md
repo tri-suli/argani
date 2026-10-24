@@ -85,6 +85,11 @@ per job, up to two rounds), so use it only for jobs with clear acceptance criter
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
 `scripts/factory_state.py <slug>`, which only reports and never writes.
 
+Who commits what on branch `sdlc/<slug>`: the builder commits code, `plan.md` and `build.md`; the
+orchestrator commits the rest of the job folder (`intent.md`, `spec.md`, `review/**`, `decision.md`,
+`mr.md`), adding only paths under `<artifactRoot>/<slug>/`: before the build, after each review round,
+after the decision and before the push. Nothing is ever pushed or merged without a human.
+
 ## Reviewers
 
 There is one generic reviewer agent. What it checks comes from a checklist in the catalog

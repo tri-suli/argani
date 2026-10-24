@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Manifest test for agent frontmatter.
 - `guard_git.py` enforces a per-agent Bash allowlist (the harness ignores `Bash(...)` scoping in agent `tools`): reviewer and approver run only read-only git without `--output`; spec-writer also runs the plugin's scripts.
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
+- Factory orchestrator commits the job folder on `sdlc/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/sdlc:factory <slug>` and `/sdlc:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
 
 ### Changed

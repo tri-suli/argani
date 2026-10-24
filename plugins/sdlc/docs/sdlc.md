@@ -139,3 +139,8 @@ Facts observed by running the plugin (Claude Code 2.1.310), not read from docume
   case folder) to a bash script, not inline text, and it only runs with `--scaffold`. An `llm`
   grader takes `criteria` from its body and `focus` (default `last_message`); to judge a file use
   `focus: {source: file, path: ...}`. It has no `target` key (that is `regex` only).
+- **No git in the eval sandbox.** Inside `claude plugin eval` runs `/usr/bin/git` is replaced by the
+  null device, so any git call fails with `Permission denied` even though `Bash` is granted with
+  `--allow-tools`; the grant is not the cause and no flag restores it. Evals whose subject needs
+  git (`/sdlc:review`, `sdlc_config.py` toplevel) therefore cannot be reliable; deterministic
+  coverage lives in pytest.

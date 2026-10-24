@@ -2,6 +2,8 @@
 # Builds the fixture repository in the current directory.
 set -euo pipefail
 git init -q -b main
+git config commit.gpgsign false
+git config core.hooksPath /dev/null
 git config user.name eval
 git config user.email eval@example.com
 mkdir -p .claude sdlc/demo-login

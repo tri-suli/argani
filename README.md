@@ -38,6 +38,13 @@ Enable the plugin per repository, in `.claude/settings.json`:
 Per-repository options live in `.claude/sdlc.json`; see
 [`plugins/sdlc/docs/config.md`](plugins/sdlc/docs/config.md).
 
+## Bootstrap
+
+`bootstrap/install.sh` symlinks `~/.claude/CLAUDE.md` and `$CLAUDE_CONFIG_DIR/CLAUDE.md` to the
+versioned `bootstrap/claude/CLAUDE.md` and registers the marketplace in `settings.json`. It backs
+everything up first and supports `--dry-run`. Read [`bootstrap/README.md`](bootstrap/README.md)
+before running it.
+
 ## Local development
 
 ```bash
@@ -78,9 +85,10 @@ plugins/sdlc/                     the plugin
   scripts/                        config loader, artifact checker, factory state reporter
   agents/                         spec-writer, builder, reviewer, approver
   skills/                         intent, spec, plan, review, factory
+  evals/                          eval cases run with `claude plugin eval`
   tests/                          pytest suites
 scripts/check.sh                  validate and test
-bootstrap/                        global configuration (planned)
+bootstrap/                        global CLAUDE.md and marketplace registration
 ```
 
 ## Status
@@ -93,8 +101,8 @@ bootstrap/                        global configuration (planned)
 | Review protocol and checklists | available |
 | Skill `/sdlc:review` | available |
 | Factory orchestrator `/sdlc:factory` | available |
-| Evals | planned |
-| Bootstrap | planned |
+| Evals (`plugins/sdlc/evals`, three cases) | available |
+| Bootstrap (`bootstrap/`) | available |
 
 ## License
 

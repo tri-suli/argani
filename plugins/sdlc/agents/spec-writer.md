@@ -36,6 +36,11 @@ it reports `VALID`.
 - Write only the `Spec` file. Never edit the intent, code, or any other file (a hook enforces this).
 - Language: prose in the project language given in your prompt (else the language of the repository's
   `CLAUDE.md` or of the intent). The title prefix, headings, `Status:` line and `AC-n` ids stay English.
+- Naming: use the names the intent and the repository already use for files, modules, features and
+  identifiers. When the spec introduces a new path or name, choose one that says what the thing is
+  or does, so a human understands it without context; never use internal labels such as `a1`,
+  `case3` or `round2`. Keep each name and naming pattern the same throughout the spec; the builder
+  follows the names you set.
 - Do not mark the spec approved. A human does that.
 
 ## Final reply

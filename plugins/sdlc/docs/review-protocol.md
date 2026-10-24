@@ -7,11 +7,11 @@ the mechanical parts (verdict line, round limit, who writes what); the rest is i
 
 All paths are under `<artifactRoot>/<slug>/` (default `sdlc/<slug>/`).
 
-| File | Written by | Line 1 | Last line |
-|---|---|---|---|
-| `review/round-N/review-<checklist>.md` | `sdlc:reviewer`, one per checklist in `reviewers` | `PASS` or `CHANGES` | `=== END OF REVIEW ===` |
-| `review/round-N/review-human.md` | the orchestrator or human, from a `rework` note | `CHANGES` | `=== END OF REVIEW ===` |
-| `decision.md` | `sdlc:approver` | `APPROVE` or `ESCALATE` | `=== END OF DECISION ===` |
+| File                                   | Written by                                        | Line 1                  | Last line                 |
+|----------------------------------------|---------------------------------------------------|-------------------------|---------------------------|
+| `review/round-N/review-<checklist>.md` | `sdlc:reviewer`, one per checklist in `reviewers` | `PASS` or `CHANGES`     | `=== END OF REVIEW ===`   |
+| `review/round-N/review-human.md`       | the orchestrator or human, from a `rework` note   | `CHANGES`               | `=== END OF REVIEW ===`   |
+| `decision.md`                          | `sdlc:approver`                                   | `APPROVE` or `ESCALATE` | `=== END OF DECISION ===` |
 
 `<checklist>` is a name from `checklists/` (`code`, `security`, `compliance`, `ux`, `ui-design`, `citation`, `format`).
 `N` starts at 1.
@@ -76,12 +76,12 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 
 The hook reads `agent_type` from the hook input (value `sdlc:<agent>`):
 
-| Agent | May write | May not write |
-|---|---|---|
-| `sdlc:reviewer` | `<artifactRoot>/<slug>/review/round-*/review-*.md` | anything else in the repository |
-| `sdlc:approver` | `<artifactRoot>/<slug>/decision.md` | anything else in the repository |
-| `sdlc:spec-writer` | `<artifactRoot>/<slug>/spec.md` | anything else in the repository |
-| `sdlc:builder` | everything else, including `plan.md`, `build.md` and source files | under `<artifactRoot>/<slug>/`: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
+| Agent              | May write                                                         | May not write                                                                               |
+|--------------------|-------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
+| `sdlc:reviewer`    | `<artifactRoot>/<slug>/review/round-*/review-*.md`                | anything else in the repository                                                             |
+| `sdlc:approver`    | `<artifactRoot>/<slug>/decision.md`                               | anything else in the repository                                                             |
+| `sdlc:spec-writer` | `<artifactRoot>/<slug>/spec.md`                                   | anything else in the repository                                                             |
+| `sdlc:builder`     | everything else, including `plan.md`, `build.md` and source files | under `<artifactRoot>/<slug>/`: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
 
 Paths outside any git repository are not touched by this rule. The main session and other agent
 types are not restricted by it. A reviewer writes only the file for its own checklist; the hook
@@ -117,12 +117,12 @@ so the audit trail is in the branch history.
 Agents get context from files only; every spawn prompt names the files to read. Each writes exactly
 one artifact. Spawn them with `subagent_type: "sdlc:<agent>"`.
 
-| Agent | Reads | Writes | Closing line |
-|---|---|---|---|
-| `sdlc:spec-writer` | `intent.md`, repo `CLAUDE.md`, config | `spec.md` | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
-| `sdlc:builder` | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md` | code on `sdlc/<slug>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===` |
-| `sdlc:reviewer` | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md` | `=== END OF REVIEW ===` |
-| `sdlc:approver` | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat | `decision.md` | `=== END OF DECISION ===` |
+| Agent              | Reads                                                                        | Writes                                                  | Closing line                                                                            |
+|--------------------|------------------------------------------------------------------------------|---------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `sdlc:spec-writer` | `intent.md`, repo `CLAUDE.md`, config                                        | `spec.md`                                               | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
+| `sdlc:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code on `sdlc/<slug>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
+| `sdlc:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md`                  | `=== END OF REVIEW ===`                                                                 |
+| `sdlc:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat             | `decision.md`                                           | `=== END OF DECISION ===`                                                               |
 
 ### Spawn prompts
 

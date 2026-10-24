@@ -6,13 +6,12 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "artifact_check.py"
 TEMPLATES = Path(__file__).resolve().parents[1] / "templates"
-FIXTURES = Path(__file__).resolve().parent / "fixtures" / "intent"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+INTENT_FIXTURES = FIXTURES / "intent"
 
-# Adversarial inputs: valid ones include CRLF, BOM, backticked or comment-only noise.
-VALID_FIXTURES = ["valid", "crlf", "bom", "a4", "a5", "a9", "a10", "a11"]
-# Bad Status (fenced, missing, duplicate, impossible date), malformed AC lines,
-# wrong dash, duplicate AC numbers, leftover placeholder, fenced heading.
-INVALID_FIXTURES = ["s1", "s2", "s3", "a1", "a2", "a3", "a6", "a7", "a8"]
+# Adversarial intent files. The file name states the case; the prefix states the expected result.
+VALID_FIXTURES = sorted(INTENT_FIXTURES.glob("valid-*.md"))
+INVALID_FIXTURES = sorted(INTENT_FIXTURES.glob("invalid-*.md"))
 
 VALID_PLAN = """# Plan: Add login
 
@@ -40,15 +39,31 @@ def run_check(kind, path):
     return subprocess.run([sys.executable, str(SCRIPT), kind, str(path)], capture_output=True, text=True)
 
 
-@pytest.mark.parametrize("name", VALID_FIXTURES)
-def test_fixture_valid(name):
-    result = run_check("intent", FIXTURES / f"{name}.md")
+@pytest.mark.parametrize("path", VALID_FIXTURES, ids=lambda path: path.stem)
+def test_fixture_valid(path):
+    result = run_check("intent", path)
     assert result.returncode == 0, result.stdout
 
 
-@pytest.mark.parametrize("name", INVALID_FIXTURES)
-def test_fixture_invalid(name):
-    assert run_check("intent", FIXTURES / f"{name}.md").returncode == 1
+@pytest.mark.parametrize("path", INVALID_FIXTURES, ids=lambda path: path.stem)
+def test_fixture_invalid(path):
+    assert run_check("intent", path).returncode == 1
+
+
+def test_bare_token_in_code_span_is_still_a_placeholder():
+    result = run_check("intent", INTENT_FIXTURES / "invalid-placeholder-in-code-span.md")
+    assert "{{claim}}" in result.stdout
+
+
+def test_placeholder_message_suggests_backticks():
+    result = run_check("intent", INTENT_FIXTURES / "invalid-placeholder-in-prose.md")
+    assert "wrap literal text in backticks" in result.stdout
+
+
+def test_plan_with_empty_proof_and_placeholder_fails():
+    result = run_check("plan", FIXTURES / "plan" / "invalid-duplicate-proof-and-placeholder.md")
+    assert result.returncode == 1
+    assert "Proof table has no rows" in result.stdout
 
 
 def test_slug_empty_fails():
@@ -58,7 +73,7 @@ def test_slug_empty_fails():
 
 
 def test_status_subcommand(tmp_path):
-    valid = (FIXTURES / "valid.md").read_text(encoding="utf-8")
+    valid = (INTENT_FIXTURES / "valid-minimal.md").read_text(encoding="utf-8")
     draft = tmp_path / "draft.md"
     draft.write_text(valid, encoding="utf-8")
     result = run_check("status", draft)
@@ -75,7 +90,7 @@ def test_status_subcommand(tmp_path):
 
 
 def test_invalid_date_fails(tmp_path):
-    text = (FIXTURES / "valid.md").read_text(encoding="utf-8")
+    text = (INTENT_FIXTURES / "valid-minimal.md").read_text(encoding="utf-8")
     path = tmp_path / "bad-date.md"
     path.write_text(text.replace("Status: draft", "Status: approved by Tri on 2026-13-40"), encoding="utf-8")
     assert run_check("intent", path).returncode == 1

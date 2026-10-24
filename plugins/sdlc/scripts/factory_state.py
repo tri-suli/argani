@@ -4,7 +4,7 @@
 Usage: python3 factory_state.py <slug> [dir]
 
 Prints JSON. Reads files and git only, never writes. Exit 0 whenever the slug
-folder exists, exit 1 with a message otherwise. The JSON is the only state the
+folder exists, exit 1 with a message for a bad slug or missing folder, exit 2 for an invalid config. The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
 """
 import json
@@ -20,10 +20,15 @@ CLOSING_BUILD = "=== END OF BUILD ==="
 CLOSING_REVIEW = "=== END OF REVIEW ==="
 CLOSING_DECISION = "=== END OF DECISION ==="
 MAX_ROUNDS = 2
+SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")
+
+
+def read_text(path):
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def read_lines(path):
-    return path.read_text(encoding="utf-8").lstrip("﻿").replace("\r", "").splitlines()
+    return read_text(path).lstrip("\ufeff").replace("\r", "").splitlines()
 
 
 def has_closing_line(path, closing):
@@ -40,11 +45,8 @@ def document_state(path, kind):
     """{exists, status}: status is draft | approved | invalid | missing."""
     if not path.is_file():
         return {"exists": False, "status": "missing"}
-    text = artifact_check.COMMENT_PATTERN.sub("", path.read_text(encoding="utf-8"))
-    if artifact_check.CHECKS[kind](text):
-        return {"exists": True, "status": "invalid"}
-    status = artifact_check.STATUS_PATTERN.search(text).group(1)
-    return {"exists": True, "status": "approved" if status.startswith("approved") else "draft"}
+    violations, status = artifact_check.run_check(kind, artifact_check.normalize(read_text(path)))
+    return {"exists": True, "status": "invalid" if violations else status}
 
 
 def round_state(round_dir, reviewers):
@@ -55,15 +57,12 @@ def round_state(round_dir, reviewers):
     for name, path in files.items():
         word = first_word(path)
         verdicts[name] = word if word in ("PASS", "CHANGES") else "INVALID"
-    seats_done = all(name in complete for name in expected)
     return {
         "n": int(round_dir.name[len("round-"):]),
         "expected": expected,
         "present": list(files),
         "complete": complete,
         "verdicts": verdicts,
-        "all_pass": seats_done and all(verdicts.get(name) == "PASS" for name in expected),
-        "complete_round": seats_done,
     }
 
 
@@ -91,10 +90,10 @@ def is_dirty(toplevel, job_dir):
     """Uncommitted changes outside the job folder (job artifacts are expected to be untracked)."""
     exclude = f":(exclude){job_dir.relative_to(toplevel)}"
     result = subprocess.run(
-        ["git", "-C", str(toplevel), "status", "--porcelain", "--", ".", exclude],
+        ["git", "--no-optional-locks", "-C", str(toplevel), "status", "--porcelain", "--", ".", exclude],
         capture_output=True, text=True,
     )
-    return bool(result.stdout.strip())
+    return result.returncode != 0 or bool(result.stdout.strip())  # fail closed
 
 
 def review_plan(rounds, reviewers, build_text):
@@ -108,6 +107,10 @@ def review_plan(rounds, reviewers, build_text):
         return "review", 1, None, None
     latest = rounds[-1]
     n = latest["n"]
+    if n > MAX_ROUNDS:
+        return "escalate", n, None, f"review/round-{n} exists but only {MAX_ROUNDS} rounds are allowed"
+    if not latest["present"]:  # empty round folder
+        return "review", n, None, None
     addressed = f"## Rework after round {n}" in build_text
     if all(name == "human" for name in latest["present"]):  # a round holding only a human note
         return ("review", n, None, None) if addressed else ("rework", n, n, None)
@@ -147,7 +150,15 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
         return "escalate", "Stop: decision.md says ESCALATE. A human must decide (needs-human).", None, None
 
     action, review_round, rework_from, reason = review_plan(rounds, reviewers, build_text)
+    if action == "escalate":
+        return ("escalate", f"Stop: {reason}. A human must decide (needs-human); "
+                "/sdlc:factory rework is refused at round 3.", None, None)
     if not build["complete"]:
+        if rounds and any(v == "CHANGES" for v in rounds[-1]["verdicts"].values()):
+            # a cut-off rework: the builder must address the latest round again
+            rework_from = rounds[-1]["n"]
+            human_only = all(name == "human" for name in rounds[-1]["present"])
+            review_round = rework_from if human_only else rework_from + 1
         cut_off = "; the existing build.md is cut off (partial)" if build["exists"] else ""
         address = f" to address review/round-{rework_from}/" if rework_from else ""
         return ("needs-build", f"Spawn sdlc:builder{address}{cut_off}, then run a review round.",
@@ -159,13 +170,18 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
         return ("needs-rework", f"Spawn a NEW sdlc:builder to address review/round-{rework_from}/, "
                 f"then run review round {review_round}.", review_round, rework_from)
     if action == "decide":
-        return "needs-decision", f"Spawn sdlc:approver on review/round-{review_round}/.", review_round, None
+        ignored = [n for n, v in rounds[-1]["verdicts"].items()
+                   if v == "CHANGES" and n not in reviewers and n != "human"]
+        note = (f" Ignored, not in reviewers: {', '.join(ignored)} (CHANGES); the approver lists them."
+                if ignored else "")
+        return ("needs-decision", f"Spawn sdlc:approver on review/round-{review_round}/.{note}",
+                review_round, None)
     return ("escalate", f"Stop: {reason}. A human must decide (needs-human); "
             "/sdlc:factory rework is refused at round 3.", None, None)
 
 
 def build_state(slug, start_dir="."):
-    config = sdlc_config.load_config(start_dir)
+    config = sdlc_config.load_config(start_dir, strict=True)
     if not config["toplevel"]:
         return None
     toplevel = Path(config["toplevel"]).resolve()
@@ -175,14 +191,14 @@ def build_state(slug, start_dir="."):
     branch = f"sdlc/{slug}"
     current = sdlc_config.current_branch(start_dir)
 
-    intent = document_state(job_dir / "intent.md", "intent")
-    spec = document_state(job_dir / "spec.md", "spec")
+    intent = document_state(job_dir / "intent.md", "Intent")
+    spec = document_state(job_dir / "spec.md", "Spec")
     build_path = job_dir / "build.md"
     build = {
         "exists": build_path.is_file(),
         "complete": build_path.is_file() and has_closing_line(build_path, CLOSING_BUILD),
     }
-    build_text = build_path.read_text(encoding="utf-8") if build["exists"] else ""
+    build_text = read_text(build_path) if build["exists"] else ""
     rounds = collect_rounds(job_dir, config["reviewers"])
     decision = decision_state(job_dir / "decision.md")
     mr = {"exists": (job_dir / "mr.md").is_file()}
@@ -207,7 +223,6 @@ def build_state(slug, start_dir="."):
         "default_branch": config["defaultBranch"],
         "intent": intent,
         "spec": spec,
-        "plan": {"exists": (job_dir / "plan.md").is_file()},
         "build": build,
         "round": rounds[-1]["n"] if rounds else 0,
         "review_round": review_round,
@@ -226,7 +241,14 @@ def main(argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     start_dir = argv[2] if len(argv) == 3 else "."
-    state = build_state(argv[1], start_dir)
+    if not SLUG_PATTERN.fullmatch(argv[1]):
+        print(f"Invalid slug '{argv[1]}': use lowercase letters, digits and hyphens.")
+        return 1
+    try:
+        state = build_state(argv[1], start_dir)
+    except ValueError as error:
+        print(f"sdlc: invalid config: {error}")
+        return 2
     if state is None:
         print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository.")
         return 1

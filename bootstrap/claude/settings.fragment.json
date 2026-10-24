@@ -1,1 +1,10 @@
-{"extraKnownMarketplaces": {"argani": {"source": {"source": "github", "repo": "tri-suli/argani"}}}}
+{
+  "extraKnownMarketplaces": {
+    "argani": {
+      "source": {
+        "source": "github",
+        "repo": "tri-suli/argani"
+      }
+    }
+  }
+}

@@ -50,6 +50,24 @@ def test_fixture_invalid(path):
     assert run_check("intent", path).returncode == 1
 
 
+@pytest.mark.parametrize("value", ["TBD", "tbd.", "`TODO`", "N/A", "none", "?", "...", "-", "` `"])
+def test_filler_verify_value_fails(tmp_path, value):
+    text = (INTENT_FIXTURES / "valid-minimal.md").read_text(encoding="utf-8")
+    path = tmp_path / "intent.md"
+    path.write_text(text.replace("verify: pytest tests/test_login.py", f"verify: {value}"), encoding="utf-8")
+    result = run_check("intent", path)
+    assert result.returncode == 1
+    assert "AC-1 has no real verification" in result.stdout
+
+
+@pytest.mark.parametrize("value", ["`npm test`", "manual login check by QA", "TBD-free smoke test"])
+def test_real_verify_value_passes(tmp_path, value):
+    text = (INTENT_FIXTURES / "valid-minimal.md").read_text(encoding="utf-8")
+    path = tmp_path / "intent.md"
+    path.write_text(text.replace("verify: pytest tests/test_login.py", f"verify: {value}"), encoding="utf-8")
+    assert run_check("intent", path).returncode == 0
+
+
 def test_bare_token_in_code_span_is_still_a_placeholder():
     result = run_check("intent", INTENT_FIXTURES / "invalid-placeholder-in-code-span.md")
     assert "{{claim}}" in result.stdout

@@ -110,14 +110,27 @@ def check_write(payload, inner, path):
     return None
 
 
+def deny_sole_writer(payload, agent_type):
+    pattern, description = SOLE_FILE_WRITERS[agent_type]
+    emit(payload, "deny", f"sdlc guard: one writer per file: {agent_type} may write only "
+         f"{description} under the artifact folder, nowhere else (not outside the repository, "
+         "not under .git). Write only your own artifact.")
+
+
 def guard(payload):
     tool_input = payload.get("tool_input") or {}
+    sole_writer = payload.get("agent_type") if payload.get("agent_type") in SOLE_FILE_WRITERS else None
     file_path = tool_input.get("file_path")
     if not file_path:
         return
     path = Path(os.path.normpath(os.path.join(payload.get("cwd") or os.getcwd(), file_path)))
+    if sole_writer and ".git" in path.parts:
+        deny_sole_writer(payload, sole_writer)
+        return
     anchor = next((parent for parent in [path, *path.parents] if parent.is_dir()), None)
     if anchor is None or not sdlc_config.toplevel(anchor):
+        if sole_writer:
+            deny_sole_writer(payload, sole_writer)
         return
     try:
         config = sdlc_config.load_config(anchor, strict=True)
@@ -130,6 +143,8 @@ def guard(payload):
     try:
         relative = path.relative_to(top).as_posix()
     except ValueError:
+        if sole_writer:
+            deny_sole_writer(payload, sole_writer)
         return
     if any(glob_to_regex(pattern).match(relative) for pattern in config["protectedPaths"]):
         emit(payload, "deny", f"sdlc guard: {relative} matches protectedPaths in .claude/sdlc.json "

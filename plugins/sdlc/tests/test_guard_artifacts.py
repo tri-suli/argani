@@ -132,9 +132,24 @@ def test_builder_may_write_source_files(repo):
     assert write(repo, "src/a.py", "x", "sdlc:builder") is None
 
 
-def test_sole_writer_rule_does_not_apply_outside_a_repository(tmp_path_factory):
+@pytest.mark.parametrize("agent_type", ["sdlc:reviewer", "sdlc:approver", "sdlc:spec-writer"])
+def test_sole_writer_agents_are_denied_outside_any_repository(tmp_path_factory, agent_type):
     outside = tmp_path_factory.mktemp("outside")
-    assert write(outside, "src/a.py", "x", "sdlc:reviewer") is None
+    assert decision_of(write(outside, "src/a.py", "x", agent_type)) == "deny"
+
+
+@pytest.mark.parametrize("agent_type", ["sdlc:reviewer", "sdlc:approver", "sdlc:spec-writer"])
+def test_sole_writer_agents_are_denied_outside_the_repository_and_in_dot_git(repo, tmp_path_factory, agent_type):
+    elsewhere = tmp_path_factory.mktemp("elsewhere") / "evil.sh"
+    assert decision_of(write(repo, str(elsewhere), "x", agent_type)) == "deny"
+    assert decision_of(write(repo, ".git/config", "x", agent_type)) == "deny"
+    assert decision_of(write(repo, ".git/hooks/pre-commit", "x", agent_type)) == "deny"
+
+
+def test_builder_and_main_session_are_not_limited_outside_the_repository(repo, tmp_path_factory):
+    elsewhere = tmp_path_factory.mktemp("elsewhere") / "x"
+    assert write(repo, str(elsewhere), "x", "sdlc:builder") is None
+    assert write(repo, ".git/config", "x") is None
 
 
 def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_repo):

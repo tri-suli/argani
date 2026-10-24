@@ -205,17 +205,17 @@ def _is_read_only_git(tokens):
     index = 3 if len(tokens) > 2 and tokens[1] == "-C" else 1
     if index >= len(tokens) or tokens[index] not in READ_ONLY_GIT:
         return False
-    return not any(arg == "--output" or arg.startswith("--output=") for arg in tokens[index:])
+    forbidden = ("--output", "--ext-diff")
+    return not any(arg.split("=", 1)[0] in forbidden for arg in tokens[index:])
 
 
 def _is_plugin_script(tokens):
-    """`python3 <plugin root>/scripts/<name>.py ...` (root = this plugin or any .../plugins/sdlc)."""
+    """`python3 <plugin root>/scripts/<name>.py ...`, where the root is this plugin's own."""
     if len(tokens) < 2 or tokens[0] != "python3" or not tokens[1].endswith(".py"):
         return False
-    script = os.path.normpath(tokens[1])
-    scripts_dir, root = os.path.dirname(script), os.path.dirname(os.path.dirname(script))
-    return (os.path.basename(scripts_dir) == "scripts"
-            and (root == os.path.normpath(PLUGIN_ROOT) or root.endswith("/plugins/sdlc")))
+    script = os.path.realpath(tokens[1])
+    scripts_dir = os.path.join(os.path.realpath(PLUGIN_ROOT), "scripts")
+    return os.path.dirname(script) == scripts_dir
 
 
 def agent_bash_violation(agent_type, command):
@@ -223,10 +223,14 @@ def agent_bash_violation(agent_type, command):
     if agent_type not in READ_ONLY_AGENTS:
         return None
     reason = (f"sdlc guard: {agent_type.removeprefix('sdlc:')} may only run git "
-              "diff/log/show/rev-parse; write findings to your own artifact file")
+              "diff/log/show/rev-parse (no pipes, redirections, chaining, substitutions); "
+              "write findings to your own artifact file")
     if agent_type in AGENT_SCRIPT_RUNNERS:
         reason = (f"sdlc guard: {agent_type.removeprefix('sdlc:')} may only run the plugin's "
-                  "python3 scripts and git diff/log/show/rev-parse; write only your own artifact file")
+                  "python3 scripts and git diff/log/show/rev-parse (no pipes, redirections, chaining, "
+                  "substitutions); write only your own artifact file")
+    if "`" in command or "$(" in command:
+        return reason
     try:
         segments = split_segments(command)
     except ValueError:

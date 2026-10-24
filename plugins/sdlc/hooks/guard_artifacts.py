@@ -117,8 +117,13 @@ def guard(payload):
         return
     path = Path(os.path.normpath(os.path.join(payload.get("cwd") or os.getcwd(), file_path)))
     anchor = next((parent for parent in [path, *path.parents] if parent.is_dir()), None)
-    config = sdlc_config.load_config(anchor) if anchor else None
-    if not config or not config["toplevel"]:
+    if anchor is None or not sdlc_config.toplevel(anchor):
+        return
+    try:
+        config = sdlc_config.load_config(anchor, strict=True)
+    except ValueError as error:
+        emit(payload, "ask", f"sdlc guard: .claude/sdlc.json is invalid ({error}); protectedPaths "
+             "cannot be checked. Fix the file.")
         return
     top = Path(os.path.realpath(config["toplevel"]))
     path = Path(os.path.realpath(path))

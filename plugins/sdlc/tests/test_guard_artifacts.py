@@ -137,12 +137,22 @@ def test_sole_writer_rule_does_not_apply_outside_a_repository(tmp_path_factory):
     assert write(outside, "src/a.py", "x", "sdlc:reviewer") is None
 
 
-def test_broken_config_keeps_the_artifact_rules(make_repo):
+def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_repo):
     repo = make_repo()
     (repo / ".claude").mkdir()
     (repo / ".claude" / "sdlc.json").write_text('{"protectedPaths": ["raw/**"')  # truncated
-    assert decision_of(write(repo, REVIEW, "Hasil: PASS\n")) == "deny"
-    assert write(repo, "raw/a.txt", "x") is None  # protectedPaths cannot be read, so not applied
+    output = write(repo, "raw/a/b.txt", "x")
+    assert decision_of(output) == "ask"
+    assert "sdlc.json is invalid" in output["permissionDecisionReason"]
+    assert decision_of(write(repo, "raw/a/b.txt", "x", "sdlc:builder")) == "deny"
+
+
+def test_invalid_config_does_not_affect_writes_outside_the_repository(make_repo, tmp_path_factory):
+    repo = make_repo()
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "sdlc.json").write_text("[1]")
+    outside = tmp_path_factory.mktemp("outside")
+    assert write(outside, "raw/a/b.txt", "x") is None
 
 
 def test_protected_paths_are_denied_for_everyone(make_repo):

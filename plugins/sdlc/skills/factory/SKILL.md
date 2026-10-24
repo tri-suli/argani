@@ -80,7 +80,7 @@ Address: <job_dir>/review/round-<rework_from>/  (omit when rework_from is null)
 ### Review round
 
 Run steps 5 and 6 of `../review/SKILL.md` (spawn every `sdlc:reviewer` in one
-message, wait for all, rerun a cut-off seat once), skipping its steps 1 to 4 and using `review_round` as `N` and the slug folder
+message, wait for all, rerun a cut-off seat once; spawn only seats missing from `rounds[].complete`), skipping its steps 1 to 4 and using `review_round` as `N` and the slug folder
 `job_dir`. Do not print its table; re-run state and continue the loop.
 
 ### Approver

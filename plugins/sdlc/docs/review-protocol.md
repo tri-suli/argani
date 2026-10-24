@@ -68,19 +68,18 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 
 ## One writer per file
 
-The hook reads `agent_type` from the hook input (value `sdlc:<agent>`) for paths under
-`<artifactRoot>/<slug>/`:
+The hook reads `agent_type` from the hook input (value `sdlc:<agent>`):
 
 | Agent | May write | May not write |
 |---|---|---|
-| `sdlc:reviewer` | `review/round-*/review-*.md` | anything else under the slug |
-| `sdlc:approver` | `decision.md` | anything else under the slug |
-| `sdlc:spec-writer` | `spec.md` | anything else under the slug |
-| `sdlc:builder` | everything else, including `plan.md`, `build.md` | `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
+| `sdlc:reviewer` | `<artifactRoot>/<slug>/review/round-*/review-*.md` | anything else in the repository |
+| `sdlc:approver` | `<artifactRoot>/<slug>/decision.md` | anything else in the repository |
+| `sdlc:spec-writer` | `<artifactRoot>/<slug>/spec.md` | anything else in the repository |
+| `sdlc:builder` | everything else, including `plan.md`, `build.md` and source files | under `<artifactRoot>/<slug>/`: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
 
-The main session and other agent types are not restricted by this rule. A reviewer writes only the
-file for its own checklist; the hook cannot tell which checklist a reviewer was given, so that
-part is an instruction in the agent prompt.
+Paths outside any git repository are not touched by this rule. The main session and other agent
+types are not restricted by it. A reviewer writes only the file for its own checklist; the hook
+cannot tell which checklist a reviewer was given, so that part is an instruction in the agent prompt.
 
 ## Running a round
 
@@ -108,9 +107,16 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
   branch without `push`/`merge`/`pull`, and `guard_git.py` does not look for them.
 - Writing a file through Bash (heredoc, `tee`, `sed -i`) bypasses `guard_artifacts.py`, which only
   sees `Write` and `Edit`.
+- `xargs`, `eval` and similar indirection hide the git command from the parser. `bash|sh|zsh -c
+  "<cmd>"` is analysed; other nesting is not.
+- `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
+  wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
+- `git push --delete` matches only when the deleted branch is the default branch.
+- A broken `.claude/sdlc.json` falls back to defaults: the git guard still works (default branch
+  detection continues), but `protectedPaths` and a custom `artifactRoot` cannot apply.
 
-Acceptable because the agents that could be harmed by these are granted narrow tools: reviewer and
-approver get `Read`, `Glob`, `Grep` and `git diff`/`git log` only, no unrestricted Bash. The builder
-has Bash, but its prompt forbids these commands, and the protection that matters (the default
-branch on the remote) is the human-owned merge request. If a bypass is ever observed, add it to
-the hook rather than widening trust.
+Acceptable because the reviewer and approver have `Write`, but the hook limits it to their own
+file, and their Bash is limited to `git diff`/`git log` (see the agent definitions). The builder has
+Bash, but its prompt forbids these commands, and the protection that matters (the default branch on
+the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
+rather than widening trust.

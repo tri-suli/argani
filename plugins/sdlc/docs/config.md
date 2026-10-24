@@ -9,12 +9,17 @@ The file is `<repository toplevel>/.claude/sdlc.json`. The toplevel is found wit
 so the right file is used in worktrees and inside subagents. Scripts and hooks must resolve it
 through `scripts/sdlc_config.py`. Outside a git repository the defaults apply and `toplevel` is `null`.
 
+If the file is unreadable, not valid JSON, or has a wrongly typed key, the hooks and scripts use the
+defaults (with a note on stderr) and keep checking: the default-branch guard still works. Settings
+that live only in the file, such as `protectedPaths` or a custom `artifactRoot`, cannot apply until
+the file is fixed.
+
 ## Keys
 
 | Key | Default | Meaning |
 |---|---|---|
 | `artifactRoot` | `"sdlc"` | Folder (relative to the toplevel) holding `<slug>/` artifact folders. |
-| `defaultBranch` | detected | Branch that agents must never push or merge to. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else `"main"`. |
+| `defaultBranch` | detected | Branch that agents must never push or merge to. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. |
 | `verifyCommand` | none | Command that proves the work (tests, linters, link check). Required by factory mode. |
 | `reviewers` | `["code"]` | Names of checklists from the catalog that reviewers apply. |
 | `protectedPaths` | `[]` | Globs relative to the toplevel that agents must not write. |

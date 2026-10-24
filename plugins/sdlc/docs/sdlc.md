@@ -21,15 +21,15 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 
 ## Stages
 
-| Stage | Artifact | Produced by | Human gate |
-|---|---|---|---|
-| Intent | `intent.md` | `/sdlc:intent` (interview with the human) | Human approves the intent |
-| Spec | `spec.md` | `/sdlc:spec` or the spec-writer agent | Human reviews and approves the spec |
-| Plan | `plan.md` | `/sdlc:plan` or the builder agent | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
-| Work | code or documents on branch `sdlc/<slug>`, `build.md` | Human or builder agent | none |
-| Review | `review/round-N/review-<checklist>.md` | Reviewer agents | none |
-| Decision | `decision.md` | Approver agent | Its output is a merge request, never a merge |
-| Operate | follow-up intents | Human, from what production shows | Human opens the next intent |
+| Stage    | Artifact                                              | Produced by                               | Human gate                                                                      |
+|----------|-------------------------------------------------------|-------------------------------------------|---------------------------------------------------------------------------------|
+| Intent   | `intent.md`                                           | `/sdlc:intent` (interview with the human) | Human approves the intent                                                       |
+| Spec     | `spec.md`                                             | `/sdlc:spec` or the spec-writer agent     | Human reviews and approves the spec                                             |
+| Plan     | `plan.md`                                             | `/sdlc:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
+| Work     | code or documents on branch `sdlc/<slug>`, `build.md` | Human or builder agent                    | none                                                                            |
+| Review   | `review/round-N/review-<checklist>.md`                | Reviewer agents                           | none                                                                            |
+| Decision | `decision.md`                                         | Approver agent                            | Its output is a merge request, never a merge                                    |
+| Operate  | follow-up intents                                     | Human, from what production shows         | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.
 

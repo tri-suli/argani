@@ -33,16 +33,16 @@ commit or file you write; never skip a stage from memory. **Stop (end the turn)*
 terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at most twice per invocation
 (one retry when the state still shows it cut off or `partial`); after that, stop and say which seat failed.
 
-| `stage` | Action |
-|---|---|
-| `needs-intent-approval`, `needs-spec-approval` | Stop. Print `next`. |
-| `needs-spec` | Spawn `sdlc:spec-writer`, then stop: "spec ready; `/sdlc:spec approve <slug>` then `/sdlc:factory <slug>`". |
-| `needs-build`, `needs-rework` | Branch, record, spawn a **new** builder (below), then re-run state. |
-| `needs-review` | Require `on_job_branch`, run review round `review_round`, record, re-run state. |
-| `needs-decision` | Require `on_job_branch`, spawn `sdlc:approver`, record, re-run state. |
-| `needs-mr` | Require `on_job_branch`, create the MR (below), then stop. |
-| `done` | Say the job is done. Nothing else. |
-| `escalate` | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3. |
+| `stage`                                        | Action                                                                                                      |
+|------------------------------------------------|-------------------------------------------------------------------------------------------------------------|
+| `needs-intent-approval`, `needs-spec-approval` | Stop. Print `next`.                                                                                         |
+| `needs-spec`                                   | Spawn `sdlc:spec-writer`, then stop: "spec ready; `/sdlc:spec approve <slug>` then `/sdlc:factory <slug>`". |
+| `needs-build`, `needs-rework`                  | Branch, record, spawn a **new** builder (below), then re-run state.                                         |
+| `needs-review`                                 | Require `on_job_branch`, run review round `review_round`, record, re-run state.                             |
+| `needs-decision`                               | Require `on_job_branch`, spawn `sdlc:approver`, record, re-run state.                                       |
+| `needs-mr`                                     | Require `on_job_branch`, create the MR (below), then stop.                                                  |
+| `done`                                         | Say the job is done. Nothing else.                                                                          |
+| `escalate`                                     | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3.                        |
 
 "Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `sdlc/<slug>`.
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;

@@ -16,14 +16,14 @@ session) or denies (subagent) for every write inside the repository until the fi
 
 ## Keys
 
-| Key | Default | Meaning |
-|---|---|---|
-| `artifactRoot` | `"sdlc"` | Folder (relative to the toplevel) holding `<slug>/` artifact folders. |
-| `defaultBranch` | detected | Branch that agents must never push or merge to. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`. |
-| `verifyCommand` | none | Command that proves the work (tests, linters, link check). Required by factory mode. |
-| `reviewers` | `["code"]` | Names of checklists from the catalog that reviewers apply. |
-| `protectedPaths` | `[]` | Globs relative to the toplevel that agents must not write. |
-| `mrCommand` | none | Command that opens the merge request; `{branch}` is replaced by the working branch. Without it, nothing is pushed. |
+| Key              | Default    | Meaning                                                                                                                                                                                                                                                                                                                                    |
+|------------------|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `artifactRoot`   | `"sdlc"`   | Folder (relative to the toplevel) holding `<slug>/` artifact folders.                                                                                                                                                                                                                                                                      |
+| `defaultBranch`  | detected   | Branch that agents must never push or merge to. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`. |
+| `verifyCommand`  | none       | Command that proves the work (tests, linters, link check). Required by factory mode.                                                                                                                                                                                                                                                       |
+| `reviewers`      | `["code"]` | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                                 |
+| `protectedPaths` | `[]`       | Globs relative to the toplevel that agents must not write.                                                                                                                                                                                                                                                                                 |
+| `mrCommand`      | none       | Command that opens the merge request; `{branch}` is replaced by the working branch. Without it, nothing is pushed.                                                                                                                                                                                                                         |
 
 ## `protectedPaths` glob semantics
 

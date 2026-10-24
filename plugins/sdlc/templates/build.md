@@ -1,31 +1,31 @@
-# Build: <title>
+# Build: {{title}}
 
-Spec: <slug>
-Branch: <branch>
-Date: <YYYY-MM-DD>
+Spec: {{slug}}
+Branch: {{branch}}
+Date: {{YYYY-MM-DD}}
 
 <!-- Written by the builder when work is finished. On rework, append a section
-     `## Rework after round <K>` for each round folder whose findings were addressed, instead of
+     `## Rework after round {{K}}` for each round folder whose findings were addressed, instead of
      rewriting earlier content. -->
 
 ## What was done
 
 <!-- Summary of the changes actually made, grouped by area. -->
 
-- <change>
+- {{change}}
 
 ## Verification output
 
 <!-- Paste the literal output of the verify command. Do not paraphrase or abbreviate. -->
 
 ```
-<output of verifyCommand>
+{{output of verifyCommand}}
 ```
 
 ## Deviations from plan
 
 <!-- Where the work differs from plan.md and why. Write "None" if there are none. -->
 
-- <deviation>
+- {{deviation}}
 
 === END OF BUILD ===

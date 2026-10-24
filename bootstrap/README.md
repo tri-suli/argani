@@ -20,8 +20,10 @@ Narrow on purpose: two `CLAUDE.md` symlinks and one `settings.json` key.
 
 ## Install
 
-Run it from a stable checkout of this repository (the symlinks point into it), after reading the
-dry run:
+Run it from the **main checkout** of this repository only, after reading the dry run. The links
+point into that checkout, so they follow its current branch: run the installer after the bootstrap
+branch is merged, and note that switching the checkout to a branch without `bootstrap/` makes both
+links dangle. The installer refuses to run from a path containing `/.claude/worktrees/`.
 
 ```bash
 bash bootstrap/install.sh --dry-run
@@ -30,23 +32,34 @@ bash bootstrap/install.sh
 
 Requires `jq` and `CLAUDE_CONFIG_DIR` pointing at a directory that already has `settings.json`.
 
+The `github` marketplace source resolves only once the repository is pushed and reachable. Until
+then `claude plugin marketplace list` may show an error for `argani`; that does not affect the rest
+of the installation.
+
 ## What `install.sh` does
 
-1. Checks `jq`, `CLAUDE_CONFIG_DIR` and `settings.json`; aborts otherwise.
+1. Checks `jq`, `CLAUDE_CONFIG_DIR` and `settings.json`; aborts otherwise. Aborts when run from a
+   worktree path, or when either `CLAUDE.md` location is a directory (or anything that is neither a
+   file nor a symlink). These checks run before any change.
 2. If `~/.claude/CLAUDE.md` or `$CLAUDE_CONFIG_DIR/CLAUDE.md` is a regular file that differs from
    `claude/CLAUDE.md`, prints the `diff` and stops. `--force` backs it up and continues.
 3. If everything is already in place, prints "nothing to change" and creates no backup.
 4. Creates `$CLAUDE_CONFIG_DIR/backups/argani-<timestamp>/`.
 5. Moves a regular `CLAUDE.md` in the way into the backup directory (`home-CLAUDE.md`,
    `config-CLAUDE.md`). A regular file is never deleted. A dangling symlink is removed (`[ -L ] && [ ! -e ]`).
-   A valid symlink to somewhere else is replaced; its old target is printed.
+   Any symlink that is replaced (dangling or not) has its old target written to
+   `<backup dir>/<name>.link`.
 6. Symlinks both `CLAUDE.md` locations to `claude/CLAUDE.md`.
-7. Copies `settings.json` into the backup directory, merges the fragment with `jq -s '.[0] * .[1]'`
-   into a temporary file next to it, checks it with `jq empty`, then `mv`s it over `settings.json`.
+7. Copies `settings.json` into the backup directory, sets `extraKnownMarketplaces.argani` to the fragment's entry
+   (an assignment, not a deep merge, so a stale entry is replaced exactly) and writes it to a
+   staged copy next to `settings.json` (same mode), checks it with `jq empty`, then `mv`s it over
+   `settings.json`. A symlinked `settings.json` is kept; its target is updated.
    `hooks`, `statusLine` and `enabledPlugins` are never touched.
 8. Prints `readlink -e` of both links and runs `claude plugin marketplace list` (a failure is non-fatal).
 
-`--dry-run` prints each of these as `[dry-run] would ...` and changes nothing.
+`--dry-run` prints each of these as `[dry-run] would ...` and changes nothing. If a `CLAUDE.md`
+differs it prints `would refuse: ... differs (use --force)` and still shows the rest of the plan
+(assuming `--force`).
 
 ## Rollback
 
@@ -59,8 +72,8 @@ cp -p "$B/home-CLAUDE.md" "$HOME/.claude/CLAUDE.md"
 cp -p "$B/settings.json" "$CLAUDE_CONFIG_DIR/settings.json"
 ```
 
-If a `config-CLAUDE.md` is in the backup, copy it back the same way. The original dangling symlink
-is not backed up (it points nowhere); the installer prints its old target when it removes it.
+If a `config-CLAUDE.md` is in the backup, copy it back the same way. If a `*.link` file is in the
+backup, recreate the original symlink with `ln -s "$(cat "$B/<name>.link")" <path>`.
 
 ## Known follow-ups
 

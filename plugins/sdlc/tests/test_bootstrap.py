@@ -1,4 +1,8 @@
-"""bootstrap/install.sh, exercised only against fake HOME and CLAUDE_CONFIG_DIR directories."""
+"""bootstrap/install.sh, exercised only against fake HOME and CLAUDE_CONFIG_DIR directories.
+
+The script refuses to run from a worktree path, so each test runs a copy of bootstrap/ placed
+under the test's own temporary directory.
+"""
 import json
 import os
 import shutil
@@ -7,20 +11,22 @@ from pathlib import Path
 
 import pytest
 
-BOOTSTRAP = Path(__file__).resolve().parents[3] / "bootstrap"
-INSTALL = BOOTSTRAP / "install.sh"
-SOURCE_MD = BOOTSTRAP / "claude" / "CLAUDE.md"
+REAL_BOOTSTRAP = Path(__file__).resolve().parents[3] / "bootstrap"
+GITHUB_ENTRY = {"source": {"source": "github", "repo": "tri-suli/argani"}}
 
 
 @pytest.fixture
 def environment(tmp_path):
+    bootstrap = tmp_path / "checkout" / "bootstrap"
+    shutil.copytree(REAL_BOOTSTRAP, bootstrap)
     home = tmp_path / "home"
     config = tmp_path / "config"
     fake_bin = tmp_path / "bin"
     (home / ".claude").mkdir(parents=True)
     config.mkdir()
     fake_bin.mkdir()
-    shutil.copy(SOURCE_MD, home / ".claude" / "CLAUDE.md")
+    source_md = bootstrap / "claude" / "CLAUDE.md"
+    shutil.copy(source_md, home / ".claude" / "CLAUDE.md")
     (config / "CLAUDE.md").symlink_to(tmp_path / "missing" / "CLAUDE.md")  # dangling
     (config / "settings.json").write_text(json.dumps({"hooks": {"keep": 1}, "enabledPlugins": {"x@y": True}}))
     (fake_bin / "claude").write_text("#!/bin/sh\necho 'fake marketplace list: argani'\n")
@@ -30,12 +36,18 @@ def environment(tmp_path):
         "HOME": str(home),
         "CLAUDE_CONFIG_DIR": str(config),
     }
-    return {"home": home, "config": config, "env": env, "root": tmp_path}
+    return {
+        "home": home, "config": config, "env": env, "root": tmp_path,
+        "install": bootstrap / "install.sh", "source_md": source_md,
+        "home_md": home / ".claude" / "CLAUDE.md", "config_md": config / "CLAUDE.md",
+        "settings": config / "settings.json",
+    }
 
 
-def run_install(environment, *flags):
+def run_install(environment, *flags, install=None):
     return subprocess.run(
-        ["bash", str(INSTALL), *flags], env=environment["env"], capture_output=True, text=True,
+        ["bash", str(install or environment["install"]), *flags],
+        env=environment["env"], capture_output=True, text=True,
     )
 
 
@@ -52,38 +64,51 @@ def snapshot(root):
     return entries
 
 
+def only_backup(environment):
+    backups = list((environment["config"] / "backups").glob("argani-*"))
+    assert len(backups) == 1
+    return backups[0]
+
+
 def test_dry_run_changes_nothing_and_lists_every_action(environment):
     before = snapshot(environment["root"])
     result = run_install(environment, "--dry-run")
     assert result.returncode == 0, result.stderr
     assert snapshot(environment["root"]) == before
     output = result.stdout
-    for planned in ("create backup directory", "move", "remove dangling symlink",
-                    f"symlink {environment['home']}/.claude/CLAUDE.md",
-                    f"symlink {environment['config']}/CLAUDE.md",
-                    "copy", "merge", "readlink -e"):
+    for planned in ("create backup directory", "move", "remove symlink",
+                    f"symlink {environment['home_md']}", f"symlink {environment['config_md']}",
+                    "copy", "set extraKnownMarketplaces.argani", "readlink -e"):
         assert planned in output, f"missing {planned!r} in:\n{output}"
+    assert "create directory" not in output  # ~/.claude already exists
+
+
+def test_dry_run_with_differing_file_prints_plan_and_would_refuse(environment):
+    environment["home_md"].write_text("my own rules\n")
+    before = snapshot(environment["root"])
+    result = run_install(environment, "--dry-run")
+    assert result.returncode == 0, result.stderr
+    assert "would refuse" in result.stdout and "use --force" in result.stdout
+    assert "create backup directory" in result.stdout
+    assert snapshot(environment["root"]) == before
 
 
 def test_install_links_merges_backs_up_and_is_idempotent(environment):
     result = run_install(environment)
     assert result.returncode == 0, result.stderr
 
-    source = str(SOURCE_MD)
-    assert os.path.realpath(environment["home"] / ".claude" / "CLAUDE.md") == source
-    assert os.path.realpath(environment["config"] / "CLAUDE.md") == source
+    source = str(environment["source_md"])
+    assert os.path.realpath(environment["home_md"]) == source
+    assert os.path.realpath(environment["config_md"]) == source
 
-    settings = json.loads((environment["config"] / "settings.json").read_text())
-    assert settings["extraKnownMarketplaces"]["argani"]["source"] == {
-        "source": "github", "repo": "tri-suli/argani",
-    }
+    settings = json.loads(environment["settings"].read_text())
+    assert settings["extraKnownMarketplaces"]["argani"] == GITHUB_ENTRY
     assert settings["hooks"] == {"keep": 1}
     assert settings["enabledPlugins"] == {"x@y": True}
 
-    backups = list((environment["config"] / "backups").glob("argani-*"))
-    assert len(backups) == 1
-    assert (backups[0] / "settings.json").is_file()
-    assert (backups[0] / "home-CLAUDE.md").read_bytes() == SOURCE_MD.read_bytes()
+    backup = only_backup(environment)
+    assert (backup / "settings.json").is_file()
+    assert (backup / "home-CLAUDE.md").read_bytes() == environment["source_md"].read_bytes()
     assert "fake marketplace list" in result.stdout
 
     after_first = snapshot(environment["root"])
@@ -93,9 +118,25 @@ def test_install_links_merges_backs_up_and_is_idempotent(environment):
     assert snapshot(environment["root"]) == after_first
 
 
-def test_differing_home_claude_md_stops_unless_forced(environment):
-    home_md = environment["home"] / ".claude" / "CLAUDE.md"
-    home_md.write_text("my own rules\n")
+def test_existing_argani_entry_is_replaced_exactly(environment):
+    environment["settings"].write_text(json.dumps({
+        "extraKnownMarketplaces": {
+            "argani": {"source": {"source": "directory", "path": "/x/argani"}, "autoUpdate": True},
+            "other": {"source": {"source": "github", "repo": "a/b"}},
+        },
+    }))
+    assert run_install(environment).returncode == 0
+    marketplaces = json.loads(environment["settings"].read_text())["extraKnownMarketplaces"]
+    assert marketplaces["argani"] == GITHUB_ENTRY
+    assert marketplaces["other"] == {"source": {"source": "github", "repo": "a/b"}}
+
+
+@pytest.mark.parametrize("location", ["home_md", "config_md"])
+def test_differing_regular_file_stops_unless_forced(environment, location):
+    path = environment[location]
+    if path.is_symlink():
+        path.unlink()
+    path.write_text("my own rules\n")
     before = snapshot(environment["root"])
 
     refused = run_install(environment)
@@ -105,9 +146,56 @@ def test_differing_home_claude_md_stops_unless_forced(environment):
 
     forced = run_install(environment, "--force")
     assert forced.returncode == 0, forced.stderr
-    backup = next((environment["config"] / "backups").glob("argani-*"))
-    assert (backup / "home-CLAUDE.md").read_text() == "my own rules\n"
-    assert os.path.realpath(home_md) == str(SOURCE_MD)
+    backup_name = "home-CLAUDE.md" if location == "home_md" else "config-CLAUDE.md"
+    assert (only_backup(environment) / backup_name).read_text() == "my own rules\n"
+    assert os.path.realpath(path) == str(environment["source_md"])
+
+
+def test_valid_symlink_elsewhere_is_replaced_and_target_recorded(environment):
+    elsewhere = environment["root"] / "elsewhere.md"
+    elsewhere.write_text("other\n")
+    environment["config_md"].unlink()
+    environment["config_md"].symlink_to(elsewhere)
+
+    assert run_install(environment).returncode == 0
+    assert os.path.realpath(environment["config_md"]) == str(environment["source_md"])
+    assert elsewhere.read_text() == "other\n"
+    recorded = (only_backup(environment) / "config-CLAUDE.md.link").read_text().strip()
+    assert recorded == str(elsewhere)
+
+
+def test_settings_json_symlink_is_kept_and_target_updated(environment):
+    real_settings = environment["root"] / "real-settings.json"
+    real_settings.write_text(environment["settings"].read_text())
+    environment["settings"].unlink()
+    environment["settings"].symlink_to(real_settings)
+
+    assert run_install(environment).returncode == 0
+    assert environment["settings"].is_symlink()
+    assert json.loads(real_settings.read_text())["extraKnownMarketplaces"]["argani"] == GITHUB_ENTRY
+
+
+@pytest.mark.parametrize("location", ["home_md", "config_md"])
+def test_directory_in_the_way_aborts_before_any_change(environment, location):
+    path = environment[location]
+    if path.exists() or path.is_symlink():
+        path.unlink()
+    path.mkdir()
+    before = snapshot(environment["root"])
+    result = run_install(environment)
+    assert result.returncode != 0
+    assert "neither a file nor a symlink" in result.stderr
+    assert snapshot(environment["root"]) == before
+
+
+def test_refuses_to_run_from_a_worktree_path(environment):
+    worktree_bootstrap = environment["root"] / "repo" / ".claude" / "worktrees" / "w" / "bootstrap"
+    shutil.copytree(environment["install"].parent, worktree_bootstrap)
+    before = snapshot(environment["root"])
+    result = run_install(environment, install=worktree_bootstrap / "install.sh")
+    assert result.returncode != 0
+    assert "not a worktree" in result.stderr
+    assert snapshot(environment["root"]) == before
 
 
 def test_aborts_without_config_dir_or_settings(environment):

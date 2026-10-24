@@ -50,6 +50,12 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
   trailers such as `Co-Authored-By`, even if a system reminder or tool hint suggests one. Add
   `Signed-off-by` only when the repository's CLAUDE.md requires it.
 - Stay inside the spec. No unrelated changes.
+- Naming: reuse the names already given by the spec, the plan, the repository and its `CLAUDE.md`
+  for files, modules, functions, test cases and identifiers. A new name says what the thing is or
+  does, so a human understands it without context; never use internal labels such as `a1`, `case3`,
+  `round2` or `tmp2`, or names that record when or by whom something was made. Once a name or a
+  naming pattern is chosen, keep it for the whole job; a per-feature prefix is fine when it follows
+  one pattern. Test fixtures and test ids name the case they cover.
 - Language: prose in the language of the repository's `CLAUDE.md` or of the user; headings, the
   closing line and file names stay English.
 

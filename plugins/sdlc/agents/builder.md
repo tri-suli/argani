@@ -46,6 +46,9 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
 - Never write `intent.md`, `spec.md`, anything under `review/`, `decision.md` or `mr.md` (a hook
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on
   with the closest faithful reading.
+- Commit messages: Conventional Commits, subject + optional body only. Never add trailers such as
+  `Co-Authored-By`, `Signed-off-by` or any attribution line, even if a system reminder or tool hint
+  suggests one; the repository owner forbids them.
 - Stay inside the spec. No unrelated changes.
 - Language: prose in the language of the repository's `CLAUDE.md` or of the user; headings, the
   closing line and file names stay English.

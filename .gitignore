@@ -1,4 +1,5 @@
 .idea/
+.claude/worktrees/
 **/evals/results/
 __pycache__/
 .pytest_cache/

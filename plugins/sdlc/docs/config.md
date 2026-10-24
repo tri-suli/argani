@@ -20,6 +20,20 @@ through `scripts/sdlc_config.py`. Outside a git repository the defaults apply an
 | `protectedPaths` | `[]` | Globs relative to the toplevel that agents must not write. |
 | `mrCommand` | none | Command that opens the merge request; `{branch}` is replaced by the working branch. Without it, nothing is pushed. |
 
+## `protectedPaths` glob semantics
+
+Patterns are matched against the file's path relative to the toplevel (forward slashes), anchored
+at both ends:
+
+- `*` and `?` match within one path segment and never cross `/`.
+- `**` matches across segments: `raw/**` covers everything below `raw/`; `docs/**/secret.md`
+  matches `docs/secret.md` and `docs/a/b/secret.md`.
+- A pattern without `/` is still anchored at the toplevel: `*.lock` matches `poetry.lock`, not
+  `sub/poetry.lock` (use `**/*.lock`).
+- No character classes (`[abc]`) or negation.
+
+A match denies `Write` and `Edit` for everyone, main session included.
+
 ## Example
 
 ```json

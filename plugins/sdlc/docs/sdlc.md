@@ -99,4 +99,20 @@ checklists through `reviewers` in `.claude/sdlc.json`.
 
 ## Verified behaviour
 
-_Filled from the spike: facts observed by running the plugin, not read from documentation._
+Facts observed by running the plugin (Claude Code 2.1.310), not read from documentation.
+
+- **Agent names.** The Agent tool accepts only the plugin-prefixed form: `subagent_type: "sdlc:<agent>"`
+  (e.g. `sdlc:reviewer`). The bare name is rejected. Scope tools as `Agent(sdlc:reviewer)`.
+- **Hooks inside subagents.** Plugin `PreToolUse` hooks fire for tool calls made inside a subagent.
+  Their stdin JSON then also carries `agent_id` and `agent_type`, with `agent_type` exactly
+  `sdlc:<agent>`. The main session has neither key. `cwd` is the directory the session was launched
+  in, so the repository is resolved with `git -C <cwd> rev-parse --show-toplevel`.
+- **Hook stdin fields.** `session_id, transcript_path, cwd, permission_mode, hook_event_name,
+  tool_name, tool_input, tool_use_id`. Bash `tool_input`: `command, description`; Write:
+  `file_path, content`; Edit: `file_path, old_string, new_string, replace_all`.
+- **Eval graders.** `file_exists` accepts globs and `exists: false` for "must not exist". A `regex`
+  grader on a missing file fails (reported as "grader threw"); it does not crash the run, so assert
+  absence with `file_exists`, never with `regex`.
+- **Eval cases.** Quote the version: `schema_version: "1.0"`. A case that writes files needs
+  `allowed_tools` in `prompt.md` and the run needs `--allow-tools Write Bash`; headless runs need
+  `--trust-plugin`; add `--ablation none` to skip the no-plugin baseline arm.

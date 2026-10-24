@@ -56,8 +56,10 @@ claude plugin install sdlc@argani
 .claude-plugin/marketplace.json   marketplace manifest
 plugins/sdlc/                     the plugin
   .claude-plugin/plugin.json
-  docs/                           loop reference and configuration schema
+  docs/                           loop reference, configuration schema, review protocol
   templates/                      intent, spec, plan, build
+  checklists/                     code, security, compliance, citation, format
+  hooks/                          default-branch guard, artifact guard
   scripts/                        config loader and artifact checker
   skills/                         intent, spec, plan
   tests/                          pytest suites
@@ -70,9 +72,9 @@ bootstrap/                        global configuration (planned)
 | Component | Status |
 |---|---|
 | Skills `/sdlc:intent`, `/sdlc:spec`, `/sdlc:plan` | available |
-| Hooks (default-branch guard, verdict and path guards) | planned |
+| Hooks (default-branch guard, verdict and path guards) | available |
 | Agents (spec-writer, builder, reviewer, approver) | planned |
-| Review protocol and checklists | planned |
+| Review protocol and checklists | available |
 | Factory orchestrator `/sdlc:factory` | planned |
 | Evals | planned |
 | Bootstrap | planned |

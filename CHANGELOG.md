@@ -18,3 +18,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `plan.md` carries a `Status:` line and is checked by `artifact_check.py plan`; `artifact_check.py status` prints `draft` or `approved` for any valid artifact.
 - `sdlc_config.py` fails open: an unusable `.claude/sdlc.json` yields defaults with a note on stderr (the CLI exits 1).
 - pytest suites for both scripts.
+- Review protocol (`docs/review-protocol.md`): verdict line, findings format, closing line, two-round limit, wait for all, one writer per file, accepted bypasses.
+- Checklist catalog: `code`, `security`, `compliance`, `citation`, `format`.
+- `PreToolUse` hooks: `guard_git.py` (ask in the main session, deny in subagents for push, merge or pull on the default branch and PR/MR merges) and `guard_artifacts.py` (protected paths, verdict on line 1, round limit, one writer per file).
+- pytest suites for both hooks, run as subprocesses with stdin JSON.
+
+### Changed
+
+- `docs/sdlc.md` records the behaviour verified in the spike; `docs/config.md` defines `protectedPaths` glob semantics.

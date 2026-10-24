@@ -25,7 +25,7 @@ def test_intent_invalid(name):
 
 def test_bare_token_in_code_span_is_still_a_placeholder():
     result = run_check("intent", "g1.md")
-    assert "<claim>" in result.stdout
+    assert "{{claim}}" in result.stdout
 
 
 def test_placeholder_message_suggests_backticks():

@@ -1,52 +1,52 @@
-# Intent: <title>
+# Intent: {{title}}
 
-Author: <name>
+Author: {{name}}
 Status: draft
-Date: <YYYY-MM-DD>
+Date: {{YYYY-MM-DD}}
 
-<!-- Status is "draft" until a human approves it with /sdlc:intent approve <slug>.
-     The approved form is: Status: approved by <name> on <YYYY-MM-DD> -->
+<!-- Status is "draft" until a human approves it with /sdlc:intent approve {{slug}}.
+     The approved form is: Status: approved by {{name}} on {{YYYY-MM-DD}} -->
 
 ## Problem
 
 <!-- What is wrong or missing today, and for whom. Facts, not solutions. -->
 
-<problem>
+{{problem}}
 
 ## Desired outcome
 
 <!-- What "better" looks like once this is done. -->
 
-<outcome>
+{{outcome}}
 
 ## Affected users and systems
 
 <!-- Who and what is touched: people, repositories, services, documents. -->
 
-- <user or system>
+- {{user or system}}
 
 ## Constraints
 
 <!-- Rules the work must respect: policies, deadlines, compatibility, cost. -->
 
-- <constraint>
+- {{constraint}}
 
 ## Acceptance criteria
 
 <!-- Every item must use this exact shape, with a verification that someone can run or do:
-     - AC-1: <claim> — verify: <command | test | named manual step>
+     - AC-1: {{claim}} — verify: {{command | test | named manual step}}
      Intent without verifiable criteria cannot be approved. -->
 
-- AC-1: <claim> — verify: <command | test | named manual step>
+- AC-1: {{claim}} — verify: {{command | test | named manual step}}
 
 ## Out of scope
 
 <!-- What this work deliberately does not do. -->
 
-- <excluded item>
+- {{excluded item}}
 
 ## Open questions
 
 <!-- Unknowns the human must answer or the spec must resolve. Write "None" if empty. -->
 
-- <question>
+- {{question}}

@@ -93,8 +93,8 @@ after the decision and before the push. Nothing is ever pushed or merged without
 ## Reviewers
 
 There is one generic reviewer agent. What it checks comes from a checklist in the catalog
-(`code`, `security`, `compliance`, `citation`, `format`). The repository chooses the active
-checklists through `reviewers` in `.claude/sdlc.json`.
+(`code`, `security`, `compliance`, `ux`, `ui-design`, `citation`, `format`). The repository
+chooses the active checklists through `reviewers` in `.claude/sdlc.json`.
 
 ## Adoption order
 

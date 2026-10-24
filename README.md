@@ -80,7 +80,7 @@ plugins/sdlc/                     the plugin
   .claude-plugin/plugin.json
   docs/                           loop reference, configuration schema, review protocol
   templates/                      intent, spec, plan, build
-  checklists/                     code, security, compliance, citation, format
+  checklists/                     code, security, compliance, ux, ui-design, citation, format
   hooks/                          default-branch guard, artifact guard
   scripts/                        config loader, artifact checker, factory state reporter
   agents/                         spec-writer, builder, reviewer, approver

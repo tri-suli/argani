@@ -13,7 +13,7 @@ All paths are under `<artifactRoot>/<slug>/` (default `sdlc/<slug>/`).
 | `review/round-N/review-human.md` | the orchestrator or human, from a `rework` note | `CHANGES` | `=== END OF REVIEW ===` |
 | `decision.md` | `sdlc:approver` | `APPROVE` or `ESCALATE` | `=== END OF DECISION ===` |
 
-`<checklist>` is a name from `checklists/` (`code`, `security`, `compliance`, `citation`, `format`).
+`<checklist>` is a name from `checklists/` (`code`, `security`, `compliance`, `ux`, `ui-design`, `citation`, `format`).
 `N` starts at 1.
 
 ## Verdict line

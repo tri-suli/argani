@@ -61,7 +61,8 @@ plugins/sdlc/                     the plugin
   checklists/                     code, security, compliance, citation, format
   hooks/                          default-branch guard, artifact guard
   scripts/                        config loader and artifact checker
-  skills/                         intent, spec, plan
+  agents/                         spec-writer, builder, reviewer, approver
+  skills/                         intent, spec, plan, review
   tests/                          pytest suites
 scripts/check.sh                  validate and test
 bootstrap/                        global configuration (planned)
@@ -73,8 +74,9 @@ bootstrap/                        global configuration (planned)
 |---|---|
 | Skills `/sdlc:intent`, `/sdlc:spec`, `/sdlc:plan` | available |
 | Hooks (default-branch guard, verdict and path guards) | available |
-| Agents (spec-writer, builder, reviewer, approver) | planned |
+| Agents (spec-writer, builder, reviewer, approver) | available |
 | Review protocol and checklists | available |
+| Skill `/sdlc:review` | available |
 | Factory orchestrator `/sdlc:factory` | planned |
 | Evals | planned |
 | Bootstrap | planned |

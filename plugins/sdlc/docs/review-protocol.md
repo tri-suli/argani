@@ -99,6 +99,18 @@ Agents do not carry memory between steps: every spawn reads files named in its p
 with `CHANGES` on line 1, the note as an Important finding, and the closing line, then continues
 as a normal round. It is subject to the same two-round limit.
 
+## Agents
+
+Agents get context from files only; every spawn prompt names the files to read. Each writes exactly
+one artifact. Spawn them with `subagent_type: "sdlc:<agent>"`.
+
+| Agent | Reads | Writes | Closing line |
+|---|---|---|---|
+| `sdlc:spec-writer` | `intent.md`, repo `CLAUDE.md`, config | `spec.md` | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
+| `sdlc:builder` | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md` | code on `sdlc/<slug>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===` |
+| `sdlc:reviewer` | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md` | `=== END OF REVIEW ===` |
+| `sdlc:approver` | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat | `decision.md` | `=== END OF DECISION ===` |
+
 ## Accepted bypasses
 
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:

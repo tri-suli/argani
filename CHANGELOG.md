@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `sdlc:reviewer`, `sdlc:approver` and `sdlc:spec-writer` may write only their own file anywhere in the repository.
 - `guard_artifacts.py` asks (main session) or denies (subagent) for writes inside a repository whose `.claude/sdlc.json` is invalid, instead of silently skipping `protectedPaths`.
 - Default branch detection falls back to a local `main`, then `master`, then `init.defaultBranch`.
+- Agents `spec-writer`, `builder`, `reviewer` (sonnet), `approver`, each writing one artifact.
+- Skill `/sdlc:review <slug>`: one parallel reviewer per configured checklist, verdict table, two-round limit.
+- Manifest test for agent frontmatter.
 
 ### Changed
 

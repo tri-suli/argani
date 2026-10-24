@@ -142,7 +142,8 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
     if not spec["exists"]:
         return "needs-spec", "Spawn sdlc:spec-writer, then stop for spec approval.", None, None
     if spec["status"] != "approved":
-        problem = "is draft" if spec["status"] == "draft" else "is invalid (run artifact_check.py spec and fix it)"
+        problem = ("is draft" if spec["status"] == "draft"
+                   else "is invalid (run artifact_check.py spec and fix it)")
         return "needs-spec-approval", f"Stop: spec {problem}. Human runs {approve_spec}.", None, None
     if decision["complete"] and decision["verdict"] == "APPROVE":
         return ("needs-mr", "Create the merge request (push and mrCommand if configured, "

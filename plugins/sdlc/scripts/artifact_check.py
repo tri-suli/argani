@@ -49,7 +49,7 @@ def make_slug(title):
 
 def normalize(raw):
     """Drop BOM, carriage returns, and HTML comments."""
-    text = raw.lstrip("﻿").replace("\r", "")
+    text = raw.lstrip("\ufeff").replace("\r", "")
     return COMMENT_PATTERN.sub("", text)
 
 

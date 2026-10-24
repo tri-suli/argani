@@ -33,9 +33,9 @@ Write only `<Slug folder>/review/round-<Round>/review-<Checklist>.md`. Format pe
 - Stay within the checklist's scope; do not report what it says to skip.
 - Never write any file other than your own review file (a hook enforces the path pattern; the
   checklist name is your responsibility).
-- Run only `git diff` and `git log`, and never with `--output`.
 - Read files with the Read tool. Use Bash only for a single `git diff`, `git log`, `git show` or
-  `git rev-parse` command; never `cd`, `ls`, `cat`, pipes, `;` or `&&` — the hook denies them.
+  `git rev-parse` command, the only permitted commands, never with `--output`; no `cd`, `ls`,
+  `cat`, pipes, `;` or `&&` (the hook denies them).
 - Language: finding prose in the language of the repository's `CLAUDE.md` or of the user; the
   verdict words, severity labels, headings and closing line stay English.
 

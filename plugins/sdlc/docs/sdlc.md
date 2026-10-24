@@ -135,3 +135,7 @@ Facts observed by running the plugin (Claude Code 2.1.310), not read from docume
   prompt, wrote a spec that `artifact_check.py spec` accepted, and ran that script. Because scoped
   Bash is not enforced (above), this does not prove the variable expands inside `tools`; agent
   bodies therefore use the `Plugin root` given in the prompt, never the variable.
+- **Eval scaffolds and judges.** `case.yaml` `context.scaffold_script` is a path (relative to the
+  case folder) to a bash script, not inline text, and it only runs with `--scaffold`. An `llm`
+  grader takes `criteria` from its body and `focus` (default `last_message`); to judge a file use
+  `focus: {source: file, path: ...}`. It has no `target` key (that is `regex` only).

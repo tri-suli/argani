@@ -3,6 +3,9 @@
 
 Subagent (agent_type present) -> deny; main session -> ask. Anything else is allowed silently.
 
+The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so this guard does:
+reviewer and approver may only run read-only git; spec-writer may also run the plugin's scripts.
+
 Scope and known limits (also in docs/review-protocol.md):
 - `push --delete` matches only when the deleted branch is the default branch.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
@@ -28,6 +31,11 @@ SHELLS = {"bash", "sh", "zsh"}
 SHELL_COMMAND_FLAG = re.compile(r"^-[a-z]*c$")
 CREATE_FLAGS = {"-b", "-B", "-c", "-C", "--create", "--force-create"}
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+READ_ONLY_GIT = {"diff", "log", "show", "rev-parse"}
+PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+AGENT_SCRIPT_RUNNERS = {"sdlc:spec-writer"}
+READ_ONLY_AGENTS = {"sdlc:reviewer", "sdlc:approver", "sdlc:spec-writer"}
 
 
 def _normalize(command):
@@ -190,8 +198,53 @@ class ChainAnalyzer:
         return None
 
 
+def _is_read_only_git(tokens):
+    """`git [-C dir] diff|log|show|rev-parse ...` without --output. Other pre-options are refused."""
+    if not tokens or tokens[0] != "git":
+        return False
+    index = 3 if len(tokens) > 2 and tokens[1] == "-C" else 1
+    if index >= len(tokens) or tokens[index] not in READ_ONLY_GIT:
+        return False
+    return not any(arg == "--output" or arg.startswith("--output=") for arg in tokens[index:])
+
+
+def _is_plugin_script(tokens):
+    """`python3 <plugin root>/scripts/<name>.py ...` (root = this plugin or any .../plugins/sdlc)."""
+    if len(tokens) < 2 or tokens[0] != "python3" or not tokens[1].endswith(".py"):
+        return False
+    script = os.path.normpath(tokens[1])
+    scripts_dir, root = os.path.dirname(script), os.path.dirname(os.path.dirname(script))
+    return (os.path.basename(scripts_dir) == "scripts"
+            and (root == os.path.normpath(PLUGIN_ROOT) or root.endswith("/plugins/sdlc")))
+
+
+def agent_bash_violation(agent_type, command):
+    """Reason string when a restricted agent runs anything but its allowlisted commands."""
+    if agent_type not in READ_ONLY_AGENTS:
+        return None
+    reason = (f"sdlc guard: {agent_type.removeprefix('sdlc:')} may only run git "
+              "diff/log/show/rev-parse; write findings to your own artifact file")
+    if agent_type in AGENT_SCRIPT_RUNNERS:
+        reason = (f"sdlc guard: {agent_type.removeprefix('sdlc:')} may only run the plugin's "
+                  "python3 scripts and git diff/log/show/rev-parse; write only your own artifact file")
+    try:
+        segments = split_segments(command)
+    except ValueError:
+        return reason
+    for tokens in segments:
+        allowed = _is_read_only_git(tokens) or (
+            agent_type in AGENT_SCRIPT_RUNNERS and _is_plugin_script(tokens))
+        if not allowed:
+            return reason
+    return None
+
+
 def guard(payload):
     command = (payload.get("tool_input") or {}).get("command") or ""
+    violation = agent_bash_violation(payload.get("agent_type"), command)
+    if violation:
+        emit(payload, "deny", violation)
+        return
     if not any(keyword in command for keyword in KEYWORDS):
         return
     try:

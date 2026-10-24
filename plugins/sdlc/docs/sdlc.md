@@ -121,7 +121,8 @@ Facts observed by running the plugin (Claude Code 2.1.310), not read from docume
   with and without `Bash` in the parent's `--allowedTools`; the agent reported its tools as
   `Read, Glob, Grep, Write, Bash`. The `Bash(git diff:*)` spelling behaves the same. The scoped
   entries only make `Bash` available; they are not a command allowlist, so treat the narrow scope
-  as documentation of intent, and rely on the hooks for enforcement.
+  as documentation of intent. The restriction is enforced by `guard_git.py` (per-agent Bash
+  allowlist, see `review-protocol.md`).
 - **`${CLAUDE_PLUGIN_ROOT}` in agent frontmatter.** A spec-writer declared with
   `Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)` was spawned with the installed plugin path in its
   prompt, wrote a spec that `artifact_check.py spec` accepted, and ran that script. Because scoped

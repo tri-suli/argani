@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Agents `spec-writer`, `builder`, `reviewer` (sonnet), `approver`, each writing one artifact.
 - Skill `/sdlc:review <slug>`: one parallel reviewer per configured checklist, verdict table, two-round limit.
 - Manifest test for agent frontmatter.
+- `guard_git.py` enforces a per-agent Bash allowlist (the harness ignores `Bash(...)` scoping in agent `tools`): reviewer and approver run only read-only git without `--output`; spec-writer also runs the plugin's scripts.
 
 ### Changed
 

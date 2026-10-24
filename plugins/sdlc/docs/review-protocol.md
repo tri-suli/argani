@@ -167,15 +167,17 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is the default branch.
-- `git diff --output=<file>` and `git log --output=<file>` write a file through the allowed `git diff`/`git log` tools, outside `guard_artifacts.py`. The reviewer and approver bodies tell the agent not to use `--output`.
 - A broken `.claude/sdlc.json` makes the git guard use defaults and keep checking, while the
   artifact guard asks (main session) or denies (subagent) for every write in that repository,
   because `protectedPaths` cannot be checked.
 
 Acceptable because the reviewer and approver have `Write`, but the hook limits it to their own
-file. Their agent definitions list only `Bash(git diff *)` and `Bash(git log *)`, but that scoping is
-not enforced (see "Verified behaviour" in `sdlc.md`): in practice they have unrestricted Bash, and
-their bodies forbid anything but `git diff`/`git log`. The builder has
+file. The harness does not enforce the `Bash(...)` scoping in an agent's `tools` (see "Verified
+behaviour" in `sdlc.md`), so `guard_git.py` does: for `sdlc:reviewer` and `sdlc:approver` every
+command segment must be `git diff|log|show|rev-parse` without `--output`, and for `sdlc:spec-writer`
+also `python3 <plugin root>/scripts/<name>.py`; anything else, or an unparsable command, is denied.
+Pipes, `;`, `&&`, redirections, backticks and `bash -c` are segments like any other, so they do not
+widen the allowlist. The builder and other agents have no allowlist. The builder has
 Bash, but its prompt forbids these commands, and the protection that matters (the default branch on
 the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
 rather than widening trust.

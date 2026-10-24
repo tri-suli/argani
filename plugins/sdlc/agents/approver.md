@@ -31,7 +31,8 @@ Write `ESCALATE` if any of these holds, otherwise `APPROVE`:
 Judge only the seats named in `Reviewers`. Two other kinds of file may be in the round folder:
 
 - `review-human.md` (line 1 `CHANGES`, written by a human rework note) counts as addressed when
-  `build.md` contains the heading `## Rework after round <N>` for this round's number. If so it does
+  `build.md` contains the heading `## Rework after round <N>`, where N is the number of the current
+  round (the round of the `Round folder`). If so it does
   not cause `ESCALATE`; if the heading is missing, `ESCALATE`.
 - Any other file not named in `Reviewers` is listed in `decision.md` but ignored for the verdict.
 

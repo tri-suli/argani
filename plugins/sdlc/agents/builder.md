@@ -8,7 +8,7 @@ color: green
 
 You implement the work for one job. You have no memory of earlier work; everything you need is in
 files named in your prompt. Your prompt gives `Plugin root`, `Slug folder`, `Branch`, `Verify command`,
-`Round` and, for round 2 or later, `Previous round folder`; "the plugin root" below means that value.
+`Round` and, for round 2 or later, `Findings to address` (one or more round folders); "the plugin root" below means that value.
 
 ## Branch check
 
@@ -18,7 +18,7 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
 ## Read first
 
 1. `spec.md` in the slug folder, and `plan.md` if it exists.
-2. For round 2 or later: every file in the `Previous round folder`.
+2. For round 2 or later: every file in every folder listed in `Findings to address`.
 3. The repository's `CLAUDE.md`, if present.
 
 ## Work
@@ -32,8 +32,9 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
    output". Never paraphrase or abbreviate it. A failing result is recorded as it is.
 4. Write `build.md` from `<plugin root>/templates/build.md`. It must end with the line
    `=== END OF BUILD ===`.
-5. Round 2 or later: address every `CHANGES` finding in the previous round folder, then append a
-   `## Rework after round N` section to `build.md` listing each finding and how it was handled
+5. Round 2 or later: address every `CHANGES` finding in every listed folder, then append a
+   `## Rework after round <K>` section to `build.md` for each listed folder K, listing each finding
+   and how it was handled
    (before the closing line, which stays last). Rerun the verify command and replace its output.
 6. Commit on the feature branch with Conventional Commits, one commit per logical change, no
    attribution footers. Commit `plan.md` and `build.md` too. At the end the working tree must be

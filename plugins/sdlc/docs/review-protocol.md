@@ -64,8 +64,9 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
   (`N >= 3`). If round 2 still has `CHANGES`, stop and escalate to a human; do not try to work
   around the refusal.
 - The approver judges only the seats in `reviewers`. A `review-human.md` counts as addressed once
-  `build.md` has the heading `## Rework after round <N>` for that round, and then does not by itself
-  cause `ESCALATE`; without that heading it does. Any other file in the round folder is reported in
+  `build.md` has the heading `## Rework after round <N>` for the current round `N`, and then does not
+  by itself cause `ESCALATE`; without that heading it does. The builder writes one such heading for
+  every folder listed in its `Findings to address`. Any other file in the round folder is reported in
   `decision.md` and ignored for the verdict.
 - `human` is reserved: a configured reviewer may not be named `human`.
 - `ESCALATE` in `decision.md` stops the job and marks it as needing a human.
@@ -135,7 +136,8 @@ Slug folder: <abs slug folder>
 Branch: sdlc/<slug>
 Verify command: <verifyCommand>
 Round: <N>
-Previous round folder: <abs review/round-(N-1)>     # only when N > 1
+Findings to address: <abs round folders>            # only when N > 1: round N-1 with CHANGES,
+                                                     # and round N when it holds review-human.md
 
 # sdlc:reviewer
 Plugin root: <plugin root>
@@ -171,13 +173,16 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
   artifact guard asks (main session) or denies (subagent) for every write in that repository,
   because `protectedPaths` cannot be checked.
 
-Acceptable because the reviewer and approver have `Write`, but the hook limits it to their own
-file. The harness does not enforce the `Bash(...)` scoping in an agent's `tools` (see "Verified
+Acceptable because the reviewer, approver and spec-writer have `Write`, but the hook limits it to
+their own file everywhere: any other path is denied, including paths outside the repository and
+under `.git/`. The harness does not enforce the `Bash(...)` scoping in an agent's `tools` (see "Verified
 behaviour" in `sdlc.md`), so `guard_git.py` does: for `sdlc:reviewer` and `sdlc:approver` every
 command segment must be `git diff|log|show|rev-parse` without `--output`, and for `sdlc:spec-writer`
 also `python3 <plugin root>/scripts/<name>.py`; anything else, or an unparsable command, is denied.
-Pipes, `;`, `&&`, redirections, backticks and `bash -c` are segments like any other, so they do not
-widen the allowlist. The builder and other agents have no allowlist. The builder has
+Pipes, `;`, `&&`, redirections and `bash -c` are segments like any other, so they do not widen the
+allowlist, and a backtick or `$(` anywhere in the command (quoted or not) is denied. `--output` and
+`--ext-diff` are refused. A `diff.external` that a human configured in the repository's own
+`.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist. The builder has
 Bash, but its prompt forbids these commands, and the protection that matters (the default branch on
 the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
 rather than widening trust.

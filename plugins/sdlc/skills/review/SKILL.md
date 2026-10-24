@@ -13,11 +13,11 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
 ## Steps
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sdlc_config.py` and read `reviewers`, `defaultBranch`,
-   `artifactRoot` and `toplevel`.
+   `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
 2. The slug folder is `<toplevel>/<artifactRoot>/$ARGUMENTS/`. If `spec.md` is not there, **stop**
    and name the missing file.
-3. Check the change: `git -C <toplevel> rev-parse --abbrev-ref HEAD` must not equal `defaultBranch`,
-   and `git -C <toplevel> diff --quiet <defaultBranch>...HEAD` must report a difference (exit 1).
+3. Check the change: `git rev-parse --abbrev-ref HEAD` must not equal `defaultBranch`,
+   and `git diff --quiet <defaultBranch>...HEAD` must report a difference (exit 1).
    Otherwise **stop** and say there is nothing to review.
 4. Pick the round number `N` from the highest existing `review/round-*` folder `H`:
    - No round folder: `N = 1`.

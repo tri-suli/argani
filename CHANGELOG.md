@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - pytest suites for both hooks, run as subprocesses with stdin JSON.
 - `guard_git.py` parses shell keywords and wrappers (`then`, `do`, `{`, `!`, `time`, `command`, `exec`, `nohup`, `sudo`/`env` options), absolute `git` paths, backticks and `bash|sh|zsh -c` strings, and simulates the current branch through `checkout`/`switch` chains.
 - `sdlc:reviewer`, `sdlc:approver` and `sdlc:spec-writer` may write only their own file anywhere in the repository.
+- `guard_artifacts.py` asks (main session) or denies (subagent) for writes inside a repository whose `.claude/sdlc.json` is invalid, instead of silently skipping `protectedPaths`.
 - Default branch detection falls back to a local `main`, then `master`, then `init.defaultBranch`.
 
 ### Changed

@@ -112,8 +112,9 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is the default branch.
-- A broken `.claude/sdlc.json` falls back to defaults: the git guard still works (default branch
-  detection continues), but `protectedPaths` and a custom `artifactRoot` cannot apply.
+- A broken `.claude/sdlc.json` makes the git guard use defaults and keep checking, while the
+  artifact guard asks (main session) or denies (subagent) for every write in that repository,
+  because `protectedPaths` cannot be checked.
 
 Acceptable because the reviewer and approver have `Write`, but the hook limits it to their own
 file, and their Bash is limited to `git diff`/`git log` (see the agent definitions). The builder has

@@ -6,6 +6,12 @@ import pytest
 AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
 AGENT_FILES = sorted(AGENTS_DIR.glob("*.md"))
 EXPECTED = {"spec-writer", "builder", "reviewer", "approver"}
+READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write", "Bash(git diff *)", "Bash(git log *)"}
+CLOSING_LINES = {
+    "builder": "=== END OF BUILD ===",
+    "reviewer": "=== END OF REVIEW ===",
+    "approver": "=== END OF DECISION ===",
+}
 
 
 def parse_frontmatter(path):
@@ -48,8 +54,14 @@ def test_reviewer_runs_on_sonnet_and_other_agents_inherit():
         assert parse_frontmatter(path)["model"] == expected
 
 
-def test_reviewer_and_approver_have_no_unrestricted_bash_or_edit():
-    for name in ("reviewer", "approver"):
-        tools = tool_names(parse_frontmatter(AGENTS_DIR / f"{name}.md"))
-        assert "Bash" not in tools
-        assert "Edit" not in tools
+@pytest.mark.parametrize("name", ["reviewer", "approver"])
+def test_reviewer_and_approver_have_exact_tool_set(name):
+    tools = tool_names(parse_frontmatter(AGENTS_DIR / f"{name}.md"))
+    assert set(tools) == READ_ONLY_WRITERS
+    assert len(tools) == len(READ_ONLY_WRITERS)
+
+
+@pytest.mark.parametrize("name", sorted(CLOSING_LINES))
+def test_agent_body_contains_its_closing_line(name):
+    body = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+    assert CLOSING_LINES[name] in body

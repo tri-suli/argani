@@ -11,6 +11,13 @@ def git(directory, *args):
     )
 
 
+@pytest.fixture(autouse=True)
+def hermetic_git_config(monkeypatch):
+    """Ignore the developer's global and system git config; hook subprocesses inherit this."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture
 def make_repo(tmp_path):
     """Factory: a git repo on `main` with one commit and an optional .claude/sdlc.json."""

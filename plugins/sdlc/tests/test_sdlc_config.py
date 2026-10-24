@@ -79,3 +79,11 @@ def test_default_branch_detects_local_master(tmp_path):
     run_git(repo, "init", "-q", "-b", "master")
     run_git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i")
     assert sdlc_config.load_config(repo)["defaultBranch"] == "master"
+
+
+def test_default_branch_uses_init_default_branch_from_global_config(tmp_path, monkeypatch):
+    global_config = tmp_path / "gitconfig"
+    global_config.write_text("[init]\n\tdefaultBranch = develop\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    repo = make_repo(tmp_path / "repo")  # created on branch trunk: no main or master
+    assert sdlc_config.load_config(repo)["defaultBranch"] == "develop"

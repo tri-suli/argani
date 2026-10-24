@@ -22,7 +22,9 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 STATUS_LINE_PATTERN = re.compile(r"^Status:")
 STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}-\d{2}-\d{2}))$")
-AC_ITEM_PATTERN = re.compile(r"^- AC-(\d+): .+ — verify: \S.*$")
+AC_ITEM_PATTERN = re.compile(r"^- AC-(\d+): .+ — verify: (\S.*)$")
+# Values that stand in for a verification instead of naming one (compared case-insensitively).
+FILLER_VERIFY_VALUES = {"tbd", "tba", "tbc", "todo", "later", "unknown", "none", "n/a", "na", "-", "—", "?", "…"}
 PLACEHOLDER_PATTERN = re.compile(r"\{\{[^{}\n]+\}\}")
 COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.S)
 CODE_SPAN_PATTERN = re.compile(r"`[^`\n]*`")
@@ -138,6 +140,12 @@ def check_common(text, kind):
     return violations, sections, status
 
 
+def is_filler_verify(value):
+    """True when the verify value is empty once backticks are dropped, or a filler such as TBD."""
+    bare = value.strip().strip("`").strip().rstrip(".").lower()
+    return not bare or bare in FILLER_VERIFY_VALUES
+
+
 def check_acceptance_criteria(lines):
     violations, numbers = [], []
     items = [line for line in lines if line.strip()]
@@ -149,6 +157,9 @@ def check_acceptance_criteria(lines):
             violations.append(f"line in Acceptance criteria must read '- AC-n: <claim> — verify: <how>': {line!r}")
         else:
             numbers.append(match.group(1))
+            if is_filler_verify(match.group(2)):
+                violations.append(f"AC-{match.group(1)} has no real verification (got {match.group(2).strip()!r}); "
+                                  "name a command, a test, or a manual step")
     for number in sorted({n for n in numbers if numbers.count(n) > 1}):
         violations.append(f"duplicate AC number: AC-{number}")
     return violations

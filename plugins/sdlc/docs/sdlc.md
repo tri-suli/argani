@@ -53,6 +53,9 @@ Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
 - AC-1: <claim> — verify: <command | test | named manual step>
 ```
 
+A filler instead of a verification (`TBD`, `TODO`, `N/A`, `none`, `?`, `-`, `...`) or an empty
+code span fails the check, so the intent cannot be approved until each AC names a real one.
+
 Artifact prose follows the language of the repository's `CLAUDE.md` or of the user. File names,
 Status lines, `AC-n`, `verify:` and verdict words stay in English. So do the `# Intent:`,
 `# Spec:` and `# Plan:` title prefixes and the `##` section headings; only the prose is in the

@@ -103,7 +103,7 @@ Agents do not carry memory between steps: every spawn reads files named in its p
 
 **Human rework.** `/sdlc:factory rework <slug> <note>` writes `review/round-N+1/review-human.md`
 with `CHANGES` on line 1, the note as an Important finding, and the closing line, then continues
-as a normal round. It is subject to the same two-round limit.
+as a normal round. It is subject to the same two-round limit: it is refused after round 2, and the hook denies `round-3`.
 
 ## Agents
 

@@ -82,6 +82,8 @@ places: the intent (human approves), the spec (human approves), and the merge re
 reviews and merges). `plan.md` is written by the builder before it changes any code and is
 reviewed together with the diff in the merge request. Factory mode is expensive (several agents
 per job, up to two rounds), so use it only for jobs with clear acceptance criteria.
+The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
+`scripts/factory_state.py <slug>`, which only reports and never writes.
 
 ## Reviewers
 

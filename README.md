@@ -50,6 +50,21 @@ claude plugin install sdlc@argani
 
 `bash scripts/check.sh` runs both validations and the test suite.
 
+## Factory mode
+
+Prerequisites: an approved `intent.md` and `spec.md`, and `verifyCommand` plus `reviewers` in
+`.claude/sdlc.json`.
+
+```
+/sdlc:factory <slug>                 # advances until the next human gate, then stops
+/sdlc:factory rework <slug> <note>   # add a human CHANGES note after a clean round 1
+```
+
+It stops at the spec (approve it, then run it again) and at the merge request. With `mrCommand`
+configured it pushes `sdlc/<slug>` and opens the MR; without it, it only prints the push and MR
+instructions. Cost: one spec-writer, one builder per round, one reviewer per checklist per round,
+one approver; use it for jobs with clear acceptance criteria.
+
 ## Layout
 
 ```
@@ -60,9 +75,9 @@ plugins/sdlc/                     the plugin
   templates/                      intent, spec, plan, build
   checklists/                     code, security, compliance, citation, format
   hooks/                          default-branch guard, artifact guard
-  scripts/                        config loader and artifact checker
+  scripts/                        config loader, artifact checker, factory state reporter
   agents/                         spec-writer, builder, reviewer, approver
-  skills/                         intent, spec, plan, review
+  skills/                         intent, spec, plan, review, factory
   tests/                          pytest suites
 scripts/check.sh                  validate and test
 bootstrap/                        global configuration (planned)
@@ -77,7 +92,7 @@ bootstrap/                        global configuration (planned)
 | Agents (spec-writer, builder, reviewer, approver) | available |
 | Review protocol and checklists | available |
 | Skill `/sdlc:review` | available |
-| Factory orchestrator `/sdlc:factory` | planned |
+| Factory orchestrator `/sdlc:factory` | available |
 | Evals | planned |
 | Bootstrap | planned |
 

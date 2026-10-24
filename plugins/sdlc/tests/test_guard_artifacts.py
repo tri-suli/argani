@@ -23,7 +23,7 @@ DECISION = "sdlc/demo/decision.md"
 
 @pytest.mark.parametrize("content", [
     "PASS" + END_REVIEW, "PASS looks fine" + END_REVIEW, "CHANGES needs tests" + END_REVIEW,
-    "CHANGES\n- [Important] a.py:1 - ...", "﻿PASS\n", "PASS\r\nbody\r\n",
+    "CHANGES\n- [Important] a.py:1 - ...", "\ufeffPASS\n", "PASS\r\nbody\r\n",
 ])
 def test_valid_review_first_line_is_allowed(repo, content):
     assert write(repo, REVIEW, content) is None
@@ -122,9 +122,27 @@ def test_main_session_and_other_agents_are_not_restricted_by_writer_rule(repo):
     assert write(repo, REVIEW, "PASS\n") is None
 
 
-def test_restrictions_apply_only_under_artifact_root(repo):
-    assert write(repo, "decision.md", "x", "sdlc:reviewer") is None
-    assert write(repo, "docs/spec.md", "x", "sdlc:builder") is None
+@pytest.mark.parametrize("agent_type", ["sdlc:reviewer", "sdlc:approver", "sdlc:spec-writer"])
+@pytest.mark.parametrize("relative", ["src/a.py", "decision.md", "sdlc/README.md", "docs/spec.md"])
+def test_sole_writer_agents_are_denied_everywhere_else_in_the_repository(repo, agent_type, relative):
+    assert decision_of(write(repo, relative, "x", agent_type)) == "deny"
+
+
+def test_builder_may_write_source_files(repo):
+    assert write(repo, "src/a.py", "x", "sdlc:builder") is None
+
+
+def test_sole_writer_rule_does_not_apply_outside_a_repository(tmp_path_factory):
+    outside = tmp_path_factory.mktemp("outside")
+    assert write(outside, "src/a.py", "x", "sdlc:reviewer") is None
+
+
+def test_broken_config_keeps_the_artifact_rules(make_repo):
+    repo = make_repo()
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "sdlc.json").write_text('{"protectedPaths": ["raw/**"')  # truncated
+    assert decision_of(write(repo, REVIEW, "Hasil: PASS\n")) == "deny"
+    assert write(repo, "raw/a.txt", "x") is None  # protectedPaths cannot be read, so not applied
 
 
 def test_protected_paths_are_denied_for_everyone(make_repo):

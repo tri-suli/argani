@@ -40,7 +40,7 @@ Per job, in `<artifactRoot>/<slug>/` (default `sdlc/<slug>/`, see `config.md`):
 ```
 intent.md     Status: draft | approved by <name> on <YYYY-MM-DD>; acceptance criteria in a fixed shape
 spec.md       same Status forms; maps each AC to how it is verified; flags concerns
-plan.md       files that change, order, risks, proof
+plan.md       same Status forms; files that change, order, risks, proof
 build.md      work done, literal verification output, deviations; ends with === END OF BUILD ===
 review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === END OF REVIEW ===
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
@@ -54,7 +54,9 @@ Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
 ```
 
 Artifact prose follows the language of the repository's `CLAUDE.md` or of the user. File names,
-Status lines, `AC-n`, `verify:` and verdict words stay in English.
+Status lines, `AC-n`, `verify:` and verdict words stay in English. So do the `# Intent:`,
+`# Spec:` and `# Plan:` title prefixes and the `##` section headings; only the prose is in the
+project language.
 
 ## Always-on rules
 

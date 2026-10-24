@@ -39,4 +39,7 @@ through `scripts/sdlc_config.py`. Outside a git repository the defaults apply an
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sdlc_config.py [dir]
 ```
 
-Prints the merged configuration as JSON, plus `toplevel`.
+Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`. `null` values are
+ignored and types are checked (`reviewers` and `protectedPaths` must be lists of strings, the other
+keys strings). An unusable file makes the command exit 1 with an error on stderr, while
+`load_config()` falls back to the defaults with a note on stderr so that hooks fail open.

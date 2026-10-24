@@ -42,7 +42,7 @@ Per-repository options live in `.claude/sdlc.json`; see
 
 ```bash
 claude plugin validate . --strict
-claude plugin marketplace add ./argani
+claude plugin marketplace add ./
 claude plugin install sdlc@argani
 # inside a session:
 /reload-plugins

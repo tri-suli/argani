@@ -1,33 +1,53 @@
 ---
 name: plan
-description: Write plan.md from an approved spec, the gate before any change in manual mode. Use when a spec is approved and the user is ready to plan the work. Slash form /sdlc:plan <slug>.
-argument-hint: "<slug>"
-allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read, Write, Edit, Glob, Grep
+description: Write or approve plan.md from an approved spec, the gate before any change in manual mode. Use when a spec is approved and the user is ready to plan the work, or when a plan needs approval. Slash form /sdlc:plan <slug> or /sdlc:plan approve <slug>.
+argument-hint: "<slug> | approve <slug>"
+allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git config user.name), Bash(date +%F), Read, Write, Edit, Glob, Grep
 ---
 
 # /sdlc:plan
 
-Background on the loop, statuses and rules: `../../docs/sdlc.md`. This skill writes only plan.md;
-it never changes code or documents outside the artifact folder.
+Background on the loop, statuses and rules: `${CLAUDE_PLUGIN_ROOT}/docs/sdlc.md`.
+This skill writes only plan.md; it never changes code or documents outside the artifact folder.
 
 ## Setup
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sdlc_config.py` and read `artifactRoot`.
-2. Artifact language: the language of this repository's CLAUDE.md, else the user's. File names and
-   `AC-n` stay English.
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sdlc_config.py`. If it fails, show its error and stop.
+   Read `toplevel` and `artifactRoot`. Artifacts live in `<toplevel>/<artifactRoot>/<slug>/`;
+   use the current directory when `toplevel` is null.
+2. Artifact language: the language of this repository's CLAUDE.md, else the user's. Only the
+   prose is in that language. The `# Plan:` title prefix, the `##` section headings, file names,
+   `Status:` lines and `AC-n` always stay English.
+3. Mode: it is `approve` only when `$ARGUMENTS` is exactly two tokens, `approve <slug>`, and the
+   folder `<artifact dir>/<slug>/` exists. Otherwise `$ARGUMENTS` is the `<slug>`.
 
-## Steps
+## Write mode
 
-1. Read `<artifactRoot>/<slug>/spec.md`. If its Status line is not
-   `Status: approved by <name> on <YYYY-MM-DD>`, **stop**: name the file, say the spec is not
-   approved, and tell the user to run `/sdlc:spec approve <slug>`. Do not write plan.md.
-2. Recommend running this skill in plan mode so nothing outside the artifact folder can change
-   while planning.
-3. Read the spec's affected areas in the repository, then write `<artifactRoot>/<slug>/plan.md`
-   from `${CLAUDE_PLUGIN_ROOT}/templates/plan.md`:
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py status <artifact dir>/<slug>/spec.md`.
+   - Non-zero exit: stop and show the violations.
+   - Prints `draft`: **stop**. Name the file, say the spec is not approved, and tell the user to
+     run `/sdlc:spec approve <slug>`. Do not write plan.md.
+2. If `plan.md` already exists in that folder, stop and ask before touching it.
+3. Planning can be thought through in plan mode if the user likes; write plan.md after leaving
+   plan mode, since plan mode does not allow writing files.
+4. Read the spec's affected areas in the repository, then write `plan.md` from
+   `${CLAUDE_PLUGIN_ROOT}/templates/plan.md` with `Status: draft`:
    - Files that change, each with a reason.
    - Order of work, in steps small enough to commit one by one.
    - Risks and how each is contained.
    - Proof: which check proves each AC from the spec. Every AC must appear.
-4. Tell the user that in manual mode the plan is the gate before any code or document changes:
-   work starts only after the human has read and accepted plan.md.
+5. Run `artifact_check.py plan <file>`; fix until `VALID`.
+6. Tell the user that in manual mode the plan is the gate before any code or document changes:
+   work starts only after the human has read plan.md and run `/sdlc:plan approve <slug>`.
+
+## Approve mode
+
+1. Run `artifact_check.py status <plan.md>`.
+   - Non-zero exit: refuse, show the violations verbatim, never set the approved status.
+   - Prints `approved`: say it is already approved and stop.
+2. Run `git config user.name`. If it is empty, stop and ask the user to set it.
+3. Run `date +%F`, then replace the Status line with
+   `Status: approved by <user.name> on <YYYY-MM-DD>`.
+4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`
+   and show the violations.
+5. Say that work may now start.

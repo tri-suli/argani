@@ -101,7 +101,7 @@ bootstrap/                        global CLAUDE.md and marketplace registration
 | Review protocol and checklists | available |
 | Skill `/sdlc:review` | available |
 | Factory orchestrator `/sdlc:factory` | available |
-| Evals (`plugins/sdlc/evals`, three cases) | available |
+| Evals (`plugins/sdlc/evals`, two cases) | available |
 | Bootstrap (`bootstrap/`) | available |
 
 ## License

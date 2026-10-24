@@ -17,10 +17,6 @@ CHECKER = PLUGIN_ROOT / "scripts" / "artifact_check.py"
 # case name -> {artifact kind: expected Status prefix}
 EXPECTED = {
     "spec-refuses-unapproved-intent": {"intent": "Status: draft"},
-    "review-verdict-first-line": {
-        "intent": "Status: approved by",
-        "spec": "Status: approved by",
-    },
 }
 
 
@@ -42,16 +38,3 @@ def test_scaffolded_artifacts_are_valid(case_name, tmp_path):
             capture_output=True, text=True,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-
-
-def test_review_fixture_has_job_branch_ahead_of_main(tmp_path):
-    scaffold("review-verdict-first-line", tmp_path)
-    def git(*args):
-        return subprocess.run(
-            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True, text=True,
-        ).stdout.strip()
-    assert git("rev-parse", "--abbrev-ref", "HEAD") == "sdlc/demo-login"
-    assert git("rev-list", "--count", "main..HEAD") == "1"
-    assert git("status", "--porcelain") == ""
-    build = (tmp_path / "sdlc" / "demo-login" / "build.md").read_text().rstrip()
-    assert build.endswith("=== END OF BUILD ===")

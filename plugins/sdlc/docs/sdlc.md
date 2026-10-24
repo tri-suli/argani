@@ -142,5 +142,5 @@ Facts observed by running the plugin (Claude Code 2.1.310), not read from docume
 - **No git in the eval sandbox.** Inside `claude plugin eval` runs `/usr/bin/git` is replaced by the
   null device, so any git call fails with `Permission denied` even though `Bash` is granted with
   `--allow-tools`; the grant is not the cause and no flag restores it. Evals whose subject needs
-  git (`/sdlc:review`, `sdlc_config.py` toplevel) therefore cannot be reliable; deterministic
-  coverage lives in pytest.
+  git (`/sdlc:review`, the factory) cannot pass by design, so they are not evals; they are covered by
+  pytest and a manual headless smoke (see `evals/README.md`).

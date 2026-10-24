@@ -13,8 +13,8 @@ claude plugin eval plugins/sdlc --runs 1 --max-cost-usd 3 --trust-plugin --no-pu
 
 - `--scaffold` is required: two cases build a fixture repository with `scaffold.sh` (needs git >= 2.28 for `git init -b`).
 - `--trust-plugin` is required headless; `--ablation none` skips the no-plugin baseline arm.
-- `--case <glob>` runs a single case, for example `--case 'review-*'`.
-- Cost: about $0.50 for all three cases at `--runs 1` (about $0.10 to $0.20 per case).
+- `--case <glob>` runs a single case, for example `--case 'intent-*'`.
+- Cost: about $0.30 for both cases at `--runs 1` (about $0.10 to $0.20 per case).
 - Do not run while another `sdlc` plugin is installed from the `argani` marketplace; the session
   would see duplicate skills and agents. Results are written to `evals/results/` (gitignored).
 
@@ -24,16 +24,27 @@ claude plugin eval plugins/sdlc --runs 1 --max-cost-usd 3 --trust-plugin --no-pu
 |---|---|
 | `intent-produces-artifact` | `/sdlc:intent` writes `sdlc/demo-login/intent.md` as a draft with the template title and every AC in the `- AC-n: ... — verify: ...` shape; an LLM judge checks verification quality, sections and language consistency. |
 | `spec-refuses-unapproved-intent` | `/sdlc:spec` on a draft intent writes no `spec.md`, says the intent is not approved and names `/sdlc:intent approve demo-login`. |
-| `review-verdict-first-line` | `/sdlc:review` produces `review/round-1/review-code.md` whose first line is `PASS` or `CHANGES`, which ends with `=== END OF REVIEW ===`, and which reports the planted bug in `calc.py` as `CHANGES`. |
 
-## Known limitation: git is unavailable inside the eval sandbox
+## Not covered by evals
 
-In a kept eval sandbox (`--keep-temp`) `/usr/bin/git` is a character device (`crw-rw-rw- 1,3`, the
-null device), so every `git` call fails with `Permission denied`, and the shell cannot write its
-cwd file (`Read-only file system`). This is the runner's sandbox, not a tool grant: `Bash` was
-granted with `--allow-tools` and ran fine, so no extra flag fixes it. Consequences for
-`review-verdict-first-line`: `sdlc_config.py` reports `toplevel: null`, and `/sdlc:review` either
-stops at step 2 without spawning a reviewer (file missing, all file graders fail) or a reviewer
-reviews without the diff. The rubric fails the latter ("could not read the git diff"). The case is
-kept because it is the only one that exercises the review verdict contract; expect it to be
-unreliable until the runner exposes git.
+The eval sandbox masks `git` (`/usr/bin/git` is the null device and every call fails with
+`Permission denied`), so anything that needs a repository cannot be evaluated: `/sdlc:review`, the
+reviewer's diff and the factory. Those contracts are covered by the hook and script tests (pytest) and
+by this manual headless smoke:
+
+1. Make a scratch repo on a branch `sdlc/<slug>` with `main` behind it and a commit that contains a
+   small, obvious bug.
+2. Add `.claude/settings.json` with `{"enabledPlugins": {"sdlc@argani": true}}` (the marketplace
+   must be registered) and `.claude/sdlc.json` with `{"reviewers": ["code"]}`.
+3. Add `sdlc/<slug>/` with an approved `intent.md` and `spec.md`, a `plan.md`, and a `build.md`
+   ending in `=== END OF BUILD ===`.
+4. Run, from the repo root:
+
+   ```bash
+   env -u CLAUDECODE claude -p "/sdlc:review <slug>" --output-format json \
+     --permission-mode acceptEdits --allowedTools "Agent,Bash,Read,Write,Glob,Grep" --max-turns 15
+   ```
+
+5. Check: `sdlc/<slug>/review/round-1/review-code.md` exists; line 1 is `PASS` or `CHANGES` (here
+   `CHANGES`); the last line is `=== END OF REVIEW ===`; a finding names the buggy file with a
+   `file:line`; the reviewer did not report being unable to read the diff.

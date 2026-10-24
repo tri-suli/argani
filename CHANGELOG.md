@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
 - Factory orchestrator commits the job folder on `sdlc/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/sdlc:factory <slug>` and `/sdlc:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
-- Eval suite (`plugins/sdlc/evals`): `intent-produces-artifact`, `spec-refuses-unapproved-intent`, `review-verdict-first-line`, plus a README and a pytest check that the scaffolded fixtures pass `artifact_check.py`.
+- Eval suite (`plugins/sdlc/evals`): `intent-produces-artifact` and `spec-refuses-unapproved-intent`, plus a README and a pytest check that the scaffolded fixtures pass `artifact_check.py`.
 - `bootstrap/`: versioned global `CLAUDE.md`, `settings.fragment.json` (marketplace registration only) and an idempotent `install.sh` with `--dry-run`, `--force`, backups and atomic settings merge, with pytest coverage against fake directories.
 
 ### Changed

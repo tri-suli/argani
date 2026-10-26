@@ -27,6 +27,7 @@ def test_defaults_outside_git_repo(tmp_path):
     assert config["protectedPaths"] == []
     assert config["verifyCommand"] is None
     assert config["mrCommand"] is None
+    assert config["branchPattern"] == "feature/{slug}"
 
 
 def test_default_branch_falls_back_to_main_without_remote(tmp_path):

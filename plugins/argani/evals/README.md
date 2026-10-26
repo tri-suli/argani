@@ -32,8 +32,8 @@ The eval sandbox masks `git` (`/usr/bin/git` is the null device and every call f
 reviewer's diff and the factory. Those contracts are covered by the hook and script tests (pytest) and
 by this manual headless smoke:
 
-1. Make a scratch repo on a branch `argani/<slug>` with `main` behind it and a commit that contains a
-   small, obvious bug.
+1. Make a scratch repo on the job branch (`feature/<slug>` by default) with `main` behind it and a
+   commit that contains a small, obvious bug.
 2. Add `.claude/settings.json` with `{"enabledPlugins": {"argani@argani": true}}` (the marketplace
    must be registered) and `.claude/argani.json` with `{"reviewers": ["code"]}`.
 3. Add `argani/<slug>/` with an approved `intent.md` and `spec.md`, a `plan.md`, and a `build.md`

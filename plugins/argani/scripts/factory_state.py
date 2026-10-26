@@ -192,7 +192,7 @@ def build_state(slug, start_dir="."):
     job_dir = toplevel / config["artifactRoot"] / slug
     if not job_dir.is_dir():
         return None
-    branch = f"argani/{slug}"
+    branch = argani_config.job_branch(config, slug)
     current = argani_config.current_branch(start_dir)
 
     intent = document_state(job_dir / "intent.md", "Intent")
@@ -224,7 +224,8 @@ def build_state(slug, start_dir="."):
         "current_branch": current,
         "on_job_branch": current == branch,
         "dirty": is_dirty(toplevel, job_dir),
-        "default_branch": config["defaultBranch"],
+        "base_branch": config["baseBranch"],
+        "protected_branches": config["protectedBranches"],
         "intent": intent,
         "spec": spec,
         "build": build,
@@ -250,12 +251,13 @@ def main(argv):
         return 1
     try:
         state = build_state(argv[1], start_dir)
+        branch = None if state else argani_config.job_branch(argani_config.load_config(start_dir), argv[1])
     except ValueError as error:
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
         print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository. "
-              f"After the first build the artifacts live on the job branch: try 'git switch argani/{argv[1]}'.")
+              f"After the first build the artifacts live on the job branch: try 'git switch {branch}'.")
         return 1
     print(json.dumps(state, indent=2))
     return 0

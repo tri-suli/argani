@@ -44,7 +44,9 @@ terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at m
 | `done`                                         | Say the job is done. Nothing else.                                                                                |
 | `escalate`                                     | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3.                              |
 
-"Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `argani/<slug>`.
+`<branch>` below is the state's `branch`: the repository's `branchPattern` (default `feature/{slug}`)
+with the slug filled in. Never build the name yourself.
+"Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `<branch>`.
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
 overwrite the file completely". If `review:human` is partial, do not spawn anything: tell the human to
 fix or delete `review-human.md`.
@@ -71,15 +73,15 @@ Language: <language of the repository's CLAUDE.md, else of the intent>
 
 1. **Stop** if `current_branch` is `HEAD` (detached) or `dirty` is true (job-folder files do not count):
    ask the human to switch branch or commit/stash.
-2. If `on_job_branch` is false: `git switch argani/<slug>` if `git rev-parse --verify argani/<slug>` succeeds,
-   else `git switch -c argani/<slug> <default_branch>`. If the switch fails, **stop** and show the error.
+2. If `on_job_branch` is false: `git switch <branch>` if `git rev-parse --verify <branch>` succeeds,
+   else `git switch -c <branch> <base_branch>`. If the switch fails, **stop** and show the error.
 3. Re-run state; if `on_job_branch` is still false, **stop**. Only then Record (`artifacts before build`;
    never commit on any other branch), and spawn `argani:builder`:
 
 ```
 Plugin root: <plugin root>
 Slug folder: <job_dir>
-Branch: argani/<slug>
+Branch: <branch>
 Verify command: <verifyCommand>
 Round: <review_round>
 Findings to address: <job_dir>/review/round-<rework_from>/       (only when rework_from is not null;
@@ -101,7 +103,7 @@ Run steps 5 and 6 of `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` for `N = rev
 Plugin root: <plugin root>
 Slug folder: <job_dir>
 Round folder: <job_dir>/review/round-<review_round>/
-Default branch: <default_branch>
+Base branch: <base_branch>
 Reviewers: <reviewers, comma-separated>
 Protected paths: <protectedPaths, comma-separated, or "none">
 ```
@@ -109,12 +111,12 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 ### Merge request (`needs-mr`)
 
 Record first (only with `on_job_branch` true). Then:
-- `mrCommand` configured: `git push -u origin argani/<slug>`, then `mrCommand` with `{branch}` replaced by
-  `argani/<slug>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
+- `mrCommand` configured: `git push -u origin <branch>`, then `mrCommand` with `{branch}` replaced by
+  `<branch>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
   (output or URL, branch, today's date), commit it (`chore(argani): record <slug> merge request`, local only),
   and stop: "MR ready for human review".
-- Not configured: do **not** push. Stop and print `git push -u origin argani/<slug>` and "open a merge
-  request from argani/<slug> into <default_branch>"; the human writes `mr.md` (URL and branch) or
+- Not configured: do **not** push. Stop and print `git push -u origin <branch>` and "open a merge
+  request from <branch> into <base_branch>"; the human writes `mr.md` (URL and branch) or
   configures `mrCommand` and re-runs.
 
 ## `rework <slug> <note>`

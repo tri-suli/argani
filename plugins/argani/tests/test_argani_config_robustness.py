@@ -52,6 +52,54 @@ def test_current_branch_in_output(tmp_path):
     assert argani_config.load_config(tmp_path)["currentBranch"] is None
 
 
+@pytest.mark.parametrize("pattern", ['"feat/{slug}"', '"{slug}"', '"users/tri/{slug}-work"'])
+def test_valid_branch_pattern_is_kept(tmp_path, pattern):
+    repo = make_repo(tmp_path / "repo", f'{{"branchPattern": {pattern}}}')
+    config = argani_config.load_config(repo, strict=True)
+    assert config["branchPattern"] == pattern.strip('"')
+    assert argani_config.job_branch(config, "login") == pattern.strip('"').replace("{slug}", "login")
+
+
+@pytest.mark.parametrize("pattern, reason", [
+    ('"feature/login"', "exactly once"),
+    ('"{slug}/{slug}"', "exactly once"),
+    ('"feature..{slug}"', "not a valid git branch name"),
+    ('"feature/{slug}.lock"', "not a valid git branch name"),
+    ("42", "expected a string"),
+])
+def test_invalid_branch_pattern_is_rejected(tmp_path, pattern, reason):
+    repo = make_repo(tmp_path / "repo", f'{{"branchPattern": {pattern}}}')
+    with pytest.raises(ValueError, match=reason):
+        argani_config.load_config(repo, strict=True)
+    assert argani_config.load_config(repo)["branchPattern"] == "feature/{slug}"
+
+
+def test_base_branch_defaults_to_default_branch(tmp_path):
+    config = argani_config.load_config(make_repo(tmp_path / "repo", '{"defaultBranch": "main"}'))
+    assert config["baseBranch"] == "main"
+    assert config["protectedBranches"] == ["main"]
+
+
+def test_git_flow_protects_default_and_base(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": "main", "baseBranch": "develop"}')
+    assert argani_config.load_config(repo)["protectedBranches"] == ["main", "develop"]
+
+
+def test_protected_branches_can_add_but_never_remove(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": "main", "protectedBranches": ["release", "main"]}')
+    assert argani_config.load_config(repo)["protectedBranches"] == ["main", "release"]
+    empty = make_repo(tmp_path / "empty", '{"defaultBranch": "main", "protectedBranches": []}')
+    assert argani_config.load_config(empty)["protectedBranches"] == ["main"]
+
+
+def test_job_branch_refuses_the_base_branch(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": "main", "baseBranch": "develop", "branchPattern": "{slug}"}')
+    config = argani_config.load_config(repo, strict=True)
+    with pytest.raises(ValueError, match="protected branch"):
+        argani_config.job_branch(config, "develop")
+    assert argani_config.job_branch(config, "login") == "login"
+
+
 def test_human_is_a_reserved_reviewer_name(tmp_path):
     repo = make_repo(tmp_path / "repo", '{"reviewers": ["code", "human"]}')
     with pytest.raises(ValueError, match="human"):

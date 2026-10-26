@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Implements an approved spec on the feature branch argani/<slug>, writes plan.md (if missing) and build.md, and commits. Spawn with plugin root, slug folder, branch, verify command and round in the prompt.
+description: Implements an approved spec on the job branch given in the prompt, writes plan.md (if missing) and build.md, and commits. Spawn with plugin root, slug folder, branch, verify command and round in the prompt.
 model: inherit
 tools: Read, Glob, Grep, Edit, Write, Bash
 color: green

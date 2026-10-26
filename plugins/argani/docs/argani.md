@@ -21,15 +21,15 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 
 ## Stages
 
-| Stage    | Artifact                                                | Produced by                                 | Human gate                                                                      |
-|----------|---------------------------------------------------------|---------------------------------------------|---------------------------------------------------------------------------------|
-| Intent   | `intent.md`                                             | `/argani:intent` (interview with the human) | Human approves the intent                                                       |
-| Spec     | `spec.md`                                               | `/argani:spec` or the spec-writer agent     | Human reviews and approves the spec                                             |
-| Plan     | `plan.md`                                               | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
-| Work     | code or documents on branch `argani/<slug>`, `build.md` | Human or builder agent                      | none                                                                            |
-| Review   | `review/round-N/review-<checklist>.md`                  | Reviewer agents                             | none                                                                            |
-| Decision | `decision.md`                                           | Approver agent                              | Its output is a merge request, never a merge                                    |
-| Operate  | follow-up intents                                       | Human, from what production shows           | Human opens the next intent                                                     |
+| Stage    | Artifact                                        | Produced by                                 | Human gate                                                                      |
+|----------|-------------------------------------------------|---------------------------------------------|---------------------------------------------------------------------------------|
+| Intent   | `intent.md`                                     | `/argani:intent` (interview with the human) | Human approves the intent                                                       |
+| Spec     | `spec.md`                                       | `/argani:spec` or the spec-writer agent     | Human reviews and approves the spec                                             |
+| Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
+| Work     | code or documents on the job branch, `build.md` | Human or builder agent                      | none                                                                            |
+| Review   | `review/round-N/review-<checklist>.md`          | Reviewer agents                             | none                                                                            |
+| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge                                    |
+| Operate  | follow-up intents                               | Human, from what production shows           | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.
 
@@ -65,7 +65,7 @@ project language.
 
 1. Skills advise, hooks enforce. Anything that must always hold is a hook reading the repo config.
 2. Nobody approves their own work. The approver's output is a merge request for a human; agents
-   never merge or push to the default branch.
+   never merge or push to a protected branch.
 3. Context comes from files, not conversation. Every agent is told which paths to read.
 4. One writer per file. Each agent writes only its own artifact.
 5. Acceptance criteria must be verifiable. Intent without a command, test, or named manual step
@@ -88,7 +88,7 @@ per job, up to two rounds), so use it only for jobs with clear acceptance criter
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
 `scripts/factory_state.py <slug>`, which only reports and never writes.
 
-Who commits what on branch `argani/<slug>`: the builder commits code, `plan.md` and `build.md`; the
+Who commits what on the job branch: the builder commits code, `plan.md` and `build.md`; the
 orchestrator commits the rest of the job folder (`intent.md`, `spec.md`, `review/**`, `decision.md`,
 `mr.md`), adding only paths under `<artifactRoot>/<slug>/`: before the build, after each review round,
 after the decision and before the push. Nothing is ever pushed or merged without a human.

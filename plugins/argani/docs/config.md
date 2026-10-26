@@ -16,14 +16,17 @@ session) or denies (subagent) for every write inside the repository until the fi
 
 ## Keys
 
-| Key              | Default    | Meaning                                                                                                                                                                                                                                                                                                                                    |
-|------------------|------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `artifactRoot`   | `"argani"` | Folder (relative to the toplevel) holding `<slug>/` artifact folders.                                                                                                                                                                                                                                                                      |
-| `defaultBranch`  | detected   | Branch that agents must never push or merge to. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`. |
-| `verifyCommand`  | none       | Command that proves the work (tests, linters, link check). Required by factory mode.                                                                                                                                                                                                                                                       |
-| `reviewers`      | `["code"]` | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                                 |
-| `protectedPaths` | `[]`       | Globs relative to the toplevel that agents must not write.                                                                                                                                                                                                                                                                                 |
-| `mrCommand`      | none       | Command that opens the merge request; `{branch}` is replaced by the working branch. Without it, nothing is pushed.                                                                                                                                                                                                                         |
+| Key                 | Default            | Meaning                                                                                                                                                                                                                                                                                                                                    |
+|---------------------|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `artifactRoot`      | `"argani"`         | Folder (relative to the toplevel) holding `<slug>/` artifact folders.                                                                                                                                                                                                                                                                      |
+| `defaultBranch`     | detected           | The repository's main branch; always protected. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`. |
+| `baseBranch`        | `defaultBranch`    | Branch the job branch is created from, the target of the merge request, and the base of every review diff (`<baseBranch>...HEAD`). Always protected.                                                                                                                                                                                       |
+| `protectedBranches` | `[]`               | Further branches the git guard protects: a push, merge or pull on them is denied for agents and asked in the main session. The effective list always includes `defaultBranch` and `baseBranch`, so a repository can only add protection, never remove it.                                                                                  |
+| `verifyCommand`     | none               | Command that proves the work (tests, linters, link check). Required by factory mode.                                                                                                                                                                                                                                                       |
+| `reviewers`         | `["code"]`         | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                                 |
+| `protectedPaths`    | `[]`               | Globs relative to the toplevel that agents must not write.                                                                                                                                                                                                                                                                                 |
+| `mrCommand`         | none               | Command that opens the merge request; `{branch}` is replaced by the working branch. Without it, nothing is pushed.                                                                                                                                                                                                                         |
+| `branchPattern`     | `"feature/{slug}"` | Name of the job branch; `{slug}` is replaced by the job's slug and must appear exactly once. The result must be a valid git branch name and must not be a protected branch. Set the prefix or structure your repository uses, for example `"feat/{slug}"` or `"{slug}"`.                                                                   |
 
 ## `protectedPaths` glob semantics
 
@@ -48,9 +51,29 @@ A match denies `Write` and `Edit` for everyone, main session included.
   "verifyCommand": "npm test",
   "reviewers": ["code", "security", "compliance"],
   "protectedPaths": ["raw/**", "archive/**"],
-  "mrCommand": "gh pr create --fill --base main --head {branch}"
+  "mrCommand": "gh pr create --fill --base main --head {branch}",
+  "branchPattern": "feature/{slug}"
 }
 ```
+
+## Branching models
+
+Trunk-based development needs no branch settings: jobs branch from the default branch and merge back
+into it.
+
+Git Flow: features branch from `develop` and merge into `develop`, while `main` stays protected:
+
+```json
+{
+  "defaultBranch": "main",
+  "baseBranch": "develop",
+  "branchPattern": "feature/{slug}",
+  "mrCommand": "gh pr create --fill --base develop --head {branch}"
+}
+```
+
+The effective `protectedBranches` is then `["main", "develop"]`. Hotfix and release branches, which
+start from other bases, are not modelled; run those by hand.
 
 ## Reading the effective config
 

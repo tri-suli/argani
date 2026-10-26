@@ -12,12 +12,12 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
 
 ## Steps
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`, `defaultBranch`,
-   `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`, `baseBranch`,
+   `protectedBranches`, `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
 2. The slug folder is `<toplevel>/<artifactRoot>/$ARGUMENTS/`. If `spec.md` is not there, **stop**
    and name the missing file.
-3. Check the change: `git rev-parse --abbrev-ref HEAD` must not equal `defaultBranch`,
-   and `git diff --quiet <defaultBranch>...HEAD` must report a difference (exit 1).
+3. Check the change: `git rev-parse --abbrev-ref HEAD` must not be in `protectedBranches`,
+   and `git diff --quiet <baseBranch>...HEAD` must report a difference (exit 1).
    Otherwise **stop** and say there is nothing to review.
 4. Pick the round number `N` from the highest existing `review/round-*` folder `H`:
    - No round folder: `N = 1`.
@@ -35,8 +35,8 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
    Checklist file: ${CLAUDE_PLUGIN_ROOT}/checklists/<name>.md
    Slug folder: <absolute slug folder>
    Round: <N>
-   Default branch: <defaultBranch>
-   Review the diff <defaultBranch>...HEAD and write <slug folder>/review/round-<N>/review-<name>.md.
+   Base branch: <baseBranch>
+   Review the diff <baseBranch>...HEAD and write <slug folder>/review/round-<N>/review-<name>.md.
    ```
 6. Wait for all of them. Then check each expected `review-<name>.md` exists and its last line is
    `=== END OF REVIEW ===`. Rerun a missing or cut-off seat once (same prompt); if it is still

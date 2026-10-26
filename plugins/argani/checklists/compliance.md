@@ -4,7 +4,7 @@
 
 Whether the work matches what was approved:
 
-- The diff `<defaultBranch>...HEAD` matches `spec.md` and `plan.md`.
+- The diff `<baseBranch>...HEAD` matches `spec.md` and `plan.md`.
 - Every acceptance criterion in the spec's mapping table has evidence in `build.md`.
 - The literal output of `verifyCommand` is present in `build.md`.
 - Deviations from `plan.md` are recorded in `build.md`.

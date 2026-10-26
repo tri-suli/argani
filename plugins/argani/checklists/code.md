@@ -2,7 +2,7 @@
 
 ## Scope
 
-Correctness of the change in the diff `<defaultBranch>...HEAD`: logic errors, unhandled edge
+Correctness of the change in the diff `<baseBranch>...HEAD`: logic errors, unhandled edge
 cases, regressions in existing behaviour, missing or weak tests for new behaviour, broken
 error handling at real boundaries, and names in the diff (files, modules, functions, identifiers,
 test cases and fixtures) that a human cannot understand or that break names already agreed.

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""PreToolUse(Bash) guard: no push/merge/pull on the default branch, no PR/MR merge.
+"""PreToolUse(Bash) guard: no push/merge/pull on a protected branch, no PR/MR merge.
+
+Protected branches are `protectedBranches` from the config, which always include `defaultBranch`
+and `baseBranch`.
 
 Subagent (agent_type present) -> deny; main session -> ask. Anything else is allowed silently.
 
@@ -7,7 +10,7 @@ The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so t
 reviewer and approver may only run read-only git; spec-writer may also run the plugin's scripts.
 
 Scope and known limits (also in docs/review-protocol.md):
-- `push --delete` matches only when the deleted branch is the default branch.
+- `push --delete` matches only when the deleted branch is protected.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
 - The current branch is simulated through a command chain (`checkout`, `switch`, `-b`, `-c`).
 - `bash|sh|zsh -c "<cmd>"` is analysed recursively. `xargs`, `eval`, `git branch -f`,
@@ -100,12 +103,13 @@ def _parse_git(tokens):
     return change_dir, tokens[index], tokens[index + 1:]
 
 
-def _push_matches(args, default_branch, current_branch):
+def _push_target(args, protected, current_branch):
+    """The protected branch this push writes to, else None."""
     positional, index = [], 0
     while index < len(args):
         arg = args[index]
         if arg in PUSH_ALWAYS_MATCH:
-            return True
+            return ", ".join(protected)
         if arg in PUSH_OPTIONS_WITH_VALUE:
             index += 1
         elif not arg.startswith("-"):
@@ -117,9 +121,11 @@ def _push_matches(args, default_branch, current_branch):
         destination = destination.lstrip("+").removeprefix("refs/heads/")
         if destination in ("HEAD", "@"):
             destination = current_branch
-        if destination == default_branch:
-            return True
-    return not refspecs and current_branch == default_branch
+        if destination in protected:
+            return destination
+    if not refspecs and current_branch in protected:
+        return current_branch
+    return None
 
 
 def _switched_branch(repo_dir, args):
@@ -143,7 +149,7 @@ class ChainAnalyzer:
         self.simulated = None  # (toplevel, branch) set by checkout/switch earlier in the chain
 
     def analyse(self, command):
-        """Return (default_branch, offending segment text) for the first violation, else None."""
+        """Return (protected branch, offending segment text) for the first violation, else None."""
         for tokens in split_segments(command):
             match = self._check(_command_start(tokens))
             if match:
@@ -167,7 +173,7 @@ class ChainAnalyzer:
         if program in ("gh", "glab"):
             pair = ["pr", "merge"] if program == "gh" else ["mr", "merge"]
             if any(tokens[i:i + 2] == pair for i in range(len(tokens) - 1)):
-                return argani_config.load_config(self.directory)["defaultBranch"], text
+                return ", ".join(argani_config.load_config(self.directory)["protectedBranches"]), text
             return None
         if program == "git":
             return self._check_git(tokens[1:], text)
@@ -181,7 +187,7 @@ class ChainAnalyzer:
         config = argani_config.load_config(repo_dir)
         if config["toplevel"] is None:
             return None
-        default = config["defaultBranch"]
+        protected = config["protectedBranches"]
         if self.simulated and self.simulated[0] == config["toplevel"]:
             current = self.simulated[1]
         else:
@@ -191,10 +197,11 @@ class ChainAnalyzer:
             if branch:
                 self.simulated = (config["toplevel"], branch)
         elif subcommand == "push":
-            if _push_matches(args, default, current):
-                return default, text
-        elif current == default:
-            return default, text
+            target = _push_target(args, protected, current)
+            if target:
+                return target, text
+        elif current in protected:
+            return current, text
         return None
 
 
@@ -255,12 +262,12 @@ def guard(payload):
         match = ChainAnalyzer(payload.get("cwd") or os.getcwd()).analyse(command)
     except ValueError:
         emit(payload, "ask", "argani guard: could not parse command, so it cannot be checked for "
-             "pushes or merges to the default branch. Simplify the command or run it yourself.")
+             "pushes or merges to a protected branch. Simplify the command or run it yourself.")
         return
     if match:
-        default, segment = match
-        emit(payload, "ask", f"argani guard: `{segment}` would push, merge or pull on the default "
-             f"branch `{default}`. Agents never do that. Push a feature branch and open a merge "
+        branch, segment = match
+        emit(payload, "ask", f"argani guard: `{segment}` would push, merge or pull on the protected "
+             f"branch `{branch}`. Agents never do that. Push a feature branch and open a merge "
              "request instead; the approver never merges and a human merges.")
 
 

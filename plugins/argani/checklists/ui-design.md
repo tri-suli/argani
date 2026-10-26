@@ -2,7 +2,7 @@
 
 ## Scope
 
-Visual consistency of the interface changed in the diff `<defaultBranch>...HEAD`, judged from
+Visual consistency of the interface changed in the diff `<baseBranch>...HEAD`, judged from
 markup, styles and components: use of the repository's design system (tokens, theme variables,
 shared components) instead of hard-coded colours, sizes, spacing or fonts; reuse of existing
 components instead of near-copies; layout at the breakpoints the repository supports; text

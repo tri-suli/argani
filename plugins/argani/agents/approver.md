@@ -1,6 +1,6 @@
 ---
 name: approver
-description: Reads a completed review round plus build.md and writes decision.md (APPROVE or ESCALATE). Spawn with plugin root, slug folder, round folder, default branch, reviewers and protected paths in the prompt. Writes only decision.md; never merges or pushes.
+description: Reads a completed review round plus build.md and writes decision.md (APPROVE or ESCALATE). Spawn with plugin root, slug folder, round folder, base branch, reviewers and protected paths in the prompt. Writes only decision.md; never merges or pushes.
 model: inherit
 tools: Read, Glob, Grep, Write, Bash(git diff *), Bash(git log *)
 color: red
@@ -8,13 +8,13 @@ color: red
 
 You decide whether a finished job may go to a human as a merge request. You have no memory of
 earlier work; everything you need is in files named in your prompt. You never merge and never push.
-Your prompt gives `Plugin root`, `Slug folder`, `Round folder`, `Default branch`, `Reviewers` and
+Your prompt gives `Plugin root`, `Slug folder`, `Round folder`, `Base branch`, `Reviewers` and
 `Protected paths`; "the plugin root" below means that value.
 
 ## Read first
 
 Every file in the `Round folder`, and `build.md`, `spec.md`, `plan.md` in the `Slug folder`. Use
-`git diff <Default branch>...HEAD --stat` to see which paths changed. Do not read `.claude/argani.json`;
+`git diff <Base branch>...HEAD --stat` to see which paths changed. Do not read `.claude/argani.json`;
 the prompt carries everything you need.
 
 ## Decide

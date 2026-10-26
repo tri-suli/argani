@@ -167,7 +167,9 @@ def test_approved_spec_without_build(job):
     job.spec()
     state = job.state()
     assert state["stage"] == "needs-build"
-    assert state["branch"] == "argani/demo"
+    assert state["branch"] == "feature/demo"
+    assert state["base_branch"] == "main"
+    assert state["protected_branches"] == ["main"]
     assert state["on_job_branch"] is False
     assert state["current_branch"] == "main"
     assert state["partial"] == []
@@ -402,10 +404,30 @@ def test_detached_head_is_not_job_branch(job):
 
 def test_on_job_branch(job):
     prepare(job)
-    git(job.root, "checkout", "-q", "-b", "argani/demo")
+    git(job.root, "checkout", "-q", "-b", "feature/demo")
     state = job.state()
     assert state["on_job_branch"] is True
-    assert state["current_branch"] == "argani/demo"
+    assert state["current_branch"] == "feature/demo"
+
+
+def test_branch_follows_configured_pattern(job):
+    config_path = job.root / ".claude" / "argani.json"
+    config = json.loads(config_path.read_text())
+    config_path.write_text(json.dumps({**config, "branchPattern": "story/{slug}"}))
+    prepare(job)
+    git(job.root, "checkout", "-q", "-b", "story/demo")
+    state = job.state()
+    assert state["branch"] == "story/demo"
+    assert state["on_job_branch"] is True
+
+
+def test_pattern_that_yields_a_protected_branch_exits_two(job):
+    config_path = job.root / ".claude" / "argani.json"
+    config = json.loads(config_path.read_text())
+    config_path.write_text(json.dumps({**config, "branchPattern": "{slug}", "defaultBranch": "demo"}))
+    result = job.run()
+    assert result.returncode == 2
+    assert "protected branch" in result.stdout
 
 
 @pytest.mark.parametrize("ending", ["\r\n", "   \n", "\n\n\n"])
@@ -499,4 +521,4 @@ def test_reserved_human_reviewer_exits_two(job):
 def test_missing_folder_suggests_job_branch(job):
     result = job.run("other")
     assert result.returncode == 1
-    assert "git switch argani/other" in result.stdout
+    assert "git switch feature/other" in result.stdout

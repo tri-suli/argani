@@ -68,7 +68,7 @@ Prerequisites: an approved `intent.md` (the factory writes the spec and stops fo
 ```
 
 It stops at the spec (approve it, then run it again) and at the merge request. With `mrCommand`
-configured it pushes `argani/<slug>` and opens the MR; without it, it only prints the push and MR
+configured it pushes the job branch and opens the MR; without it, it only prints the push and MR
 instructions. Cost: one spec-writer, one builder per round, one reviewer per checklist per round,
 one approver; use it for jobs with clear acceptance criteria.
 

@@ -187,3 +187,34 @@ def test_checkout_with_paths_does_not_move_head(feature_repo):
 
 def test_checkout_with_empty_path_list_moves_head(feature_repo):
     assert decision_of(decide("git checkout main -- && git pull", feature_repo)) == "ask"
+
+
+@pytest.fixture
+def git_flow_repo(make_repo):
+    """Git Flow: main is the default branch, develop is the base, work happens on feature."""
+    repo = make_repo(config={"defaultBranch": "main", "baseBranch": "develop"})
+    git(repo, "branch", "develop")
+    git(repo, "checkout", "-q", "-b", "feature")
+    return repo
+
+
+@pytest.mark.parametrize("command", [
+    "git push origin main", "git push origin develop", "git push origin HEAD:develop",
+    "git checkout develop && git merge feature", "git switch main && git pull",
+])
+def test_git_flow_protects_default_and_base_branches(git_flow_repo, command):
+    assert decision_of(decide(command, git_flow_repo)) == "ask", command
+    assert decision_of(decide(command, git_flow_repo, "argani:builder")) == "deny", command
+
+
+def test_git_flow_allows_the_job_branch(git_flow_repo):
+    assert decide("git push -u origin feature", git_flow_repo) is None
+
+
+def test_extra_protected_branches_are_guarded(make_repo):
+    repo = make_repo(config={"protectedBranches": ["release"]})
+    git(repo, "checkout", "-q", "-b", "feature")
+    output = decide("git push origin release", repo)
+    assert decision_of(output) == "ask"
+    assert "release" in output["permissionDecisionReason"]
+    assert decision_of(decide("git push origin main", repo)) == "ask"

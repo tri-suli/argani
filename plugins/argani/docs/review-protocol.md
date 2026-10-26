@@ -92,7 +92,7 @@ cannot tell which checklist a reviewer was given, so that part is an instruction
 **Manual mode.** `/argani:review <slug>`:
 1. Read `reviewers` from `.claude/argani.json`.
 2. In one message, spawn one `argani:reviewer` per checklist (parallel). Each prompt names the
-   checklist file, `spec.md`, `plan.md`, the diff `<defaultBranch>...HEAD`, and its one output path.
+   checklist file, `spec.md`, `plan.md`, the diff `<baseBranch>...HEAD`, and its one output path.
 3. Wait until every expected file exists and ends with the closing line; rerun any cut-off seat.
 4. Report each verdict. The human decides whether to rework or run the approver.
 
@@ -117,12 +117,12 @@ so the audit trail is in the branch history.
 Agents get context from files only; every spawn prompt names the files to read. Each writes exactly
 one artifact. Spawn them with `subagent_type: "argani:<agent>"`.
 
-| Agent                | Reads                                                                        | Writes                                                    | Closing line                                                                            |
-|----------------------|------------------------------------------------------------------------------|-----------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `argani:spec-writer` | `intent.md`, repo `CLAUDE.md`, config                                        | `spec.md`                                                 | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
-| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code on `argani/<slug>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
-| `argani:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md`                    | `=== END OF REVIEW ===`                                                                 |
-| `argani:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat             | `decision.md`                                             | `=== END OF DECISION ===`                                                               |
+| Agent                | Reads                                                                        | Writes                                               | Closing line                                                                            |
+|----------------------|------------------------------------------------------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `argani:spec-writer` | `intent.md`, repo `CLAUDE.md`, config                                        | `spec.md`                                            | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
+| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code on `<branch>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
+| `argani:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md`               | `=== END OF REVIEW ===`                                                                 |
+| `argani:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat             | `decision.md`                                        | `=== END OF DECISION ===`                                                               |
 
 ### Spawn prompts
 
@@ -140,7 +140,7 @@ Language: <project language>
 # argani:builder
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
-Branch: argani/<slug>
+Branch: <branch>
 Verify command: <verifyCommand>
 Round: <N>
 Findings to address: <abs round folders>            # only when N > 1: round N-1 with CHANGES,
@@ -152,13 +152,13 @@ Checklist: <name>
 Checklist file: <plugin root>/checklists/<name>.md
 Slug folder: <abs slug folder>
 Round: <N>
-Default branch: <defaultBranch>
+Base branch: <baseBranch>
 
 # argani:approver
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
 Round folder: <abs review/round-N>
-Default branch: <defaultBranch>
+Base branch: <baseBranch>
 Reviewers: <comma-separated checklist names>
 Protected paths: <comma-separated globs, or "none">
 ```
@@ -175,7 +175,7 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
   "<cmd>"` is analysed; other nesting is not.
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
-- `git push --delete` matches only when the deleted branch is the default branch.
+- `git push --delete` matches only when the deleted branch is protected.
 - A broken `.claude/argani.json` makes the git guard use defaults and keep checking, while the
   artifact guard asks (main session) or denies (subagent) for every write in that repository,
   because `protectedPaths` cannot be checked.
@@ -190,6 +190,6 @@ Pipes, `;`, `&&`, redirections and `bash -c` are segments like any other, so the
 allowlist, and a backtick or `$(` anywhere in the command (quoted or not) is denied. `--output` and
 `--ext-diff` are refused. A `diff.external` that a human configured in the repository's own
 `.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist. The builder has
-Bash, but its prompt forbids these commands, and the protection that matters (the default branch on
+Bash, but its prompt forbids these commands, and the protection that matters (the protected branches on
 the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
 rather than widening trust.

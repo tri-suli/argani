@@ -15,11 +15,15 @@ from pathlib import Path
 DEFAULTS = {
     "artifactRoot": "argani",
     "defaultBranch": None,  # detected when not configured
+    "baseBranch": None,  # defaults to defaultBranch
+    "protectedBranches": [],  # defaultBranch and baseBranch are always added
     "verifyCommand": None,
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
+    "branchPattern": "feature/{slug}",
 }
+SLUG_PLACEHOLDER = "{slug}"
 
 
 def _git(start_dir, *args):
@@ -78,13 +82,38 @@ def _optional_string(value):
     raise ValueError("expected a string")
 
 
+def _branch_pattern(value):
+    pattern = _optional_string(value)
+    if pattern.count(SLUG_PLACEHOLDER) != 1:
+        raise ValueError(f"must contain {SLUG_PLACEHOLDER} exactly once")
+    sample = pattern.replace(SLUG_PLACEHOLDER, "example-slug")
+    try:
+        subprocess.run(["git", "check-ref-format", "--branch", sample], capture_output=True, check=True)
+    except OSError as error:
+        raise ValueError(f"cannot check the branch name: {error}") from error
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"'{sample}' is not a valid git branch name") from error
+    return pattern
+
+
+def job_branch(config, slug):
+    """The job branch for a slug. Raises ValueError when it would be a protected branch."""
+    branch = config["branchPattern"].replace(SLUG_PLACEHOLDER, slug)
+    if branch in config["protectedBranches"]:
+        raise ValueError(f"branchPattern gives '{branch}' for slug '{slug}', which is a protected branch")
+    return branch
+
+
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
     "artifactRoot": _optional_string,
     "defaultBranch": _optional_string,
+    "baseBranch": _optional_string,
+    "protectedBranches": _string_list,
     "verifyCommand": _optional_string,
     "mrCommand": _optional_string,
+    "branchPattern": _branch_pattern,
 }
 
 
@@ -122,6 +151,10 @@ def load_config(start_dir=".", strict=False):
                 print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
     if not config["defaultBranch"]:
         config["defaultBranch"] = detect_default_branch(start_dir) if root else "main"
+    if not config["baseBranch"]:
+        config["baseBranch"] = config["defaultBranch"]
+    protected = [config["defaultBranch"], config["baseBranch"], *config["protectedBranches"]]
+    config["protectedBranches"] = list(dict.fromkeys(protected))
     config["toplevel"] = root
     config["currentBranch"] = current_branch(start_dir) if root else None
     return config

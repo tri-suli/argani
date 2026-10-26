@@ -43,7 +43,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   agents spawned as `argani:<agent>`. To migrate: reinstall as `argani@argani` instead of
   `sdlc@argani`, rename `.claude/sdlc.json` to `.claude/argani.json`, move `sdlc/<slug>/` folders to
   `argani/<slug>/` (or set `"artifactRoot": "sdlc"`), and rename open `sdlc/<slug>` branches to
-  `argani/<slug>`.
+  `feature/<slug>` (or set `"branchPattern": "sdlc/{slug}"`).
+- The job branch is no longer fixed: `branchPattern` in `.claude/argani.json` sets it, with `{slug}`
+  replaced by the job's slug (default `feature/{slug}`). The pattern must contain `{slug}` exactly
+  once and give a valid branch name; a pattern that yields a protected branch is refused.
+- `defaultBranch` no longer carries every branch role. `baseBranch` (default `defaultBranch`) is where
+  job branches start, the merge request target and the base of review diffs (`<baseBranch>...HEAD`);
+  `protectedBranches` lists further branches the git guard protects, and the effective list always
+  includes `defaultBranch` and `baseBranch`. This supports Git Flow (`baseBranch: "develop"`, with
+  `main` and `develop` both protected). Agent prompts carry `Base branch` instead of `Default branch`,
+  and the factory state reports `base_branch` and `protected_branches` instead of `default_branch`.
 - `docs/argani.md` records the behaviour verified in the spike; `docs/config.md` defines `protectedPaths` glob semantics.
 - `bootstrap/install.sh` copies `claude/CLAUDE.md` to both global locations instead of symlinking them, so the global configuration no longer depends on the checkout; symlinks from an earlier install are replaced by copies, and the worktree refusal is dropped.
 - Checklist `code` reports opaque or inconsistent names (internal labels such as `a1`, or names that differ from those set by the spec, plan or existing code) as Important.

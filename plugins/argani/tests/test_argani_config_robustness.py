@@ -116,12 +116,26 @@ def test_branch_names_are_stripped_and_lose_refs_heads(tmp_path):
     ('{"protectedBranches": ["release", null]}', "list of strings"),
     ('{"baseBranch": "origin/develop"}', "remote-tracking"),
     ('{"protectedBranches": ["origin/develop"]}', "remote-tracking"),
+    ('{"protectedBranches": ["refs/remotes/origin/develop"]}', "not a branch"),
+    ('{"protectedBranches": ["refs/tags/v1"]}', "not a branch"),
+    ('{"baseBranch": "@{-1}"}', "relative reference"),
 ])
 def test_unusable_branch_names_are_rejected(tmp_path, config_text, reason):
     repo = make_repo(tmp_path / "repo", config_text)
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", str(repo)], check=True)
     with pytest.raises(ValueError, match=reason):
         argani_config.load_config(repo, strict=True)
+
+
+def test_heads_prefix_is_dropped(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": "main", "protectedBranches": ["heads/develop"]}')
+    assert argani_config.load_config(repo, strict=True)["protectedBranches"] == ["main", "develop"]
+
+
+def test_glob_is_not_mistaken_for_a_remote_prefix(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": "main", "protectedBranches": ["release/*"]}')
+    subprocess.run(["git", "-C", str(repo), "remote", "add", "release", str(repo)], check=True)
+    assert argani_config.load_config(repo, strict=True)["protectedBranches"] == ["main", "release/*"]
 
 
 def test_glob_can_refuse_a_job_branch(tmp_path):

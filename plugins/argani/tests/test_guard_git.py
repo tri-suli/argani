@@ -291,3 +291,41 @@ def test_glob_protects_matching_branches(make_repo):
     assert decision_of(output) == "ask"
     assert "release/1.0" in output["permissionDecisionReason"]
     assert decide("git push origin releases-notes", repo) is None
+
+
+@pytest.mark.parametrize("command", [
+    "git checkout -bdevelop && git push origin HEAD",
+    "git switch -cdevelop && git push origin HEAD",
+    "git checkout -Bmain && git push origin HEAD",
+    "git switch -Cdevelop && git push",
+    "git checkout -fb develop && git push origin HEAD",
+    "git switch --create=develop && git push origin HEAD",
+    "git switch --force-create=main && git push",
+    "git checkout --orphan develop && git push origin HEAD",
+    "git switch --orphan=develop && git push origin HEAD",
+])
+def test_attached_and_clustered_create_flags_are_followed(git_flow_repo, command):
+    assert decision_of(decide(command, git_flow_repo, "argani:builder")) == "deny", command
+
+
+@pytest.mark.parametrize("command", [
+    "git checkout HEAD -- notes.txt && git push origin HEAD",
+    "git checkout HEAD~0 -- notes.txt && git push origin HEAD",
+    "git checkout origin/develop -- notes.txt && git pull",
+    "git checkout develop -- notes.txt && git push origin HEAD",
+])
+def test_restoring_paths_from_a_tree_does_not_move_head(fresh_git_flow_clone, command):
+    assert decide(command, fresh_git_flow_clone, "argani:builder") is None, command
+
+
+def test_unreadable_config_directory_holds_pushes(feature_repo):
+    claude_dir = feature_repo / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "argani.json").write_text("{}")
+    claude_dir.chmod(0)
+    try:
+        output = decide("git push origin HEAD:main", feature_repo, "argani:builder")
+    finally:
+        claude_dir.chmod(0o755)
+    assert decision_of(output) == "deny"
+    assert "argani.json is invalid" in output["permissionDecisionReason"]

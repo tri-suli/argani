@@ -7,6 +7,7 @@ result is correct in worktrees and subagents.
 
 Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
 """
+import fnmatch
 import json
 import subprocess
 import sys
@@ -24,6 +25,7 @@ DEFAULTS = {
     "branchPattern": "feature/{slug}",
 }
 SLUG_PLACEHOLDER = "{slug}"
+GLOB_CHARS = "*?["
 
 
 def _git(start_dir, *args):
@@ -44,6 +46,16 @@ def toplevel(start_dir):
 
 def branch_exists(start_dir, name):
     return _git(start_dir, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}") is not None
+
+
+def remote_names(start_dir):
+    return set((_git(start_dir, "remote") or "").split())
+
+
+def remotes_with_branch(start_dir, name):
+    """Number of remote-tracking branches <remote>/<name>; git switch <name> uses one if it is unique."""
+    refs = _git(start_dir, "for-each-ref", "--format=%(refname)", f"refs/remotes/*/{name}")
+    return len(refs.splitlines()) if refs else 0
 
 
 def detect_default_branch(start_dir):
@@ -82,35 +94,76 @@ def _optional_string(value):
     raise ValueError("expected a string")
 
 
+def _check_branch_name(name):
+    """Raise ValueError unless git accepts name as a branch name."""
+    try:
+        subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True, check=True)
+    except OSError as error:
+        raise ValueError(f"cannot check the branch name: {error}") from error
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"'{name}' is not a valid git branch name") from error
+
+
+def _clean_branch(value, allow_glob=False):
+    """A branch name without surrounding spaces or a refs/heads/ prefix; globs only when allowed."""
+    name = _optional_string(value).strip().removeprefix("refs/heads/")
+    if not name:
+        raise ValueError("branch name is empty")
+    has_glob = any(char in name for char in GLOB_CHARS)
+    if has_glob and not allow_glob:
+        raise ValueError(f"'{name}' contains a glob character; only protectedBranches accepts globs")
+    # A glob is checked with its wildcards replaced, so 'release/*' is checked as 'release/x'.
+    _check_branch_name("".join("x" if char in GLOB_CHARS else char for char in name))
+    return name
+
+
+def _branch(value):
+    return _clean_branch(value)
+
+
+def _protected_branches(value):
+    return [_clean_branch(item, allow_glob=True) for item in _string_list(value)]
+
+
 def _branch_pattern(value):
     pattern = _optional_string(value)
     if pattern.count(SLUG_PLACEHOLDER) != 1:
         raise ValueError(f"must contain {SLUG_PLACEHOLDER} exactly once")
-    sample = pattern.replace(SLUG_PLACEHOLDER, "example-slug")
-    try:
-        subprocess.run(["git", "check-ref-format", "--branch", sample], capture_output=True, check=True)
-    except OSError as error:
-        raise ValueError(f"cannot check the branch name: {error}") from error
-    except subprocess.CalledProcessError as error:
-        raise ValueError(f"'{sample}' is not a valid git branch name") from error
+    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug"))
     return pattern
+
+
+def protected_match(config, branch):
+    """The protectedBranches entry (name or glob) that branch matches, else None."""
+    return next((entry for entry in config["protectedBranches"]
+                 if fnmatch.fnmatchcase(branch, entry)), None)
 
 
 def job_branch(config, slug):
     """The job branch for a slug. Raises ValueError when it would be a protected branch."""
     branch = config["branchPattern"].replace(SLUG_PLACEHOLDER, slug)
-    if branch in config["protectedBranches"]:
+    if protected_match(config, branch):
         raise ValueError(f"branchPattern gives '{branch}' for slug '{slug}', which is a protected branch")
     return branch
+
+
+def _reject_remote_prefixes(overrides, start_dir):
+    """Raise ValueError when a configured branch starts with a remote name, like origin/develop."""
+    remotes = remote_names(start_dir)
+    names = [overrides.get("defaultBranch"), overrides.get("baseBranch"), *overrides.get("protectedBranches", [])]
+    for name in filter(None, names):
+        remote = name.split("/", 1)[0]
+        if "/" in name and remote in remotes:
+            raise ValueError(f"'{name}' names a remote-tracking branch; drop the '{remote}/' prefix")
 
 
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
     "artifactRoot": _optional_string,
-    "defaultBranch": _optional_string,
-    "baseBranch": _optional_string,
-    "protectedBranches": _string_list,
+    "defaultBranch": _branch,
+    "baseBranch": _branch,
+    "protectedBranches": _protected_branches,
     "verifyCommand": _optional_string,
     "mrCommand": _optional_string,
     "branchPattern": _branch_pattern,
@@ -144,7 +197,9 @@ def load_config(start_dir=".", strict=False):
         path = Path(root) / ".claude" / "argani.json"
         if path.is_file():
             try:
-                config.update(read_config_file(path))
+                overrides = read_config_file(path)
+                _reject_remote_prefixes(overrides, start_dir)
+                config.update(overrides)
             except ValueError as error:
                 if strict:
                     raise

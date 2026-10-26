@@ -176,9 +176,11 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is protected.
-- A broken `.claude/argani.json` makes the git guard use defaults and keep checking, while the
-  artifact guard asks (main session) or denies (subagent) for every write in that repository,
-  because `protectedPaths` cannot be checked.
+- A broken `.claude/argani.json` is not a bypass: the git guard asks (main session) or denies
+  (subagent) for every push, merge and pull, because the protected branches are unknown, and the
+  artifact guard does the same for every write, because `protectedPaths` cannot be checked.
+- A `checkout` or `switch` whose result cannot be determined (`-`, a commit, an unknown name) holds
+  any later push, merge or pull in the same command.
 
 Acceptable because the reviewer, approver and spec-writer have `Write`, but the hook limits it to
 their own file everywhere: any other path is denied, including paths outside the repository and

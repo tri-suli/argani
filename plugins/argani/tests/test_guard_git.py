@@ -160,14 +160,18 @@ def test_current_branch_is_simulated_from_main(repo, command):
 
 
 @pytest.mark.parametrize("content", ["[1]", '{"defaultBranch": "main"', "not json", '{"reviewers": 3}'])
-def test_broken_config_does_not_disable_the_guard(feature_repo, content):
+def test_broken_config_holds_every_push_merge_and_pull(feature_repo, content):
     (feature_repo / ".claude").mkdir()
     (feature_repo / ".claude" / "argani.json").write_text(content)
     assert decision_of(decide("git push origin main", feature_repo)) == "ask"
     assert decision_of(decide("git push origin main", feature_repo, "argani:builder")) == "deny"
     assert decision_of(decide("gh pr merge 1", feature_repo)) == "ask"
     assert decision_of(decide("glab mr merge 1", feature_repo)) == "ask"
-    assert decide("git push origin feature", feature_repo) is None
+    # The protected branches are unknown, so even the job branch is held, with the reason.
+    output = decide("git push origin feature", feature_repo)
+    assert decision_of(output) == "ask"
+    assert "argani.json is invalid" in output["permissionDecisionReason"]
+    assert decide("git status", feature_repo) is None
 
 
 def test_delete_matches_only_when_the_default_branch_is_deleted(feature_repo):
@@ -218,3 +222,72 @@ def test_extra_protected_branches_are_guarded(make_repo):
     assert decision_of(output) == "ask"
     assert "release" in output["permissionDecisionReason"]
     assert decision_of(decide("git push origin main", repo)) == "ask"
+
+
+@pytest.fixture
+def fresh_git_flow_clone(make_repo):
+    """Git Flow clone where develop exists only as origin/develop, as after a fresh clone."""
+    repo = make_repo(config={"defaultBranch": "main", "baseBranch": "develop"})
+    git(repo, "remote", "add", "origin", str(repo))
+    git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    git(repo, "checkout", "-q", "-b", "feature/x")
+    (repo / "notes.txt").write_text("x\n")
+    return repo
+
+
+@pytest.mark.parametrize("command", [
+    "git switch develop && git pull",
+    "git switch develop && git merge feature/x && git push",
+    "git checkout develop && git push",
+    "git checkout --track origin/develop && git push",
+    "git switch -t origin/develop && git merge feature/x",
+    "git switch --track=direct origin/develop && git pull",
+    "git switch - && git push",
+    "git checkout 1234abcd && git merge feature/x",
+])
+def test_switch_to_a_remote_only_or_unknown_branch_is_caught(fresh_git_flow_clone, command):
+    assert decision_of(decide(command, fresh_git_flow_clone)) == "ask", command
+    assert decision_of(decide(command, fresh_git_flow_clone, "argani:builder")) == "deny", command
+
+
+@pytest.mark.parametrize("command", [
+    "git checkout notes.txt && git pull",
+    "git checkout -- notes.txt && git push origin feature/x",
+    "git switch -c feature/y && git push -u origin feature/y",
+    "git switch --detach HEAD && git pull",
+])
+def test_switch_that_stays_off_protected_branches_is_allowed(fresh_git_flow_clone, command):
+    assert decide(command, fresh_git_flow_clone) is None, command
+
+
+@pytest.mark.parametrize("command", [
+    "git push origin feature/x:heads/develop",
+    "git push origin heads/main",
+    "git push origin HEAD:refs/heads/develop",
+])
+def test_heads_prefixed_destinations_are_caught(git_flow_repo, command):
+    assert decision_of(decide(command, git_flow_repo)) == "ask", command
+
+
+def test_invalid_branch_pattern_does_not_drop_base_branch_protection(make_repo):
+    repo = make_repo(config={"baseBranch": "develop", "branchPattern": "feature/{name}"})
+    git(repo, "checkout", "-q", "-b", "feature")
+    output = decide("git push origin develop", repo, "argani:builder")
+    assert decision_of(output) == "deny"
+    assert "argani.json is invalid" in output["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("protected", [[" refs/heads/develop "], ["develop "]])
+def test_configured_branch_names_are_normalized(make_repo, protected):
+    repo = make_repo(config={"protectedBranches": protected})
+    git(repo, "checkout", "-q", "-b", "feature")
+    assert decision_of(decide("git push origin develop", repo)) == "ask"
+
+
+def test_glob_protects_matching_branches(make_repo):
+    repo = make_repo(config={"protectedBranches": ["release/*"]})
+    git(repo, "checkout", "-q", "-b", "feature")
+    output = decide("git push origin release/1.0", repo)
+    assert decision_of(output) == "ask"
+    assert "release/1.0" in output["permissionDecisionReason"]
+    assert decide("git push origin releases-notes", repo) is None

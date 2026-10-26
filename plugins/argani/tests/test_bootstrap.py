@@ -28,7 +28,8 @@ def environment(tmp_path):
     shutil.copy(source_md, home / ".claude" / "CLAUDE.md")
     (config / "CLAUDE.md").symlink_to(tmp_path / "missing" / "CLAUDE.md")  # dangling
     (config / "settings.json").write_text(json.dumps({"hooks": {"keep": 1}, "enabledPlugins": {"x@y": True}}))
-    (fake_bin / "claude").write_text("#!/bin/sh\necho 'fake marketplace list: argani'\n")
+    # The installer must not call the real CLI; this stand-in makes any call fail loudly.
+    (fake_bin / "claude").write_text("#!/bin/sh\necho 'install.sh must not call claude' >&2\nexit 1\n")
     (fake_bin / "claude").chmod(0o755)
     env = {
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
@@ -81,7 +82,7 @@ def test_dry_run_changes_nothing_and_lists_every_action(environment):
     output = result.stdout
     for planned in ("create backup directory", "remove symlink",
                     f"to {environment['config_md']}", f"copy {environment['settings']}",
-                    "set extraKnownMarketplaces.argani", "cmp each CLAUDE.md"):
+                    "set extraKnownMarketplaces.argani", "settings.json registers argani"):
         assert planned in output, f"missing {planned!r} in:\n{output}"
     assert "create directory" not in output  # ~/.claude already exists
     assert f"ok: {environment['home_md']} already matches" in output  # identical copy is left alone
@@ -113,7 +114,7 @@ def test_install_copies_merges_backs_up_and_is_idempotent(environment):
     assert (backup / "settings.json").is_file()
     assert not (backup / "home-CLAUDE.md").exists()  # it already matched, so it was not moved
     assert (backup / "config-CLAUDE.md.link").is_file()  # the dangling link's target is recorded
-    assert "fake marketplace list" in result.stdout
+    assert "registers the argani marketplace" in result.stdout
 
     after_first = snapshot(environment["root"])
     second = run_install(environment)

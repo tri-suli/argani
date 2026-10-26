@@ -140,11 +140,13 @@ fi
 
 echo "--- result"
 if [ "$DRY_RUN" -eq 1 ]; then
-  echo "[dry-run] would run: cmp each CLAUDE.md with $SOURCE_MD; claude plugin marketplace list"
+  echo "[dry-run] would check: each CLAUDE.md matches $SOURCE_MD; settings.json registers argani"
   echo "[dry-run] nothing was changed."
 else
   for target in "$HOME_MD" "$CONFIG_MD"; do
     if matches_source "$target"; then echo "ok: $target is a copy of $SOURCE_MD"; else die "$target does not match $SOURCE_MD"; fi
   done
-  claude plugin marketplace list || echo "warning: 'claude plugin marketplace list' failed (non-fatal)" >&2
+  jq -e '.extraKnownMarketplaces.argani' "$SETTINGS" >/dev/null || die "$SETTINGS does not register argani"
+  echo "ok: $SETTINGS registers the argani marketplace"
+  echo "Claude Code clones it when the next session starts; then 'claude plugin marketplace list' shows argani."
 fi

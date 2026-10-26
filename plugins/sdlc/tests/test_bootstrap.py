@@ -1,7 +1,6 @@
 """bootstrap/install.sh, exercised only against fake HOME and CLAUDE_CONFIG_DIR directories.
 
-The script refuses to run from a worktree path, so each test runs a copy of bootstrap/ placed
-under the test's own temporary directory.
+Each test runs a copy of bootstrap/ placed under the test's own temporary directory.
 """
 import json
 import os
@@ -64,6 +63,10 @@ def snapshot(root):
     return entries
 
 
+def is_copy_of_source(environment, path):
+    return not path.is_symlink() and path.is_file() and path.read_bytes() == environment["source_md"].read_bytes()
+
+
 def only_backup(environment):
     backups = list((environment["config"] / "backups").glob("argani-*"))
     assert len(backups) == 1
@@ -76,11 +79,12 @@ def test_dry_run_changes_nothing_and_lists_every_action(environment):
     assert result.returncode == 0, result.stderr
     assert snapshot(environment["root"]) == before
     output = result.stdout
-    for planned in ("create backup directory", "move", "remove symlink",
-                    f"symlink {environment['home_md']}", f"symlink {environment['config_md']}",
-                    "copy", "set extraKnownMarketplaces.argani", "readlink -e"):
+    for planned in ("create backup directory", "remove symlink",
+                    f"to {environment['config_md']}", f"copy {environment['settings']}",
+                    "set extraKnownMarketplaces.argani", "cmp each CLAUDE.md"):
         assert planned in output, f"missing {planned!r} in:\n{output}"
     assert "create directory" not in output  # ~/.claude already exists
+    assert f"ok: {environment['home_md']} already matches" in output  # identical copy is left alone
 
 
 def test_dry_run_with_differing_file_prints_plan_and_would_refuse(environment):
@@ -93,13 +97,12 @@ def test_dry_run_with_differing_file_prints_plan_and_would_refuse(environment):
     assert snapshot(environment["root"]) == before
 
 
-def test_install_links_merges_backs_up_and_is_idempotent(environment):
+def test_install_copies_merges_backs_up_and_is_idempotent(environment):
     result = run_install(environment)
     assert result.returncode == 0, result.stderr
 
-    source = str(environment["source_md"])
-    assert os.path.realpath(environment["home_md"]) == source
-    assert os.path.realpath(environment["config_md"]) == source
+    assert is_copy_of_source(environment, environment["home_md"])
+    assert is_copy_of_source(environment, environment["config_md"])
 
     settings = json.loads(environment["settings"].read_text())
     assert settings["extraKnownMarketplaces"]["argani"] == GITHUB_ENTRY
@@ -108,7 +111,8 @@ def test_install_links_merges_backs_up_and_is_idempotent(environment):
 
     backup = only_backup(environment)
     assert (backup / "settings.json").is_file()
-    assert (backup / "home-CLAUDE.md").read_bytes() == environment["source_md"].read_bytes()
+    assert not (backup / "home-CLAUDE.md").exists()  # it already matched, so it was not moved
+    assert (backup / "config-CLAUDE.md.link").is_file()  # the dangling link's target is recorded
     assert "fake marketplace list" in result.stdout
 
     after_first = snapshot(environment["root"])
@@ -148,7 +152,7 @@ def test_differing_regular_file_stops_unless_forced(environment, location):
     assert forced.returncode == 0, forced.stderr
     backup_name = "home-CLAUDE.md" if location == "home_md" else "config-CLAUDE.md"
     assert (only_backup(environment) / backup_name).read_text() == "my own rules\n"
-    assert os.path.realpath(path) == str(environment["source_md"])
+    assert is_copy_of_source(environment, path)
 
 
 def test_valid_symlink_elsewhere_is_replaced_and_target_recorded(environment):
@@ -158,7 +162,7 @@ def test_valid_symlink_elsewhere_is_replaced_and_target_recorded(environment):
     environment["config_md"].symlink_to(elsewhere)
 
     assert run_install(environment).returncode == 0
-    assert os.path.realpath(environment["config_md"]) == str(environment["source_md"])
+    assert is_copy_of_source(environment, environment["config_md"])
     assert elsewhere.read_text() == "other\n"
     recorded = (only_backup(environment) / "config-CLAUDE.md.link").read_text().strip()
     assert recorded == str(elsewhere)
@@ -188,14 +192,23 @@ def test_directory_in_the_way_aborts_before_any_change(environment, location):
     assert snapshot(environment["root"]) == before
 
 
-def test_refuses_to_run_from_a_worktree_path(environment):
-    worktree_bootstrap = environment["root"] / "repo" / ".claude" / "worktrees" / "w" / "bootstrap"
-    shutil.copytree(environment["install"].parent, worktree_bootstrap)
-    before = snapshot(environment["root"])
-    result = run_install(environment, install=worktree_bootstrap / "install.sh")
-    assert result.returncode != 0
-    assert "not a worktree" in result.stderr
-    assert snapshot(environment["root"]) == before
+def test_copies_do_not_depend_on_the_checkout(environment):
+    assert run_install(environment).returncode == 0
+    source_text = environment["source_md"].read_text()
+    environment["source_md"].write_text("edited in the checkout\n")
+    assert environment["home_md"].read_text() == source_text
+    shutil.rmtree(environment["install"].parent)
+    assert environment["config_md"].read_text() == source_text
+
+
+def test_symlink_to_the_source_from_an_earlier_install_becomes_a_copy(environment):
+    for location in ("home_md", "config_md"):
+        path = environment[location]
+        path.unlink()
+        path.symlink_to(environment["source_md"])
+    assert run_install(environment).returncode == 0
+    assert is_copy_of_source(environment, environment["home_md"])
+    assert is_copy_of_source(environment, environment["config_md"])
 
 
 def test_aborts_without_config_dir_or_settings(environment):

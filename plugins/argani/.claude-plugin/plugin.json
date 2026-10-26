@@ -1,0 +1,12 @@
+{
+  "name": "argani",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Artifact-driven development loop for any kind of project, run by hand or by the factory orchestrator.",
+  "author": {
+    "name": "tri-suli"
+  },
+  "homepage": "https://github.com/tri-suli/argani",
+  "repository": "https://github.com/tri-suli/argani",
+  "keywords": ["sdlc", "intent", "spec", "review", "factory"]
+}

@@ -1,6 +1,6 @@
 # bootstrap
 
-Installs the global (per-user) Claude Code configuration that the `sdlc` plugin cannot ship itself.
+Installs the global (per-user) Claude Code configuration that the `argani` plugin cannot ship itself.
 Narrow on purpose: two `CLAUDE.md` copies and one `settings.json` key.
 
 ## Why

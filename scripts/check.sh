@@ -7,10 +7,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 echo "==> validate marketplace"
 claude plugin validate . --strict
 
-echo "==> validate plugin sdlc"
-claude plugin validate plugins/sdlc --strict
+echo "==> validate plugin argani"
+claude plugin validate plugins/argani --strict
 
 echo "==> pytest"
-python3 -m pytest plugins/sdlc/tests -q
+python3 -m pytest plugins/argani/tests -q
 
 echo "All checks passed."

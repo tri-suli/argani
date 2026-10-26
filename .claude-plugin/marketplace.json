@@ -8,8 +8,8 @@
   },
   "plugins": [
     {
-      "name": "sdlc",
-      "source": "./plugins/sdlc",
+      "name": "argani",
+      "source": "./plugins/argani",
       "description": "Artifact-driven development loop for any kind of project, run by hand or by the factory orchestrator.",
       "category": "workflow",
       "tags": ["sdlc", "intent", "spec", "review", "factory"]

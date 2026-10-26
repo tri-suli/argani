@@ -1,6 +1,6 @@
 # argani
 
-A Claude Code marketplace with one plugin, `sdlc`, that runs a single artifact loop for any kind of
+A Claude Code marketplace with one plugin, `argani`, that runs a single artifact loop for any kind of
 project (applications, documentation, knowledge bases):
 
 ```
@@ -10,7 +10,7 @@ intent -> spec -> plan -> work on a branch -> review -> merge request -> operate
 Every stage ends in a committed artifact that the next stage reads, and humans decide at the gates.
 The loop has two modes: **manual** (you call the skills one by one) and **factory** (an orchestrator
 runs spec, build, review and decision with subagents, and stops at a merge request). Agents never
-merge their own work. See [`plugins/sdlc/docs/sdlc.md`](plugins/sdlc/docs/sdlc.md) for the full
+merge their own work. See [`plugins/argani/docs/argani.md`](plugins/argani/docs/argani.md) for the full
 reference.
 
 ## Install
@@ -31,12 +31,12 @@ Enable the plugin per repository, in `.claude/settings.json`:
 
 ```json
 {
-  "enabledPlugins": { "sdlc@argani": true }
+  "enabledPlugins": { "argani@argani": true }
 }
 ```
 
-Per-repository options live in `.claude/sdlc.json`; see
-[`plugins/sdlc/docs/config.md`](plugins/sdlc/docs/config.md).
+Per-repository options live in `.claude/argani.json`; see
+[`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
 ## Bootstrap
 
@@ -50,7 +50,7 @@ before running it.
 ```bash
 claude plugin validate . --strict
 claude plugin marketplace add ./
-claude plugin install sdlc@argani
+claude plugin install argani@argani
 # inside a session:
 /reload-plugins
 ```
@@ -60,15 +60,15 @@ claude plugin install sdlc@argani
 ## Factory mode
 
 Prerequisites: an approved `intent.md` (the factory writes the spec and stops for your approval), and
-`verifyCommand` plus `reviewers` in `.claude/sdlc.json`.
+`verifyCommand` plus `reviewers` in `.claude/argani.json`.
 
 ```
-/sdlc:factory <slug>                 # advances until the next human gate, then stops
-/sdlc:factory rework <slug> <note>   # add a human CHANGES note after a clean round 1
+/argani:factory <slug>                 # advances until the next human gate, then stops
+/argani:factory rework <slug> <note>   # add a human CHANGES note after a clean round 1
 ```
 
 It stops at the spec (approve it, then run it again) and at the merge request. With `mrCommand`
-configured it pushes `sdlc/<slug>` and opens the MR; without it, it only prints the push and MR
+configured it pushes `argani/<slug>` and opens the MR; without it, it only prints the push and MR
 instructions. Cost: one spec-writer, one builder per round, one reviewer per checklist per round,
 one approver; use it for jobs with clear acceptance criteria.
 
@@ -76,7 +76,7 @@ one approver; use it for jobs with clear acceptance criteria.
 
 ```
 .claude-plugin/marketplace.json   marketplace manifest
-plugins/sdlc/                     the plugin
+plugins/argani/                   the plugin
   .claude-plugin/plugin.json
   docs/                           loop reference, configuration schema, review protocol
   templates/                      intent, spec, plan, build
@@ -95,13 +95,13 @@ bootstrap/                        global CLAUDE.md and marketplace registration
 
 | Component | Status |
 |---|---|
-| Skills `/sdlc:intent`, `/sdlc:spec`, `/sdlc:plan` | available |
+| Skills `/argani:intent`, `/argani:spec`, `/argani:plan` | available |
 | Hooks (default-branch guard, verdict and path guards) | available |
 | Agents (spec-writer, builder, reviewer, approver) | available |
 | Review protocol and checklists | available |
-| Skill `/sdlc:review` | available |
-| Factory orchestrator `/sdlc:factory` | available |
-| Evals (`plugins/sdlc/evals`, two cases) | available |
+| Skill `/argani:review` | available |
+| Factory orchestrator `/argani:factory` | available |
+| Evals (`plugins/argani/evals`, two cases) | available |
 | Bootstrap (`bootstrap/`) | available |
 
 ## License

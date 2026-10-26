@@ -15,8 +15,8 @@ claude plugin eval plugins/argani --runs 1 --max-cost-usd 3 --trust-plugin --no-
 - `--trust-plugin` is required headless; `--ablation none` skips the no-plugin baseline arm.
 - `--case <glob>` runs a single case, for example `--case 'intent-*'`.
 - Cost: about $0.30 for both cases at `--runs 1` (about $0.10 to $0.20 per case).
-- Do not run while another `argani` plugin is installed from the `argani` marketplace; the session
-  would see duplicate skills and agents. Results are written to `evals/results/` (gitignored).
+- Do not run while `argani@argani` is installed and enabled; the session would see duplicate skills
+  and agents. Results are written to `evals/results/` (gitignored).
 
 ## Cases
 

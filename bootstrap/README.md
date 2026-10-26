@@ -32,9 +32,9 @@ bash bootstrap/install.sh
 
 Requires `jq` and `CLAUDE_CONFIG_DIR` pointing at a directory that already has `settings.json`.
 
-The `github` marketplace source resolves only once the repository is pushed and reachable. Until
-then `claude plugin marketplace list` may show an error for `argani`; that does not affect the rest
-of the installation.
+The installer only declares the marketplace in `settings.json`. Claude Code clones it from GitHub
+when the next session starts; until then `claude plugin marketplace list` does not show `argani`.
+No `claude plugin marketplace add` is needed.
 
 ## What `install.sh` does
 
@@ -57,8 +57,8 @@ of the installation.
    staged copy next to `settings.json` (same mode), checks it with `jq empty`, then `mv`s it over
    `settings.json`. A symlinked `settings.json` is kept; its target is updated.
    `hooks`, `statusLine` and `enabledPlugins` are never touched.
-8. Confirms that both locations match `claude/CLAUDE.md` (exits non-zero if not) and runs
-   `claude plugin marketplace list` (a failure is non-fatal).
+8. Confirms that both locations match `claude/CLAUDE.md` and that `settings.json` registers
+   `argani` (exits non-zero if not), and says the marketplace appears after the next session starts.
 
 `--dry-run` prints each of these as `[dry-run] would ...` and changes nothing. If a `CLAUDE.md`
 differs it prints `would refuse: ... differs (use --force)` and still shows the rest of the plan

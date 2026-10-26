@@ -12,9 +12,11 @@ reviewer and approver may only run read-only git; spec-writer may also run the p
 Scope and known limits (also in docs/review-protocol.md):
 - `push --delete` matches only when the deleted branch is protected.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
-- The current branch is simulated through a command chain (`checkout`, `switch`, `-b`, `-c`,
-  `--track <remote>/<branch>`, a branch that exists only on one remote). A switch whose result
-  cannot be determined (`-`, a commit) makes any later push, merge or pull in the chain held.
+- The current branch is simulated through a command chain (`checkout`, `switch`; `-b`/`-B`/`-c`/
+  `-C` separate, clustered or attached, `--create=`, `--force-create=`, `--orphan`; `--track
+  <remote>/<branch>`; a branch that exists only on one remote). `checkout <tree-ish> -- <paths>`
+  does not move HEAD. A switch whose result cannot be determined (`-`, a commit) makes any later
+  push, merge or pull in the chain held.
 - An invalid `.claude/argani.json` holds every push, merge and pull, since the protected
   branches are unknown.
 - `bash|sh|zsh -c "<cmd>"` is analysed recursively. `xargs`, `eval`, `git branch -f`,
@@ -36,7 +38,12 @@ OPTION_WRAPPERS = {"sudo", "env", "time", "command", "exec", "nohup"}
 WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-C", "-D", "-R", "-T", "-U", "-h", "-p"}
 SHELLS = {"bash", "sh", "zsh"}
 SHELL_COMMAND_FLAG = re.compile(r"^-[a-z]*c$")
-CREATE_FLAGS = {"-b", "-B", "-c", "-C", "--create", "--force-create"}
+CREATE_FLAGS = {"-b", "-B", "-c", "-C", "--create", "--force-create", "--orphan"}
+CREATE_OPTION_PREFIXES = ("--create=", "--force-create=", "--orphan=")
+# `-b` and friends at the end of a short-option cluster take the next token (`-fb develop`);
+# directly followed by text, that text is the name (`-bdevelop`).
+CREATE_CLUSTER = re.compile(r"^-[a-zA-Z]*[bBcC]$")
+CREATE_ATTACHED = re.compile(r"^-[bBcC](.+)$")
 TRACK_FLAGS = {"-t", "--track"}
 DETACH_FLAGS = {"-d", "--detach"}
 DETACHED = "HEAD"
@@ -152,10 +159,17 @@ def _switched_branch(repo_dir, args):
     """Where `git checkout|switch <args>` leaves HEAD: a branch name, DETACHED, UNKNOWN_BRANCH,
     or None when HEAD does not move (paths only)."""
     for index, arg in enumerate(args):
-        if arg in CREATE_FLAGS and index + 1 < len(args):
+        if (arg in CREATE_FLAGS or CREATE_CLUSTER.match(arg)) and index + 1 < len(args):
             return args[index + 1]
+        if arg.startswith(CREATE_OPTION_PREFIXES):
+            return arg.split("=", 1)[1]
+        attached = CREATE_ATTACHED.match(arg)
+        if attached:
+            return attached.group(1)
     if any(arg in DETACH_FLAGS for arg in args):
         return DETACHED
+    if "--" in args and args.index("--") + 1 < len(args):
+        return None  # `checkout [<tree-ish>] -- <paths>` restores files; HEAD does not move
     before_paths = args[:args.index("--")] if "--" in args else args
     if "-" in before_paths:  # the previous branch
         return UNKNOWN_BRANCH

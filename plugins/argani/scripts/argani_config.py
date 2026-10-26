@@ -106,9 +106,14 @@ def _check_branch_name(name):
 
 def _clean_branch(value, allow_glob=False):
     """A branch name without surrounding spaces or a refs/heads/ prefix; globs only when allowed."""
-    name = _optional_string(value).strip().removeprefix("refs/heads/")
+    name = _optional_string(value).strip().removeprefix("refs/heads/").removeprefix("heads/")
     if not name:
         raise ValueError("branch name is empty")
+    if name.startswith("refs/"):
+        raise ValueError(f"'{name}' is not a branch; use a name under refs/heads/")
+    if "@{" in name:
+        # check-ref-format --branch would expand it against the hook's own repository.
+        raise ValueError(f"'{name}' is a relative reference; use the branch name")
     has_glob = any(char in name for char in GLOB_CHARS)
     if has_glob and not allow_glob:
         raise ValueError(f"'{name}' contains a glob character; only protectedBranches accepts globs")
@@ -153,7 +158,8 @@ def _reject_remote_prefixes(overrides, start_dir):
     names = [overrides.get("defaultBranch"), overrides.get("baseBranch"), *overrides.get("protectedBranches", [])]
     for name in filter(None, names):
         remote = name.split("/", 1)[0]
-        if "/" in name and remote in remotes:
+        is_glob = any(char in name for char in GLOB_CHARS)  # 'release/*' is a pattern, not a remote
+        if "/" in name and remote in remotes and not is_glob:
             raise ValueError(f"'{name}' names a remote-tracking branch; drop the '{remote}/' prefix")
 
 
@@ -189,21 +195,29 @@ def read_config_file(path):
     return overrides
 
 
+def _config_file_exists(path):
+    """An unreadable .claude directory counts as an unusable config, never as no config."""
+    try:
+        return path.is_file()
+    except OSError as error:
+        raise ValueError(f"{path}: {error}") from error
+
+
 def load_config(start_dir=".", strict=False):
     """Effective config. Never raises unless strict=True; a bad file falls back to defaults."""
     config = {key: (list(value) if isinstance(value, list) else value) for key, value in DEFAULTS.items()}
     root = toplevel(start_dir)
     if root:
         path = Path(root) / ".claude" / "argani.json"
-        if path.is_file():
-            try:
+        try:
+            if _config_file_exists(path):
                 overrides = read_config_file(path)
                 _reject_remote_prefixes(overrides, start_dir)
                 config.update(overrides)
-            except ValueError as error:
-                if strict:
-                    raise
-                print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
+        except ValueError as error:
+            if strict:
+                raise
+            print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
     if not config["defaultBranch"]:
         config["defaultBranch"] = detect_default_branch(start_dir) if root else "main"
     if not config["baseBranch"]:

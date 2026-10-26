@@ -60,6 +60,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   destinations are matched; an invalid `.claude/argani.json` now holds every push, merge and pull
   instead of falling back to defaults. Branch names in the config are trimmed, lose `refs/heads/`,
   and must be valid and not remote-prefixed; `protectedBranches` accepts globs such as `release/*`.
+  Follow-up from a second review: create flags written attached or clustered (`-bdevelop`,
+  `-fb develop`, `--create=develop`, `--orphan`) are followed; `checkout <tree-ish> -- <paths>` no
+  longer counts as a branch switch; an unreadable `.claude` directory holds pushes instead of
+  crashing open; `heads/` is dropped from configured names, and other `refs/` names and `@{...}`
+  are rejected.
 - `bootstrap/install.sh` no longer runs `claude plugin marketplace list`, which could not show `argani` before the next session; it checks that `settings.json` registers `argani` and says the marketplace is cloned when the next session starts.
 - `bootstrap/install.sh` copies `claude/CLAUDE.md` to both global locations instead of symlinking them, so the global configuration no longer depends on the checkout; symlinks from an earlier install are replaced by copies, and the worktree refusal is dropped.
 - Checklist `code` reports opaque or inconsistent names (internal labels such as `a1`, or names that differ from those set by the spec, plan or existing code) as Important.

@@ -100,6 +100,36 @@ def test_job_branch_refuses_the_base_branch(tmp_path):
     assert argani_config.job_branch(config, "login") == "login"
 
 
+def test_branch_names_are_stripped_and_lose_refs_heads(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"defaultBranch": " main ", "baseBranch": "refs/heads/develop", '
+                                         '"protectedBranches": [" refs/heads/release/* "]}')
+    config = argani_config.load_config(repo, strict=True)
+    assert config["protectedBranches"] == ["main", "develop", "release/*"]
+    assert argani_config.protected_match(config, "release/1.0") == "release/*"
+    assert argani_config.protected_match(config, "feature/x") is None
+
+
+@pytest.mark.parametrize("config_text, reason", [
+    ('{"baseBranch": "develop*"}', "glob"),
+    ('{"protectedBranches": ["a..b"]}', "not a valid git branch name"),
+    ('{"protectedBranches": [""]}', "empty"),
+    ('{"protectedBranches": ["release", null]}', "list of strings"),
+    ('{"baseBranch": "origin/develop"}', "remote-tracking"),
+    ('{"protectedBranches": ["origin/develop"]}', "remote-tracking"),
+])
+def test_unusable_branch_names_are_rejected(tmp_path, config_text, reason):
+    repo = make_repo(tmp_path / "repo", config_text)
+    subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", str(repo)], check=True)
+    with pytest.raises(ValueError, match=reason):
+        argani_config.load_config(repo, strict=True)
+
+
+def test_glob_can_refuse_a_job_branch(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"protectedBranches": ["release/*"], "branchPattern": "release/{slug}"}')
+    with pytest.raises(ValueError, match="protected branch"):
+        argani_config.job_branch(argani_config.load_config(repo, strict=True), "login")
+
+
 def test_human_is_a_reserved_reviewer_name(tmp_path):
     repo = make_repo(tmp_path / "repo", '{"reviewers": ["code", "human"]}')
     with pytest.raises(ValueError, match="human"):

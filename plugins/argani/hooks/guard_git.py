@@ -12,7 +12,11 @@ reviewer and approver may only run read-only git; spec-writer may also run the p
 Scope and known limits (also in docs/review-protocol.md):
 - `push --delete` matches only when the deleted branch is protected.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
-- The current branch is simulated through a command chain (`checkout`, `switch`, `-b`, `-c`).
+- The current branch is simulated through a command chain (`checkout`, `switch`, `-b`, `-c`,
+  `--track <remote>/<branch>`, a branch that exists only on one remote). A switch whose result
+  cannot be determined (`-`, a commit) makes any later push, merge or pull in the chain held.
+- An invalid `.claude/argani.json` holds every push, merge and pull, since the protected
+  branches are unknown.
 - `bash|sh|zsh -c "<cmd>"` is analysed recursively. `xargs`, `eval`, `git branch -f`,
   `git update-ref` and heredoc writes are not caught.
 """
@@ -33,6 +37,10 @@ WRAPPER_VALUE_OPTIONS = {"-u", "-g", "-C", "-D", "-R", "-T", "-U", "-h", "-p"}
 SHELLS = {"bash", "sh", "zsh"}
 SHELL_COMMAND_FLAG = re.compile(r"^-[a-z]*c$")
 CREATE_FLAGS = {"-b", "-B", "-c", "-C", "--create", "--force-create"}
+TRACK_FLAGS = {"-t", "--track"}
+DETACH_FLAGS = {"-d", "--detach"}
+DETACHED = "HEAD"
+UNKNOWN_BRANCH = object()  # HEAD moved, but to a branch the guard cannot determine
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 READ_ONLY_GIT = {"diff", "log", "show", "rev-parse"}
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
@@ -103,13 +111,26 @@ def _parse_git(tokens):
     return change_dir, tokens[index], tokens[index + 1:]
 
 
-def _push_target(args, protected, current_branch):
-    """The protected branch this push writes to, else None."""
+def _protected_names(config):
+    return "the protected branches " + ", ".join(f"`{name}`" for name in config["protectedBranches"])
+
+
+def _branch_target(config, branch):
+    """How a violation names the branch it lands on, or None when the branch is not protected."""
+    if branch is UNKNOWN_BRANCH:
+        return "a branch left by an earlier checkout or switch that the guard cannot determine"
+    if argani_config.protected_match(config, branch):
+        return f"the protected branch `{branch}`"
+    return None
+
+
+def _push_target(args, config, current_branch):
+    """How a violation names the protected branch this push writes to, else None."""
     positional, index = [], 0
     while index < len(args):
         arg = args[index]
         if arg in PUSH_ALWAYS_MATCH:
-            return ", ".join(protected)
+            return f"every branch ({arg}), including {_protected_names(config)}"
         if arg in PUSH_OPTIONS_WITH_VALUE:
             index += 1
         elif not arg.startswith("-"):
@@ -118,27 +139,42 @@ def _push_target(args, protected, current_branch):
     refspecs = positional[1:]  # first positional is the remote
     for refspec in refspecs:
         destination = refspec.split(":", 1)[1] if ":" in refspec else refspec
-        destination = destination.lstrip("+").removeprefix("refs/heads/")
+        destination = destination.lstrip("+").removeprefix("refs/heads/").removeprefix("heads/")
         if destination in ("HEAD", "@"):
             destination = current_branch
-        if destination in protected:
-            return destination
-    if not refspecs and current_branch in protected:
-        return current_branch
-    return None
+        target = _branch_target(config, destination)
+        if target:
+            return target
+    return None if refspecs else _branch_target(config, current_branch)
 
 
 def _switched_branch(repo_dir, args):
-    """Branch that `git checkout|switch <args>` leaves HEAD on, or None when unknown."""
+    """Where `git checkout|switch <args>` leaves HEAD: a branch name, DETACHED, UNKNOWN_BRANCH,
+    or None when HEAD does not move (paths only)."""
     for index, arg in enumerate(args):
         if arg in CREATE_FLAGS and index + 1 < len(args):
             return args[index + 1]
+    if any(arg in DETACH_FLAGS for arg in args):
+        return DETACHED
     before_paths = args[:args.index("--")] if "--" in args else args
+    if "-" in before_paths:  # the previous branch
+        return UNKNOWN_BRANCH
     names = [arg for arg in before_paths if not arg.startswith("-")]
-    # More than one name means `checkout <tree-ish> <paths>`: HEAD does not move.
-    if len(names) == 1 and argani_config.branch_exists(repo_dir, names[0]):
-        return names[0]
-    return None
+    if len(names) != 1:
+        # None: nothing to switch to. Several: `checkout <tree-ish> <paths>`, HEAD does not move.
+        return None
+    name = names[0]
+    tracking = any(arg in TRACK_FLAGS or arg.startswith("--track=") for arg in args)
+    remote, _, rest = name.partition("/")
+    if tracking and rest and remote in argani_config.remote_names(repo_dir):
+        return rest  # `--track origin/develop` creates and switches to develop
+    if argani_config.branch_exists(repo_dir, name):
+        return name
+    if argani_config.remotes_with_branch(repo_dir, name) == 1:
+        return name  # git creates a local branch from the only remote that has it
+    if os.path.exists(os.path.join(repo_dir, name)):
+        return None  # `checkout <path>`
+    return UNKNOWN_BRANCH
 
 
 class ChainAnalyzer:
@@ -149,7 +185,7 @@ class ChainAnalyzer:
         self.simulated = None  # (toplevel, branch) set by checkout/switch earlier in the chain
 
     def analyse(self, command):
-        """Return (protected branch, offending segment text) for the first violation, else None."""
+        """Return (description of the target, offending segment text) for the first violation."""
         for tokens in split_segments(command):
             match = self._check(_command_start(tokens))
             if match:
@@ -173,7 +209,7 @@ class ChainAnalyzer:
         if program in ("gh", "glab"):
             pair = ["pr", "merge"] if program == "gh" else ["mr", "merge"]
             if any(tokens[i:i + 2] == pair for i in range(len(tokens) - 1)):
-                return ", ".join(argani_config.load_config(self.directory)["protectedBranches"]), text
+                return _protected_names(argani_config.load_config(self.directory)), text
             return None
         if program == "git":
             return self._check_git(tokens[1:], text)
@@ -184,25 +220,31 @@ class ChainAnalyzer:
         if subcommand not in ("push", "merge", "pull", "checkout", "switch"):
             return None
         repo_dir = os.path.normpath(os.path.join(self.directory, change_dir or "."))
-        config = argani_config.load_config(repo_dir)
+        try:
+            config, config_error = argani_config.load_config(repo_dir, strict=True), None
+        except ValueError as error:
+            config, config_error = argani_config.load_config(repo_dir), error
         if config["toplevel"] is None:
             return None
-        protected = config["protectedBranches"]
         if self.simulated and self.simulated[0] == config["toplevel"]:
             current = self.simulated[1]
         else:
             current = config["currentBranch"]
         if subcommand in ("checkout", "switch"):
             branch = _switched_branch(repo_dir, args)
-            if branch:
+            if branch is not None:
                 self.simulated = (config["toplevel"], branch)
-        elif subcommand == "push":
-            target = _push_target(args, protected, current)
-            if target:
-                return target, text
-        elif current in protected:
-            return current, text
-        return None
+            return None
+        if config_error:
+            # Without a valid config the protected branches are unknown, so every push, merge
+            # and pull is held, as the artifact guard does for writes.
+            return (f"a branch that cannot be checked because .claude/argani.json is invalid "
+                    f"({config_error})"), text
+        if subcommand == "push":
+            target = _push_target(args, config, current)
+        else:
+            target = _branch_target(config, current)
+        return (target, text) if target else None
 
 
 def _is_read_only_git(tokens):
@@ -265,9 +307,9 @@ def guard(payload):
              "pushes or merges to a protected branch. Simplify the command or run it yourself.")
         return
     if match:
-        branch, segment = match
-        emit(payload, "ask", f"argani guard: `{segment}` would push, merge or pull on the protected "
-             f"branch `{branch}`. Agents never do that. Push a feature branch and open a merge "
+        target, segment = match
+        emit(payload, "ask", f"argani guard: `{segment}` would push, merge or pull on {target}. "
+             "Agents never do that. Push a feature branch and open a merge "
              "request instead; the approver never merges and a human merges.")
 
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Installs the argani global configuration: symlinks the two CLAUDE.md locations to
-# bootstrap/claude/CLAUDE.md and registers the argani marketplace in settings.json.
+# Installs the argani global configuration: copies bootstrap/claude/CLAUDE.md to the two CLAUDE.md
+# locations and registers the argani marketplace in settings.json. The copies do not depend on
+# this checkout afterwards.
 # Idempotent. Usage: install.sh [--dry-run] [--force]
 set -euo pipefail
 
@@ -21,9 +22,6 @@ command -v jq >/dev/null || die "jq is required"
 [ -f "$CLAUDE_CONFIG_DIR/settings.json" ] || die "$CLAUDE_CONFIG_DIR/settings.json does not exist"
 
 SRC=$(realpath "$(dirname "$0")")
-case "$SRC" in
-  */.claude/worktrees/*) die "run from the main checkout, not a worktree ($SRC): the symlinks would dangle once the worktree is removed" ;;
-esac
 SOURCE_MD="$SRC/claude/CLAUDE.md"
 FRAGMENT="$SRC/claude/settings.fragment.json"
 HOME_MD="$HOME/.claude/CLAUDE.md"
@@ -46,7 +44,7 @@ perform() {
 }
 
 is_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
-links_to_source() { [ -L "$1" ] && [ "$(readlink -e "$1" || true)" = "$SOURCE_MD" ]; }
+matches_source() { is_regular_file "$1" && cmp -s "$1" "$SOURCE_MD"; }
 
 # Preflight: every check that can abort runs before the first change.
 for existing in "$HOME_MD" "$CONFIG_MD"; do
@@ -82,14 +80,23 @@ jq empty "$MERGED"
 settings_current=0
 if [ "$(jq -S . "$SETTINGS")" = "$(jq -S . "$MERGED")" ]; then settings_current=1; fi
 
-links_current=1
-links_to_source "$HOME_MD" || links_current=0
-links_to_source "$CONFIG_MD" || links_current=0
+copies_current=1
+matches_source "$HOME_MD" || copies_current=0
+matches_source "$CONFIG_MD" || copies_current=0
 
-link_into_place() {
+# Copies to a staged file next to the target, then renames it, so the target is never half written.
+copy_source_to() {
+  local target="$1" staged
+  staged=$(mktemp "$target.XXXXXX")
+  cat "$SOURCE_MD" > "$staged"
+  chmod 644 "$staged"
+  mv "$staged" "$target"
+}
+
+copy_into_place() {
   local target="$1" backup_name="$2"
-  if links_to_source "$target"; then
-    echo "ok: $target already links to $SOURCE_MD"
+  if matches_source "$target"; then
+    echo "ok: $target already matches $SOURCE_MD"
     return
   fi
   if is_regular_file "$target"; then
@@ -101,7 +108,7 @@ link_into_place() {
       bash -c 'printf "%s\n" "$1" > "$2"' _ "$old_target" "$BACKUP_DIR/$backup_name.link"
     perform "remove symlink $target (was -> $old_target)" rm "$target"
   fi
-  perform "symlink $target -> $SOURCE_MD" ln -s "$SOURCE_MD" "$target"
+  perform "copy $SOURCE_MD to $target" copy_source_to "$target"
 }
 
 write_settings() {
@@ -113,15 +120,15 @@ write_settings() {
   STAGED=""
 }
 
-if [ "$links_current" -eq 1 ] && [ "$settings_current" -eq 1 ]; then
+if [ "$copies_current" -eq 1 ] && [ "$settings_current" -eq 1 ]; then
   echo "Already up to date; nothing to change."
 else
   perform "create backup directory $BACKUP_DIR" mkdir -p "$BACKUP_DIR"
   if [ ! -d "$(dirname "$HOME_MD")" ]; then
     perform "create directory $(dirname "$HOME_MD")" mkdir -p "$(dirname "$HOME_MD")"
   fi
-  link_into_place "$HOME_MD" "home-CLAUDE.md"
-  link_into_place "$CONFIG_MD" "config-CLAUDE.md"
+  copy_into_place "$HOME_MD" "home-CLAUDE.md"
+  copy_into_place "$CONFIG_MD" "config-CLAUDE.md"
 
   if [ "$settings_current" -eq 1 ]; then
     echo "ok: $SETTINGS already contains the argani marketplace"
@@ -133,9 +140,11 @@ fi
 
 echo "--- result"
 if [ "$DRY_RUN" -eq 1 ]; then
-  echo "[dry-run] would run: readlink -e $HOME_MD $CONFIG_MD; claude plugin marketplace list"
+  echo "[dry-run] would run: cmp each CLAUDE.md with $SOURCE_MD; claude plugin marketplace list"
   echo "[dry-run] nothing was changed."
 else
-  readlink -e "$HOME_MD" "$CONFIG_MD"
+  for target in "$HOME_MD" "$CONFIG_MD"; do
+    if matches_source "$target"; then echo "ok: $target is a copy of $SOURCE_MD"; else die "$target does not match $SOURCE_MD"; fi
+  done
   claude plugin marketplace list || echo "warning: 'claude plugin marketplace list' failed (non-fatal)" >&2
 fi

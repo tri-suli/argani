@@ -40,9 +40,9 @@ Per-repository options live in `.claude/sdlc.json`; see
 
 ## Bootstrap
 
-`bootstrap/install.sh` symlinks `~/.claude/CLAUDE.md` and `$CLAUDE_CONFIG_DIR/CLAUDE.md` to the
-versioned `bootstrap/claude/CLAUDE.md` and registers the marketplace in `settings.json`. It backs
-everything up first and supports `--dry-run`. Read [`bootstrap/README.md`](bootstrap/README.md)
+`bootstrap/install.sh` copies the versioned `bootstrap/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`
+and `$CLAUDE_CONFIG_DIR/CLAUDE.md` and registers the marketplace in `settings.json`. The copies do
+not depend on this checkout. It backs everything up first and supports `--dry-run`. Read [`bootstrap/README.md`](bootstrap/README.md)
 before running it.
 
 ## Local development

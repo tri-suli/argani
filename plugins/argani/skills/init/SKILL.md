@@ -26,7 +26,8 @@ Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill write
    - `baseBranch`: set it only when jobs should not branch from `defaultBranch`.
    - `recordCommitMessage`: `<type>(<scope>): record {slug} {what}` with a type and scope the
      repository's commit rules accept; `{what}` exactly once.
-   - `commitTrailers`: exact trailer lines, for example `Co-Authored-By: Name <email>`; empty for none.
+   - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
+     key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.
    - `mrCommand`: optional; replace `{baseBranch}` in a candidate with the real base branch and keep
      `{branch}`. Leave it out when the human wants to push and open merge requests themselves.
    Ask also whether to add checklists to `reviewers` (catalog in `docs/config.md`) and whether some

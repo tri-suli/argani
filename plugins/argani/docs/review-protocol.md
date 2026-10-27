@@ -142,7 +142,7 @@ Plugin root: <plugin root>
 Slug folder: <abs slug folder>
 Branch: <branch>
 Verify command: <verifyCommand>
-Commit trailers: <commitTrailers, one per line, or "none">
+Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <N>
 Findings to address: <abs round folders>            # only when N > 1: round N-1 with CHANGES,
                                                      # and round N when it holds review-human.md

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-27
+
+### Changed
+
+- `commitTrailers` accepts a `{model}` placeholder, replaced by the name of the model that makes the
+  commit (the main session for record commits, the builder for its own), so a trailer stays right
+  when sessions or agents run on different models. It is the only placeholder; any other `{...}`
+  makes the config invalid.
+- **Default change:** `commitTrailers` defaults to `["Co-Authored-By: {model} <noreply@anthropic.com>"]`
+  instead of `[]`. Repositories that want no trailer set `"commitTrailers": []`.
+- `/argani:init` offers the default trailer as its candidate.
+
 ## [0.2.0] - 2026-10-27
 
 First tagged release. Installed copies of the earlier untagged `0.1.0` do not update by

@@ -25,10 +25,12 @@ DEFAULTS = {
     "mrCommand": None,
     "branchPattern": "feature/{slug}",
     "recordCommitMessage": "chore(argani): record {slug} {what}",
-    "commitTrailers": [],
+    "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
 }
 SLUG_PLACEHOLDER = "{slug}"
 WHAT_PLACEHOLDER = "{what}"
+MODEL_PLACEHOLDER = "{model}"
+PLACEHOLDER = re.compile(r"\{[^{}]*\}")
 TRAILER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*: \S.*$")
 GLOB_CHARS = "*?["
 
@@ -180,7 +182,15 @@ def _commit_trailers(value):
     for trailer in trailers:
         if not TRAILER.match(trailer):
             raise ValueError(f"'{trailer}' is not a git trailer such as 'Co-Authored-By: Name <email>'")
+        unknown = [name for name in PLACEHOLDER.findall(trailer) if name != MODEL_PLACEHOLDER]
+        if unknown:
+            raise ValueError(f"'{trailer}' uses {', '.join(unknown)}; the only placeholder is {MODEL_PLACEHOLDER}")
     return trailers
+
+
+def commit_trailers(config, model):
+    """The configured trailers with {model} replaced by the committing agent's model name."""
+    return [trailer.replace(MODEL_PLACEHOLDER, model) for trailer in config["commitTrailers"]]
 
 
 def record_commit_message(config, slug, what):

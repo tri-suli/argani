@@ -70,7 +70,8 @@ fix or delete `review-human.md`.
 Only paths under `<job_dir>` are ever added. If `git -C <toplevel> status --porcelain -- <job_dir>` is
 non-empty: `git -C <toplevel> add -- <job_dir>` then
 `git -C <toplevel> commit -m "<message>" [--trailer "<trailer>" ...] -- <job_dir>`, with one `--trailer`
-per entry of `commitTrailers` and no other trailer or footer. `<message>` is `recordCommitMessage` with
+per entry of `commitTrailers`, `{model}` replaced by your own model name (for example
+`Claude Opus 5.5`), and no other trailer or footer. `<message>` is `recordCommitMessage` with
 `{slug}` replaced by the slug and `{what}` by `artifacts before build`, `round <N> reviews`,
 `decision` or `merge request` (default `chore(argani): record <slug> <what>`). Also record before the
 push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, `plan.md`, `build.md`.
@@ -99,7 +100,7 @@ Plugin root: <plugin root>
 Slug folder: <job_dir>
 Branch: <branch>
 Verify command: <verifyCommand>
-Commit trailers: <commitTrailers, one per line, or "none">
+Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <review_round>
 Findings to address: <job_dir>/review/round-<rework_from>/       (only when rework_from is not null;
                                                                 for a human rework this is the round folder holding review-human.md)

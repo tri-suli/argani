@@ -5,9 +5,10 @@ Protected branches are `protectedBranches` from the config, which always include
 and `baseBranch`.
 
 Subagent (agent_type present): every push, pull, merge and send-pack is denied, whatever the
-branch, because in argani the main session pushes and a human merges. The check runs on the
-de-quoted words of the command, so quoting, `bash -c`, substitutions, wrappers and `-c alias.*`
-cannot hide the word. Main session: a push, merge or pull on a protected branch is asked about.
+branch, because in argani the main session pushes and a human merges. A command that names a
+git tool is checked on its de-quoted words, so quoting, `bash -c`, wrappers and `-c alias.*`
+cannot hide the word; generated code (a shell reading a pipe, `eval` of a substitution, a
+substitution inside a git command) is denied too. Main session: a push, merge or pull on a protected branch is asked about.
 Anything else is allowed silently.
 
 The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so this guard does:
@@ -57,6 +58,11 @@ READ_ONLY_GIT = {"diff", "log", "show", "rev-parse"}
 REMOTE_WRITE_WORD = re.compile(r"(?<!\w)(push|pull|merge|send-pack)(?![\w-])")
 SUBCOMMAND_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 COMMIT_MESSAGE_OPTION = re.compile(r"^(--message|-[a-zA-Z]*m)$")  # -m, -qm, -am take the next token
+# Only a command that names a git tool is scanned for those words, so `docker pull` is allowed.
+GIT_TOOL_WORD = re.compile(r"(?<!\w)(git|gh|glab|github|gitlab)(?!\w)")
+SUBSTITUTION_MARKS = ("$(", "`")
+STDIN_SHELLS = SHELLS | {"dash", "ksh"}
+CODE_RUNNERS = STDIN_SHELLS | {"eval", "source", "."}
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 AGENT_SCRIPT_RUNNERS = {"argani:spec-writer"}
@@ -334,39 +340,105 @@ def _risky_aliases(directory):
             if definition.startswith("!") or REMOTE_WRITE_WORD.search(definition)}
 
 
-def _scanned_words(tokens):
-    """The words of one segment, without the message of `git commit -m <message>`."""
+def _message_indexes(tokens):
+    """Indexes of the message tokens of `git commit -m <message>` / `--message=<message>`."""
     start = _command_start(tokens)
     if not (start and os.path.basename(start[0]) == "git" and "commit" in start):
-        return tokens
-    words, skip_next = [], False
-    for token in tokens:
-        hidden = "$(" in token or "`" in token
-        if skip_next and not hidden:
-            skip_next = False
-            continue
-        skip_next = bool(COMMIT_MESSAGE_OPTION.match(token))
-        if token.startswith("--message=") and not hidden:
-            continue
-        words.append(token)
-    return words
+        return set()
+    indexes = set()
+    for index, token in enumerate(tokens):
+        if token.startswith("--message="):
+            indexes.add(index)
+        elif COMMIT_MESSAGE_OPTION.match(token) and index + 1 < len(tokens):
+            indexes.add(index + 1)
+    return indexes
+
+
+def _names_existing_path(directory, token):
+    """A file argument such as `src/push.ts`, but not `git-push` or a bare word."""
+    if os.path.basename(token).startswith("git-") or not ("/" in token or "." in token):
+        return False
+    return os.path.exists(os.path.join(directory, token))
+
+
+def _live_backtick(command):
+    """True when a backtick outside single quotes runs a command substitution."""
+    quote, escaped = None, False
+    for char in command:
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote == "'":
+            quote = None if char == "'" else quote
+        elif char == "`":
+            return True
+        elif char == '"':
+            quote = None if quote == '"' else '"'
+        elif char == "'" and quote is None:
+            quote = "'"
+    return False
+
+
+def _hidden_code(segments):
+    """What in the command builds or reads code the guard cannot see, else None: a shell reading
+    stdin, `eval`/`source` of generated text, or a substitution inside code or a git command."""
+    for tokens in segments:
+        start = _command_start(tokens)
+        program = os.path.basename(start[0]) if start else ""
+        arguments = start[1:]
+        runs_code = program in CODE_RUNNERS
+        if program in STDIN_SHELLS and not any(SHELL_COMMAND_FLAG.match(arg) for arg in arguments) \
+                and not any(not arg.startswith("-") for arg in arguments):
+            return f"{program} reading commands from a pipe or heredoc"
+        if program in CODE_RUNNERS - STDIN_SHELLS and not arguments:
+            return f"{program} reading generated code"
+        messages = _message_indexes(tokens)
+        for index, token in enumerate(tokens):
+            # A backtick in a message is usually markdown; a live one is caught by _live_backtick.
+            marks = ("$(",) if index in messages else SUBSTITUTION_MARKS
+            if not any(mark in token for mark in marks):
+                continue
+            mentions_git = GIT_TOOL_WORD.search(token)
+            if mentions_git or (index not in messages and (runs_code or program == "git")):
+                return f"a command substitution in `{token}`"
+    return None
 
 
 def subagent_remote_write(directory, command):
     """Reason string when a subagent's command could push, pull or merge, else None."""
     reason = ("argani guard: agents never push, pull or merge (`{}`). Commit on the job branch "
               "and stop; the main session pushes and a human merges. Reword a commit message "
-              "or a test filter that only mentions the word.")
+              "or a test filter that only mentions the word, and run substitutions as their own "
+              "command.")
     try:
         segments = split_segments(command)
     except ValueError:
         unquoted = re.sub(r"['\"\\]", "", command)
         return reason.format("unparsable command") if REMOTE_WRITE_WORD.search(unquoted) else None
-    aliases = None
+    hidden = _hidden_code(segments)
+    if hidden:
+        return reason.format(hidden)
+    words, mentions_git = [], False
     for tokens in segments:
-        for word in _scanned_words(tokens):
+        start = _command_start(tokens)
+        if start and any(mark in start[0] for mark in ("$",) + SUBSTITUTION_MARKS):
+            mentions_git = True  # the program itself is an expansion, such as `$x$y push`
+        messages = _message_indexes(tokens)
+        for index, token in enumerate(tokens):
+            if index in messages or _names_existing_path(directory, token):
+                continue
+            if not (token == "push" and words[-1:] == ["stash"]):  # `git stash push` is local
+                words.append(token)
+            mentions_git = mentions_git or bool(GIT_TOOL_WORD.search(token))
+    if mentions_git and _live_backtick(command):
+        return reason.format("a backtick substitution in a git command")
+    if mentions_git:
+        for word in words:
             if REMOTE_WRITE_WORD.search(word):
                 return reason.format(word)
+    aliases = None
+    for tokens in segments:
         start = _command_start(tokens)
         if not start or os.path.basename(start[0]) != "git":
             continue

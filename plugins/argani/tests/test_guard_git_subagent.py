@@ -82,5 +82,43 @@ def test_ordinary_builder_work_is_allowed(feature_repo, command):
     assert decide(command, feature_repo) is None, command
 
 
+@pytest.mark.parametrize("command", [
+    'bash -c "git $(echo hsup | rev) origin HEAD:develop"',
+    'eval "git $(echo hsup | rev) origin HEAD:develop"',
+    'git rebase --exec "git \\$(echo hsup|rev) origin HEAD:develop" HEAD~1',
+    'echo hsup | rev | sed "s/^/git /" | bash',
+    "echo Z2l0IHB1c2g= | base64 -d | sh",
+    'eval "$(echo Z2l0IHB1c2g= | base64 -d)"',
+    "eval `echo Z2l0IHB1c2g= | base64 -d`",
+    "git `echo hsup | rev` origin HEAD:develop",
+    "git $(echo hsup | rev) origin HEAD:develop",
+    'git commit -m "$(git $(echo hsup | rev) origin HEAD:develop)"',
+    "bash <<'EOF'\ngit $(echo hsup | rev) origin HEAD:develop\nEOF",
+    "x=gi; y=t; $x$y push origin HEAD:develop",
+    'git commit -m "fix `git $(echo hsup | rev) origin HEAD:develop`"',
+])
+def test_encoded_or_generated_commands_are_denied(feature_repo, command):
+    assert decide(command, feature_repo) == "deny", command
+
+
+@pytest.mark.parametrize("command", [
+    "cat src/push.ts",
+    "npx eslint src/merge.ts && git add src/merge.ts",
+    "git add src/push.ts",
+    "git stash push -m wip",
+    "docker pull node:20",
+    "grep -rn pull src/",
+    "pytest -k merge",
+    'git commit -m "$(cat msg.txt)"',
+    "git commit -m 'docs: explain `git push` in the README'",
+    "bash scripts/test.sh",
+])
+def test_words_outside_git_commands_and_existing_paths_are_allowed(feature_repo, command):
+    (feature_repo / "src").mkdir(exist_ok=True)
+    for name in ("push.ts", "merge.ts"):
+        (feature_repo / "src" / name).write_text("")
+    assert decide(command, feature_repo) is None, command
+
+
 def test_main_session_still_pushes_its_job_branch(feature_repo):
     assert decide("git push -u origin feature", feature_repo, None) is None

@@ -123,3 +123,8 @@ def test_cli_prints_json_and_fails_outside_a_repository(make_repo, tmp_path_fact
     outside = tmp_path_factory.mktemp("outside")
     run = subprocess.run([sys.executable, str(SCRIPT), str(outside)], capture_output=True, text=True)
     assert run.returncode == 1
+
+
+def test_artifact_root_is_always_asked_with_the_default(make_repo):
+    item = question(propose(make_repo()), "artifactRoot")
+    assert item["candidates"] == ["argani"]

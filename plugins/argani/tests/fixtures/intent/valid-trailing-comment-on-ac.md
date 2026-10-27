@@ -13,7 +13,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest <!-- todo -->
+1. [ ] Login works — verify: pytest <!-- todo -->
 ## Out of scope
 - x
 ## Open questions

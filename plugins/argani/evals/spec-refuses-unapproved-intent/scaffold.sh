@@ -33,7 +33,7 @@ Repeated failures are throttled.
 
 ## Acceptance criteria
 
-- AC-1: The sixth failed attempt within 15 minutes returns HTTP 429 — verify: pytest tests/test_login_rate_limit.py
+1. [ ] The sixth failed attempt within 15 minutes returns HTTP 429 — verify: pytest tests/test_login_rate_limit.py
 
 ## Out of scope
 

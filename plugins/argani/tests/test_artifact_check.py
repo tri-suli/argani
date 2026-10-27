@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,8 +27,8 @@ Users sign in.
 - None
 
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest tests/test_login.py
-- AC-2: Bad password is rejected — verify: manual step "Wrong password"
+1. [ ] Login works — verify: pytest tests/test_login.py
+2. [ ] Bad password is rejected — verify: manual: tester enters a wrong password and sees "Wrong password"
 
 ## Out of scope
 - SSO
@@ -101,7 +102,7 @@ def test_intent_ac_without_verify_fails(tmp_path):
 
 def test_intent_approved_without_ac_fails(tmp_path):
     text = VALID_INTENT.replace("Status: draft", "Status: approved by Tri on 2026-01-02")
-    text = "\n".join(line for line in text.splitlines() if not line.startswith("- AC-"))
+    text = "\n".join(line for line in text.splitlines() if not re.match(r"\d+\. \[", line))
     result = run_check("intent", write(tmp_path, text))
     assert result.returncode == 1
     assert "no items" in result.stdout

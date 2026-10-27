@@ -13,8 +13,8 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-<!-- - AC-1: Login works -->
-- AC-1: Login works — verify: pytest
+<!-- 1. [ ] Login works -->
+1. [ ] Login works — verify: pytest
 ## Out of scope
 - x
 ## Open questions

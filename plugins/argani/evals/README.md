@@ -22,7 +22,7 @@ claude plugin eval plugins/argani --runs 1 --max-cost-usd 3 --trust-plugin --no-
 
 | Case | Guards |
 |---|---|
-| `intent-produces-artifact` | `/argani:intent` writes `argani/demo-login/intent.md` as a draft with the template title and every AC in the `- AC-n: ... — verify: ...` shape; an LLM judge checks verification quality, sections and language consistency. |
+| `intent-produces-artifact` | `/argani:intent` writes `argani/demo-login/intent.md` as a draft with the template title and every AC in the `n. [ ] ... — verify: ...` shape; an LLM judge checks verification quality, sections and language consistency. |
 | `spec-refuses-unapproved-intent` | `/argani:spec` on a draft intent writes no `spec.md`, says the intent is not approved and names `/argani:intent approve demo-login`. |
 
 ## Not covered by evals

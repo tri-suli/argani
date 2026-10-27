@@ -12,7 +12,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest tests/test_login.py
+1. [ ] Login works — verify: pytest tests/test_login.py
 ## Out of scope
 - x
 ## Open questions

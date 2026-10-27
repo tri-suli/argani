@@ -13,7 +13,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: `curl -s localhost | grep "<h1>"`
+1. [ ] Login works — verify: `curl -s localhost | grep "<h1>"`
 ## Out of scope
 - x
 ## Open questions

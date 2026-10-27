@@ -38,8 +38,8 @@ This skill never writes code.
 3. If `<artifact dir>/<slug>/intent.md` already exists, stop and ask before touching it.
 4. Write it from `${CLAUDE_PLUGIN_ROOT}/templates/intent.md` with `Status: draft`. Replace every
    placeholder and delete guidance comments. Every acceptance criterion must read
-   `- AC-n: <claim> — verify: <how>`. Do not invent criteria the user has not confirmed; list
-   unknowns under Open questions.
+   `n. [ ] <claim> — verify: <how>`, numbered 1 to n in order; item n is AC-n when you refer to
+   it. Do not invent criteria the user has not confirmed; list unknowns under Open questions.
 5. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py intent <file>`; fix the file until
    it prints `VALID`.
 6. Tell the user to review and correct the file, then run `/argani:intent approve <slug>`.

@@ -13,8 +13,8 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest tests/test_login.py
-- AC-2: Login copy reads well on a phone — verify: manual: product owner signs in on a phone and approves the wording
+1. [ ] Login works — verify: pytest tests/test_login.py
+2. [ ] Login copy reads well on a phone — verify: manual: product owner signs in on a phone and approves the wording
 ## Out of scope
 - x
 ## Open questions

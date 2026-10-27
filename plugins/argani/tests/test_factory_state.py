@@ -26,7 +26,7 @@ o
 - none
 
 ## Acceptance criteria
-- AC-1: works — verify: pytest
+1. [ ] works — verify: pytest
 
 ## Out of scope
 - x

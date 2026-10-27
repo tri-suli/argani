@@ -35,8 +35,8 @@ Enable the plugin per repository, in `.claude/settings.json`:
 }
 ```
 
-Per-repository options live in `.claude/argani.json`; see
-[`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
+Per-repository options live in `.claude/argani.json`; `/argani:init` creates it from what the
+repository already uses. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
 ## Bootstrap
 
@@ -82,9 +82,9 @@ plugins/argani/                   the plugin
   templates/                      intent, spec, plan, build
   checklists/                     code, security, compliance, ux, ui-design, citation, format
   hooks/                          default-branch guard, artifact guard
-  scripts/                        config loader, artifact checker, factory state reporter
+  scripts/                        config loader and proposer, artifact checker, factory state reporter
   agents/                         spec-writer, builder, reviewer, approver
-  skills/                         intent, spec, plan, review, factory
+  skills/                         init, intent, spec, plan, review, factory
   evals/                          eval cases run with `claude plugin eval`
   tests/                          pytest suites
 scripts/check.sh                  validate and test
@@ -95,6 +95,7 @@ bootstrap/                        global CLAUDE.md and marketplace registration
 
 | Component | Status |
 |---|---|
+| Skill `/argani:init` (creates `.claude/argani.json`) | available |
 | Skills `/argani:intent`, `/argani:spec`, `/argani:plan` | available |
 | Hooks (default-branch guard, verdict and path guards) | available |
 | Agents (spec-writer, builder, reviewer, approver) | available |

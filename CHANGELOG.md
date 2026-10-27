@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   `main` and `develop` both protected). Agent prompts carry `Base branch` instead of `Default branch`,
   and the factory state reports `base_branch` and `protected_branches` instead of `default_branch`.
 - `docs/argani.md` records the behaviour verified in the spike; `docs/config.md` defines `protectedPaths` glob semantics.
+- `guard_artifacts.py` checks `protectedPaths` through symlinks: a protected folder that is a symlink
+  to a folder outside any repository (for example shared sources in a worktree) was written without a
+  check; it is now matched as written in the repository that holds the symlink.
 - `guard_git.py` closes gaps found in review of the protected-branch change: a `switch`/`checkout` to
   a branch that exists only on a remote (or via `--track origin/<branch>`) is followed, and an
   undeterminable switch (`-`, a commit) holds later pushes, merges and pulls; `heads/<branch>` push

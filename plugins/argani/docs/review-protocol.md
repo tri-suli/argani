@@ -168,14 +168,21 @@ Protected paths: <comma-separated globs, or "none">
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:
 
 - Subagents (any `agent_type`) are denied every push, pull, merge and send-pack, on any branch and
-  outside a repository too: the main session pushes the job branch and a human merges. The check
-  reads the de-quoted words of the whole command, so quoting (`pu''sh`), `bash -c`, `$(...)`,
-  wrappers (`timeout`, `nice`), `eval`, `xargs`, `python3 -c` and `-c alias.*`/`-c remote.*` do not
-  hide the word; a repository alias that pushes, pulls, merges or starts with `!`, and a git
-  subcommand built from expansions (`git $a$b`), are denied too. The message of `git commit -m`
-  is not scanned. Other words that merely contain the word are denied; reword them. What is not
-  caught: a script written to a file (with `Write`) and then run, and git moving a remote branch
-  without those words (`git branch -f` and `git update-ref` only move local refs).
+  outside a repository too: the main session pushes the job branch and a human merges. When a
+  command names `git`, `gh`, `glab`, `github` or `gitlab` (or runs an expansion as its program),
+  its de-quoted words are scanned, so quoting (`pu''sh`), `bash -c`, wrappers (`timeout`, `nice`),
+  `eval`, `xargs`, `python3 -c` and `-c alias.*`/`-c remote.*` do not hide the word. Not scanned:
+  the message of `git commit -m`, an argument that names an existing path (`src/push.ts`), and
+  `git stash push`; a command without a git tool, such as `docker pull`, is not scanned at all.
+  Other matching words in a git command are denied; reword them. Also denied: a repository alias
+  that pushes, pulls, merges or starts with `!`; a git subcommand built from expansions
+  (`git $a$b`); a shell reading commands from a pipe or heredoc (`... | bash`); `eval` or
+  `source` of generated text; and a command substitution inside shell code, inside a git
+  command (other than `git commit -m "$(cat msg)"`) or next to a git tool. What is not caught:
+  a script written to a file (with `Write`) and then run, an interpreter decoding an encoded
+  command (`python3 -c` with base64), and git moving a remote branch without those words
+  (`git branch -f` and `git update-ref` only move local refs). These need deliberate evasion;
+  branch protection on the remote is what stops them.
 - The checks below apply to the main session, which is asked, not denied. They are a safety net
   for mistakes, not a sandbox: shell expansions, aliases, `git -c` settings, `cd` to a directory
   that does not exist, repositories created inside the command and refspecs such as `:` are not

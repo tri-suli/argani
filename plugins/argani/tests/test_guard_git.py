@@ -247,7 +247,7 @@ def fresh_git_flow_clone(make_repo):
 ])
 def test_switch_to_a_remote_only_or_unknown_branch_is_caught(fresh_git_flow_clone, command):
     assert decision_of(decide(command, fresh_git_flow_clone)) == "ask", command
-    assert decision_of(decide(command, fresh_git_flow_clone, "argani:builder")) == "deny", command
+    assert decision_of(decide(command, fresh_git_flow_clone)) == "ask", command
 
 
 @pytest.mark.parametrize("command", [
@@ -272,8 +272,8 @@ def test_heads_prefixed_destinations_are_caught(git_flow_repo, command):
 def test_invalid_branch_pattern_does_not_drop_base_branch_protection(make_repo):
     repo = make_repo(config={"baseBranch": "develop", "branchPattern": "feature/{name}"})
     git(repo, "checkout", "-q", "-b", "feature")
-    output = decide("git push origin develop", repo, "argani:builder")
-    assert decision_of(output) == "deny"
+    output = decide("git push origin develop", repo)
+    assert decision_of(output) == "ask"
     assert "argani.json is invalid" in output["permissionDecisionReason"]
 
 
@@ -305,7 +305,7 @@ def test_glob_protects_matching_branches(make_repo):
     "git switch --orphan=develop && git push origin HEAD",
 ])
 def test_attached_and_clustered_create_flags_are_followed(git_flow_repo, command):
-    assert decision_of(decide(command, git_flow_repo, "argani:builder")) == "deny", command
+    assert decision_of(decide(command, git_flow_repo)) == "ask", command
 
 
 @pytest.mark.parametrize("command", [
@@ -315,7 +315,7 @@ def test_attached_and_clustered_create_flags_are_followed(git_flow_repo, command
     "git checkout develop -- notes.txt && git push origin HEAD",
 ])
 def test_restoring_paths_from_a_tree_does_not_move_head(fresh_git_flow_clone, command):
-    assert decide(command, fresh_git_flow_clone, "argani:builder") is None, command
+    assert decide(command, fresh_git_flow_clone) is None, command
 
 
 def test_unreadable_config_directory_holds_pushes(feature_repo):
@@ -324,8 +324,18 @@ def test_unreadable_config_directory_holds_pushes(feature_repo):
     (claude_dir / "argani.json").write_text("{}")
     claude_dir.chmod(0)
     try:
-        output = decide("git push origin HEAD:main", feature_repo, "argani:builder")
+        output = decide("git push origin HEAD:main", feature_repo)
     finally:
         claude_dir.chmod(0o755)
-    assert decision_of(output) == "deny"
+    assert decision_of(output) == "ask"
     assert "argani.json is invalid" in output["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("command", [
+    "git checkout -fBdevelop && git push origin HEAD",
+    "git checkout -qbdevelop && git push origin HEAD",
+    "git switch --conflict merge develop && git push origin HEAD",
+    "git checkout --conflict diff3 develop && git pull",
+])
+def test_clustered_attached_names_and_option_values_are_followed(git_flow_repo, command):
+    assert decision_of(decide(command, git_flow_repo)) == "ask", command

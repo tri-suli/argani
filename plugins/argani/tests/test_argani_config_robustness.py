@@ -119,6 +119,7 @@ def test_branch_names_are_stripped_and_lose_refs_heads(tmp_path):
     ('{"protectedBranches": ["refs/remotes/origin/develop"]}', "not a branch"),
     ('{"protectedBranches": ["refs/tags/v1"]}', "not a branch"),
     ('{"baseBranch": "@{-1}"}', "relative reference"),
+    ('{"baseBranch": "@"}', "is HEAD"),
 ])
 def test_unusable_branch_names_are_rejected(tmp_path, config_text, reason):
     repo = make_repo(tmp_path / "repo", config_text)

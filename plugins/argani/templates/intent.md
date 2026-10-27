@@ -35,6 +35,8 @@ Date: {{YYYY-MM-DD}}
 
 <!-- Every item must use this exact shape, with a verification that someone can run or do:
      - AC-1: {{claim}} — verify: {{command | test | named manual step}}
+     A criterion only a human can check (judgement, data that stays on someone's machine) reads
+     `verify: manual: <who does what>`; it becomes a checklist item in the merge request.
      Intent without verifiable criteria cannot be approved. -->
 
 - AC-1: {{claim}} — verify: {{command | test | named manual step}}

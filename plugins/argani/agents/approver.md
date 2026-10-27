@@ -28,6 +28,9 @@ Write `ESCALATE` if any of these holds, otherwise `APPROVE`:
 - `build.md` has no literal verify output, or the output shows a failure.
 - The diff touches a path matching `Protected paths`.
 
+Acceptance criteria verified `manual: <step>` are never a reason to `ESCALATE`: no agent can do them.
+They are the human's checklist for the merge request.
+
 Judge only the seats named in `Reviewers`. Two other kinds of file may be in the round folder:
 
 - `review-human.md` (line 1 `CHANGES`, written by a human rework note) counts as addressed when
@@ -44,6 +47,8 @@ Write only `<Slug folder>/decision.md`:
   before it.
 - Then: which reviewers passed (and which did not), whether `build.md` contains literal verify
   output and its result, residual risks, and what the human should look at in the merge request.
+- When `build.md` lists pending human verification, a section `## Human verification before merge`
+  with one `- [ ] AC-n: <step>` per item, copied from it.
 - The last line is exactly `=== END OF DECISION ===`.
 
 `APPROVE` still ends in a merge request that a human merges.

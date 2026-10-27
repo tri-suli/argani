@@ -27,7 +27,8 @@ Date: {{YYYY-MM-DD}}
 
 ## Acceptance criteria mapping
 
-<!-- One row per AC from intent.md. "How it is verified" must be concrete. -->
+<!-- One row per AC from intent.md. "How it is verified" must be concrete. Keep `manual: <step>`
+     for an AC the intent marks manual; say what the build prepares for that human check. -->
 
 | AC   | How it is verified                      |
 |------|-----------------------------------------|

@@ -34,6 +34,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
 - Factory orchestrator commits the job folder on `argani/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/argani:factory <slug>` and `/argani:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
+- Acceptance criteria may read `verify: manual: <step>` for checks only a human can do; the step must
+  be named (`manual: TBD` fails `artifact_check.py`). The builder lists them under
+  `## Pending human verification` in `build.md`, the compliance reviewer checks that list instead of
+  evidence, the approver does not escalate because of them and copies them into `decision.md` as
+  `## Human verification before merge`, and the factory carries that checklist into `mr.md`.
 - Skill `/argani:init` and `scripts/init_config.py`: propose `.claude/argani.json` from the repository
   (test entry point, shared branch prefixes, commitlint scopes resolved by the repository's own
   commitlint, a `develop` branch, the remote host for `mrCommand`), ask what cannot be detected,

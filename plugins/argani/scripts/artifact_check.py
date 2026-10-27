@@ -25,6 +25,8 @@ STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}
 AC_ITEM_PATTERN = re.compile(r"^- AC-(\d+): .+ — verify: (\S.*)$")
 # Values that stand in for a verification instead of naming one (compared case-insensitively).
 FILLER_VERIFY_VALUES = {"tbd", "tba", "tbc", "todo", "later", "unknown", "none", "n/a", "na", "-", "—", "?", "…"}
+# `verify: manual: <step>` marks a criterion only a human can check; the step must be named.
+MANUAL_PREFIX = re.compile(r"^`?manual:\s*", re.IGNORECASE)
 PLACEHOLDER_PATTERN = re.compile(r"\{\{[^{}\n]+\}\}")
 COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.S)
 CODE_SPAN_PATTERN = re.compile(r"`[^`\n]*`")
@@ -141,7 +143,9 @@ def check_common(text, kind):
 
 
 def is_filler_verify(value):
-    """True when the verify value is empty once backticks are dropped, or a filler such as TBD."""
+    """True when the verify value is empty once backticks are dropped, or a filler such as TBD.
+    For `manual: <step>` the step after the prefix is what must be real."""
+    value = MANUAL_PREFIX.sub("", value.strip())
     bare = value.strip().strip("`").strip().rstrip(".").lower()
     return not bare or bare in FILLER_VERIFY_VALUES
 
@@ -159,7 +163,7 @@ def check_acceptance_criteria(lines):
             numbers.append(match.group(1))
             if is_filler_verify(match.group(2)):
                 violations.append(f"AC-{match.group(1)} has no real verification (got {match.group(2).strip()!r}); "
-                                  "name a command, a test, or a manual step")
+                                  "name a command, a test, or 'manual: <step a human does>'")
     for number in sorted({n for n in numbers if numbers.count(n) > 1}):
         violations.append(f"duplicate AC number: AC-{number}")
     return violations

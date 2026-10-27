@@ -49,8 +49,9 @@ A match denies `Write` and `Edit` for everyone, main session included.
 
 Symlinks: a path is checked where it resolves (the repository that holds the target) and, for each
 symlinked folder on the way, as written in the repository that holds the symlink. So a protected
-`brain/x/raw` stays protected in a worktree where it is a symlink back into the main checkout or to
-a folder outside any repository. `mv`, `rm` and other writes through Bash are not covered.
+folder stays protected when it is a symlink, whether it points into another checkout (as in a
+worktree) or to a folder outside any repository. `mv`, `rm` and other writes through Bash are not
+covered.
 
 ## Example
 

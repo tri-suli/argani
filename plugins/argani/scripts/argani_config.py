@@ -52,6 +52,12 @@ def remote_names(start_dir):
     return set((_git(start_dir, "remote") or "").split())
 
 
+def git_aliases(start_dir):
+    """{alias name: definition} from the git config seen in start_dir."""
+    lines = (_git(start_dir, "config", "--get-regexp", r"^alias\.") or "").splitlines()
+    return dict(line.removeprefix("alias.").partition(" ")[::2] for line in lines)
+
+
 def remotes_with_branch(start_dir, name):
     """Number of remote-tracking branches <remote>/<name>; git switch <name> uses one if it is unique."""
     refs = _git(start_dir, "for-each-ref", "--format=%(refname)", f"refs/remotes/*/{name}")
@@ -111,6 +117,8 @@ def _clean_branch(value, allow_glob=False):
         raise ValueError("branch name is empty")
     if name.startswith("refs/"):
         raise ValueError(f"'{name}' is not a branch; use a name under refs/heads/")
+    if name == "@":
+        raise ValueError("'@' is HEAD, not a branch; use the branch name")
     if "@{" in name:
         # check-ref-format --branch would expand it against the hook's own repository.
         raise ValueError(f"'{name}' is a relative reference; use the branch name")

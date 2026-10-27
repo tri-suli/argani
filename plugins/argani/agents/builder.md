@@ -43,6 +43,8 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
 ## Rules
 
 - Never run `git push`, `git merge`, `git pull`, `git branch -f`, or `git update-ref`.
+  A hook denies any command that contains the words push, pull or merge (except in a
+  `git commit -m` message); reword a test filter or argument that only mentions them.
 - Never write `intent.md`, `spec.md`, anything under `review/`, `decision.md` or `mr.md` (a hook
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on
   with the closest faithful reading.

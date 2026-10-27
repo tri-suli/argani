@@ -167,6 +167,19 @@ Protected paths: <comma-separated globs, or "none">
 
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:
 
+- Subagents (any `agent_type`) are denied every push, pull, merge and send-pack, on any branch and
+  outside a repository too: the main session pushes the job branch and a human merges. The check
+  reads the de-quoted words of the whole command, so quoting (`pu''sh`), `bash -c`, `$(...)`,
+  wrappers (`timeout`, `nice`), `eval`, `xargs`, `python3 -c` and `-c alias.*`/`-c remote.*` do not
+  hide the word; a repository alias that pushes, pulls, merges or starts with `!`, and a git
+  subcommand built from expansions (`git $a$b`), are denied too. The message of `git commit -m`
+  is not scanned. Other words that merely contain the word are denied; reword them. What is not
+  caught: a script written to a file (with `Write`) and then run, and git moving a remote branch
+  without those words (`git branch -f` and `git update-ref` only move local refs).
+- The checks below apply to the main session, which is asked, not denied. They are a safety net
+  for mistakes, not a sandbox: shell expansions, aliases, `git -c` settings, `cd` to a directory
+  that does not exist, repositories created inside the command and refspecs such as `:` are not
+  simulated.
 - `git branch -f <default> ...` and `git update-ref refs/heads/<default> ...` move the default
   branch without `push`/`merge`/`pull`, and `guard_git.py` does not look for them.
 - Writing a file through Bash (heredoc, `tee`, `sed -i`) bypasses `guard_artifacts.py`, which only
@@ -191,7 +204,8 @@ also `python3 <plugin root>/scripts/<name>.py`; anything else, or an unparsable 
 Pipes, `;`, `&&`, redirections and `bash -c` are segments like any other, so they do not widen the
 allowlist, and a backtick or `$(` anywhere in the command (quoted or not) is denied. `--output` and
 `--ext-diff` are refused. A `diff.external` that a human configured in the repository's own
-`.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist. The builder has
-Bash, but its prompt forbids these commands, and the protection that matters (the protected branches on
-the remote) is the human-owned merge request. If a bypass is ever observed, add it to the hook
+`.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist
+beyond the push, pull and merge ban above. The protection that matters is on the remote: protect
+`defaultBranch` and `baseBranch` with branch protection rules on GitHub or GitLab, so that only a
+human-owned merge request can change them. If a bypass is ever observed, add it to the hook
 rather than widening trust.

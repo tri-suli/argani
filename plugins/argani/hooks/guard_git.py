@@ -4,16 +4,21 @@
 Protected branches are `protectedBranches` from the config, which always include `defaultBranch`
 and `baseBranch`.
 
-Subagent (agent_type present) -> deny; main session -> ask. Anything else is allowed silently.
+Subagent (agent_type present): every push, pull, merge and send-pack is denied, whatever the
+branch, because in argani the main session pushes and a human merges. The check runs on the
+de-quoted words of the command, so quoting, `bash -c`, substitutions, wrappers and `-c alias.*`
+cannot hide the word. Main session: a push, merge or pull on a protected branch is asked about.
+Anything else is allowed silently.
 
 The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so this guard does:
 reviewer and approver may only run read-only git; spec-writer may also run the plugin's scripts.
 
-Scope and known limits (also in docs/review-protocol.md):
+Scope and known limits of the main-session check (also in docs/review-protocol.md):
 - `push --delete` matches only when the deleted branch is protected.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
 - The current branch is simulated through a command chain (`checkout`, `switch`; `-b`/`-B`/`-c`/
-  `-C` separate, clustered or attached, `--create=`, `--force-create=`, `--orphan`; `--track
+  `-C` separate, clustered, attached or both (`-fBdevelop`), `--create=`, `--force-create=`,
+  `--orphan`; `--track
   <remote>/<branch>`; a branch that exists only on one remote). `checkout <tree-ish> -- <paths>`
   does not move HEAD. A switch whose result cannot be determined (`-`, a commit) makes any later
   push, merge or pull in the chain held.
@@ -40,16 +45,18 @@ SHELLS = {"bash", "sh", "zsh"}
 SHELL_COMMAND_FLAG = re.compile(r"^-[a-z]*c$")
 CREATE_FLAGS = {"-b", "-B", "-c", "-C", "--create", "--force-create", "--orphan"}
 CREATE_OPTION_PREFIXES = ("--create=", "--force-create=", "--orphan=")
-# `-b` and friends at the end of a short-option cluster take the next token (`-fb develop`);
-# directly followed by text, that text is the name (`-bdevelop`).
-CREATE_CLUSTER = re.compile(r"^-[a-zA-Z]*[bBcC]$")
-CREATE_ATTACHED = re.compile(r"^-[bBcC](.+)$")
+CREATE_LETTERS = "bBcC"
+SWITCH_OPTIONS_WITH_VALUE = {"--conflict", "--pathspec-from-file"}
 TRACK_FLAGS = {"-t", "--track"}
 DETACH_FLAGS = {"-d", "--detach"}
 DETACHED = "HEAD"
 UNKNOWN_BRANCH = object()  # HEAD moved, but to a branch the guard cannot determine
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 READ_ONLY_GIT = {"diff", "log", "show", "rev-parse"}
+# A word that pushes, pulls or merges. `merge-base` and `--no-merges` are not; `git-push` is.
+REMOTE_WRITE_WORD = re.compile(r"(?<!\w)(push|pull|merge|send-pack)(?![\w-])")
+SUBCOMMAND_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+COMMIT_MESSAGE_OPTION = re.compile(r"^(--message|-[a-zA-Z]*m)$")  # -m, -qm, -am take the next token
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 AGENT_SCRIPT_RUNNERS = {"argani:spec-writer"}
@@ -155,17 +162,31 @@ def _push_target(args, config, current_branch):
     return None if refspecs else _branch_target(config, current_branch)
 
 
+def _created_branch(args, index):
+    """The branch a create option at args[index] names, else None. In a short-option cluster the
+    first of -b/-B/-c/-C takes the rest of the token (`-fBdevelop`) or the next token (`-fb x`)."""
+    arg = args[index]
+    if arg.startswith(CREATE_OPTION_PREFIXES):
+        return arg.split("=", 1)[1]
+    if arg in CREATE_FLAGS:
+        return args[index + 1] if index + 1 < len(args) else None
+    if arg.startswith("--") or not arg.startswith("-"):
+        return None
+    for position, letter in enumerate(arg[1:], start=2):
+        if letter in CREATE_LETTERS:
+            if position < len(arg):
+                return arg[position:]
+            return args[index + 1] if index + 1 < len(args) else None
+    return None
+
+
 def _switched_branch(repo_dir, args):
     """Where `git checkout|switch <args>` leaves HEAD: a branch name, DETACHED, UNKNOWN_BRANCH,
     or None when HEAD does not move (paths only)."""
-    for index, arg in enumerate(args):
-        if (arg in CREATE_FLAGS or CREATE_CLUSTER.match(arg)) and index + 1 < len(args):
-            return args[index + 1]
-        if arg.startswith(CREATE_OPTION_PREFIXES):
-            return arg.split("=", 1)[1]
-        attached = CREATE_ATTACHED.match(arg)
-        if attached:
-            return attached.group(1)
+    for index in range(len(args)):
+        created = _created_branch(args, index)
+        if created:
+            return created
     if any(arg in DETACH_FLAGS for arg in args):
         return DETACHED
     if "--" in args and args.index("--") + 1 < len(args):
@@ -173,7 +194,8 @@ def _switched_branch(repo_dir, args):
     before_paths = args[:args.index("--")] if "--" in args else args
     if "-" in before_paths:  # the previous branch
         return UNKNOWN_BRANCH
-    names = [arg for arg in before_paths if not arg.startswith("-")]
+    names = [arg for index, arg in enumerate(before_paths) if not arg.startswith("-")
+             and (index == 0 or before_paths[index - 1] not in SWITCH_OPTIONS_WITH_VALUE)]
     if len(names) != 1:
         # None: nothing to switch to. Several: `checkout <tree-ish> <paths>`, HEAD does not move.
         return None
@@ -306,11 +328,70 @@ def agent_bash_violation(agent_type, command):
     return None
 
 
+def _risky_aliases(directory):
+    """Names of git aliases in this repository that push, pull or merge, or run a shell."""
+    return {name for name, definition in argani_config.git_aliases(directory).items()
+            if definition.startswith("!") or REMOTE_WRITE_WORD.search(definition)}
+
+
+def _scanned_words(tokens):
+    """The words of one segment, without the message of `git commit -m <message>`."""
+    start = _command_start(tokens)
+    if not (start and os.path.basename(start[0]) == "git" and "commit" in start):
+        return tokens
+    words, skip_next = [], False
+    for token in tokens:
+        hidden = "$(" in token or "`" in token
+        if skip_next and not hidden:
+            skip_next = False
+            continue
+        skip_next = bool(COMMIT_MESSAGE_OPTION.match(token))
+        if token.startswith("--message=") and not hidden:
+            continue
+        words.append(token)
+    return words
+
+
+def subagent_remote_write(directory, command):
+    """Reason string when a subagent's command could push, pull or merge, else None."""
+    reason = ("argani guard: agents never push, pull or merge (`{}`). Commit on the job branch "
+              "and stop; the main session pushes and a human merges. Reword a commit message "
+              "or a test filter that only mentions the word.")
+    try:
+        segments = split_segments(command)
+    except ValueError:
+        unquoted = re.sub(r"['\"\\]", "", command)
+        return reason.format("unparsable command") if REMOTE_WRITE_WORD.search(unquoted) else None
+    aliases = None
+    for tokens in segments:
+        for word in _scanned_words(tokens):
+            if REMOTE_WRITE_WORD.search(word):
+                return reason.format(word)
+        start = _command_start(tokens)
+        if not start or os.path.basename(start[0]) != "git":
+            continue
+        _, subcommand, _ = _parse_git(start[1:])
+        if subcommand is None:
+            continue
+        if not SUBCOMMAND_WORD.match(subcommand):
+            return reason.format(f"git {subcommand}: a subcommand the guard cannot read")
+        if aliases is None:
+            aliases = _risky_aliases(directory)
+        if subcommand in aliases:
+            return reason.format(f"git {subcommand}: an alias that pushes, pulls, merges or runs a shell")
+    return None
+
+
 def guard(payload):
     command = (payload.get("tool_input") or {}).get("command") or ""
     violation = agent_bash_violation(payload.get("agent_type"), command)
     if violation:
         emit(payload, "deny", violation)
+        return
+    if payload.get("agent_type"):
+        violation = subagent_remote_write(payload.get("cwd") or os.getcwd(), command)
+        if violation:
+            emit(payload, "deny", violation)
         return
     if not any(keyword in command for keyword in KEYWORDS):
         return

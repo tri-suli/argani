@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   longer counts as a branch switch; an unreadable `.claude` directory holds pushes instead of
   crashing open; `heads/` is dropped from configured names, and other `refs/` names and `@{...}`
   are rejected.
+  Follow-up from a third review, which found the branch simulation could still be bypassed:
+  subagents are now denied every push, pull, merge and send-pack on any branch, checked on the
+  de-quoted words of the whole command (quoting, `bash -c`, substitutions, wrappers, `eval`,
+  `-c alias.*` and repository aliases that push or run a shell are caught); the message of
+  `git commit -m` is not scanned. The main-session simulation follows clustered create flags with
+  an attached name (`-fBdevelop`) and skips option values (`--conflict merge`). `baseBranch: "@"`
+  is rejected.
 - `bootstrap/install.sh` no longer runs `claude plugin marketplace list`, which could not show `argani` before the next session; it checks that `settings.json` registers `argani` and says the marketplace is cloned when the next session starts.
 - `bootstrap/install.sh` copies `claude/CLAUDE.md` to both global locations instead of symlinking them, so the global configuration no longer depends on the checkout; symlinks from an earlier install are replaced by copies, and the worktree refusal is dropped.
 - Checklist `code` reports opaque or inconsistent names (internal labels such as `a1`, or names that differ from those set by the spec, plan or existing code) as Important.

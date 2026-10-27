@@ -1,3 +1,4 @@
+import json
 import pytest
 
 from hook_helpers import decision_of, file_payload, run_hook
@@ -195,3 +196,48 @@ def test_non_artifact_paths_and_non_repos_are_allowed(repo, tmp_path_factory):
     assert write(repo, "src/app.py", "anything") is None
     outside = tmp_path_factory.mktemp("outside")
     assert write(outside, "argani/demo/review/round-1/review-code.md", "junk") is None
+
+
+@pytest.fixture
+def worktree_with_symlinked_raw(make_repo):
+    """A main checkout whose brain/x/raw is protected, and a git worktree where that folder is a
+    symlink back into the main checkout (gitignored sources shared between worktrees)."""
+    import subprocess
+    config = {"protectedPaths": ["brain/*/raw/**"]}
+    main = make_repo("main", config=config)
+    (main / "brain" / "x" / "raw").mkdir(parents=True)
+    worktree = main.parent / "worktree"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", "-b", "feature", str(worktree)],
+                   check=True)
+    (worktree / ".claude").mkdir()
+    (worktree / ".claude" / "argani.json").write_text(json.dumps(config))
+    (worktree / "brain" / "x").mkdir(parents=True)
+    (worktree / "brain" / "x" / "raw").symlink_to(main / "brain" / "x" / "raw")
+    return main, worktree
+
+
+@pytest.mark.parametrize("agent_type", [None, "argani:builder"])
+def test_protected_paths_are_denied_through_a_symlink_into_another_checkout(
+        worktree_with_symlinked_raw, agent_type):
+    _, worktree = worktree_with_symlinked_raw
+    assert decision_of(write(worktree, "brain/x/raw/receipt.pdf", "x", agent_type)) == "deny"
+    assert write(worktree, "brain/x/notes.md", "x", agent_type) is None
+
+
+def test_symlink_whose_target_is_protected_in_its_own_repository_is_denied(make_repo):
+    main = make_repo("main", config={"protectedPaths": ["raw/**"]})
+    (main / "raw").mkdir()
+    other = make_repo("other")
+    (other / "sources").symlink_to(main / "raw")
+    assert decision_of(write(other, "sources/a.pdf", "x", "argani:builder")) == "deny"
+    assert write(other, "src/a.py", "x", "argani:builder") is None
+
+
+def test_symlink_to_a_folder_outside_any_repository_keeps_the_logical_protection(
+        make_repo, tmp_path_factory):
+    repo = make_repo(config={"protectedPaths": ["brain/*/raw/**"]})
+    data = tmp_path_factory.mktemp("data")
+    (repo / "brain" / "x").mkdir(parents=True)
+    (repo / "brain" / "x" / "raw").symlink_to(data)
+    assert decision_of(write(repo, "brain/x/raw/receipt.pdf", "x", "argani:builder")) == "deny"
+    assert decision_of(write(repo, "brain/x/raw/receipt.pdf", "x")) == "deny"

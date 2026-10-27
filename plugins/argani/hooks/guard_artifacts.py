@@ -117,6 +117,33 @@ def deny_sole_writer(payload, agent_type):
          "not under .git). Write only your own artifact.")
 
 
+def protected_through_symlink(path):
+    """(relative path, error) when a symlinked folder on the path is protected in the repository
+    that holds the symlink, matched against the path as written there; a protected folder keeps
+    its protection wherever the symlink points. (None, None) when nothing matches."""
+    parts = path.parts
+    for index in range(1, len(parts)):
+        link = Path(*parts[:index + 1])
+        if not link.is_symlink():
+            continue
+        holder = link.parent
+        top = argani_config.toplevel(holder)
+        if not top:
+            continue
+        written = Path(os.path.realpath(holder), *parts[index:])
+        try:
+            relative = written.relative_to(os.path.realpath(top)).as_posix()
+        except ValueError:
+            continue
+        try:
+            config = argani_config.load_config(holder, strict=True)
+        except ValueError as error:
+            return relative, error
+        if any(glob_to_regex(pattern).match(relative) for pattern in config["protectedPaths"]):
+            return relative, None
+    return None, None
+
+
 def guard(payload):
     tool_input = payload.get("tool_input") or {}
     sole_writer = payload.get("agent_type") if payload.get("agent_type") in SOLE_FILE_WRITERS else None
@@ -126,6 +153,17 @@ def guard(payload):
     path = Path(os.path.normpath(os.path.join(payload.get("cwd") or os.getcwd(), file_path)))
     if sole_writer and ".git" in path.parts:
         deny_sole_writer(payload, sole_writer)
+        return
+    linked, error = protected_through_symlink(path)
+    if error:
+        emit(payload, "ask", f"argani guard: {linked} is reached through a symlink in a repository "
+             f"whose .claude/argani.json is invalid ({error}); protectedPaths cannot be checked. "
+             "Fix the file.")
+        return
+    if linked:
+        emit(payload, "deny", f"argani guard: {linked} matches protectedPaths in .claude/argani.json "
+             "(through a symlink) and must not be written. Ask the user to change it or to lift "
+             "the protection.")
         return
     anchor = next((parent for parent in [path, *path.parents] if parent.is_dir()), None)
     if anchor is None or not argani_config.toplevel(anchor):

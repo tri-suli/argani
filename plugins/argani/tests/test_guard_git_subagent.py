@@ -120,5 +120,34 @@ def test_words_outside_git_commands_and_existing_paths_are_allowed(feature_repo,
     assert decide(command, feature_repo) is None, command
 
 
+@pytest.mark.parametrize("command", [
+    "git -C stash push origin HEAD:develop",
+    "git --namespace stash push origin HEAD:develop",
+    "/usr/bin/g[i]t push origin HEAD:develop",
+    "/usr/bin/gi? push origin HEAD:develop",
+    "echo Z2l0IHB1c2g= | base64 -d | bash /dev/stdin",
+    "echo Z2l0IHB1c2g= | base64 -d | sh -",
+    "echo Z2l0IHB1c2g= | base64 -d | bash -s origin",
+    "echo Z2l0IHB1c2g= | base64 -d | busybox sh",
+    "echo Z2l0IHB1c2g= | base64 -d | xargs -I{} sh -c {}",
+    "git commit -F - <<EOF\n$(git $(echo hsup | rev) origin HEAD:develop)\nEOF",
+    "git commit -F - <<EOF\nmsg\nEOF\ngit push origin HEAD:develop",
+])
+def test_gaps_from_the_fifth_review_are_denied(feature_repo, command):
+    (feature_repo / "stash").mkdir(exist_ok=True)
+    assert decide(command, feature_repo) == "deny", command
+
+
+@pytest.mark.parametrize("command", [
+    "git commit -F - <<'EOF'\nfeat: support pull requests\n\nMerge and push are left to humans.\nEOF",
+    "git commit -q -F - <<EOF\nfix: merge defaults\nEOF",
+    "cat <<'EOF' | git commit --file=-\ndocs: explain the push flow\nEOF",
+    "git stash push -m wip && git stash pop",
+    "bash scripts/test.sh --verbose",
+])
+def test_commit_heredocs_and_local_stash_are_allowed(feature_repo, command):
+    assert decide(command, feature_repo) is None, command
+
+
 def test_main_session_still_pushes_its_job_branch(feature_repo):
     assert decide("git push -u origin feature", feature_repo, None) is None

@@ -63,6 +63,12 @@ GIT_TOOL_WORD = re.compile(r"(?<!\w)(git|gh|glab|github|gitlab)(?!\w)")
 SUBSTITUTION_MARKS = ("$(", "`")
 STDIN_SHELLS = SHELLS | {"dash", "ksh"}
 CODE_RUNNERS = STDIN_SHELLS | {"eval", "source", "."}
+SHELL_LAUNCHERS = {"busybox", "toybox", "xargs"}  # run a shell named in their arguments
+STDIN_SCRIPT = re.compile(r"^(-|/dev/stdin|/dev/fd/\d+|/proc/self/fd/\d+)$")
+STDIN_FLAG = re.compile(r"^-[a-zA-Z]*s[a-zA-Z]*$")  # bash -s, sh -xs
+DYNAMIC_PROGRAM_MARKS = ("$", "`", "*", "?", "[")  # `$x$y`, `/usr/bin/g[i]t`
+COMMIT_FROM_STDIN = re.compile(r"\bgit\b.*\bcommit\b.*(\s-[a-zA-Z]*F\s*-|\s--file[= ]-)(?=\s|$|[;&|])")
+HEREDOC_START = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 AGENT_SCRIPT_RUNNERS = {"argani:spec-writer"}
@@ -380,6 +386,46 @@ def _live_backtick(command):
     return False
 
 
+def _without_commit_heredocs(command):
+    """Drop the body of a heredoc fed to `git commit -F -`: it is the commit message. A body the
+    shell expands (unquoted delimiter with `$(` or a backtick) is kept and scanned."""
+    lines, result, index = command.split("\n"), [], 0
+    while index < len(lines):
+        line = lines[index]
+        result.append(line)
+        index += 1
+        start = HEREDOC_START.search(line)
+        if not (start and COMMIT_FROM_STDIN.search(line)):
+            continue
+        quoted, delimiter = start.groups()
+        end = next((i for i in range(index, len(lines)) if lines[i].strip() == delimiter), None)
+        body = "\n".join(lines[index:end])
+        if end is not None and (quoted or not any(mark in body for mark in SUBSTITUTION_MARKS)):
+            index = end
+    return "\n".join(result)
+
+
+def _reads_stdin(arguments):
+    """Whether a shell with these arguments takes its commands from stdin."""
+    if any(SHELL_COMMAND_FLAG.match(arg) for arg in arguments):
+        return False
+    if any(STDIN_FLAG.match(arg) for arg in arguments):
+        return True
+    scripts = [arg for arg in arguments if arg == "-" or not arg.startswith("-")]
+    return not scripts or bool(STDIN_SCRIPT.match(scripts[0]))
+
+
+def _local_stash_push(tokens):
+    """Index of `push` in `git [options] stash push`, which only stashes local changes."""
+    start = _command_start(tokens)
+    if not start or os.path.basename(start[0]) != "git":
+        return None
+    _, subcommand, args = _parse_git(start[1:])
+    if subcommand == "stash" and args[:1] == ["push"]:
+        return len(tokens) - len(args)
+    return None
+
+
 def _hidden_code(segments):
     """What in the command builds or reads code the guard cannot see, else None: a shell reading
     stdin, `eval`/`source` of generated text, or a substitution inside code or a git command."""
@@ -388,9 +434,11 @@ def _hidden_code(segments):
         program = os.path.basename(start[0]) if start else ""
         arguments = start[1:]
         runs_code = program in CODE_RUNNERS
-        if program in STDIN_SHELLS and not any(SHELL_COMMAND_FLAG.match(arg) for arg in arguments) \
-                and not any(not arg.startswith("-") for arg in arguments):
+        if program in STDIN_SHELLS and _reads_stdin(arguments):
             return f"{program} reading commands from a pipe or heredoc"
+        if program in SHELL_LAUNCHERS and any(
+                os.path.basename(arg) in CODE_RUNNERS for arg in arguments):
+            return f"{program} running a shell"
         if program in CODE_RUNNERS - STDIN_SHELLS and not arguments:
             return f"{program} reading generated code"
         messages = _message_indexes(tokens)
@@ -412,7 +460,7 @@ def subagent_remote_write(directory, command):
               "or a test filter that only mentions the word, and run substitutions as their own "
               "command.")
     try:
-        segments = split_segments(command)
+        segments = split_segments(_without_commit_heredocs(command))
     except ValueError:
         unquoted = re.sub(r"['\"\\]", "", command)
         return reason.format("unparsable command") if REMOTE_WRITE_WORD.search(unquoted) else None
@@ -422,14 +470,13 @@ def subagent_remote_write(directory, command):
     words, mentions_git = [], False
     for tokens in segments:
         start = _command_start(tokens)
-        if start and any(mark in start[0] for mark in ("$",) + SUBSTITUTION_MARKS):
-            mentions_git = True  # the program itself is an expansion, such as `$x$y push`
-        messages = _message_indexes(tokens)
+        if start and any(mark in start[0] for mark in DYNAMIC_PROGRAM_MARKS):
+            mentions_git = True  # the program is an expansion or a glob, such as `$x$y push`
+        skipped = _message_indexes(tokens) | {_local_stash_push(tokens)}
         for index, token in enumerate(tokens):
-            if index in messages or _names_existing_path(directory, token):
+            if index in skipped or _names_existing_path(directory, token):
                 continue
-            if not (token == "push" and words[-1:] == ["stash"]):  # `git stash push` is local
-                words.append(token)
+            words.append(token)
             mentions_git = mentions_git or bool(GIT_TOOL_WORD.search(token))
     if mentions_git and _live_backtick(command):
         return reason.format("a backtick substitution in a git command")

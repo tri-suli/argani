@@ -75,7 +75,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   paths (`src/push.ts`) and `git stash push` are not, so `docker pull`, `grep pull` and linting
   `merge.ts` work again; a shell reading a pipe or heredoc, `eval`/`source` of generated text,
   and command substitutions in shell code or git commands are denied, closing encoded commands
-  such as `bash -c "git $(echo hsup | rev) ..."`.
+  such as `bash -c "git $(echo hsup | rev) ..."`. After a fifth review: the `git stash push`
+  exemption applies only to the parsed `stash` subcommand (`git -C stash push` was allowed), a
+  glob in the program (`/usr/bin/g[i]t`) counts as a git tool, shells reading `-`, `/dev/stdin`
+  or `-s` and shells run through `busybox`, `toybox` or `xargs` are denied, and the heredoc body
+  of `git commit -F -` is treated as a message.
 - `bootstrap/install.sh` no longer runs `claude plugin marketplace list`, which could not show `argani` before the next session; it checks that `settings.json` registers `argani` and says the marketplace is cloned when the next session starts.
 - `bootstrap/install.sh` copies `claude/CLAUDE.md` to both global locations instead of symlinking them, so the global configuration no longer depends on the checkout; symlinks from an earlier install are replaced by copies, and the worktree refusal is dropped.
 - Checklist `code` reports opaque or inconsistent names (internal labels such as `a1`, or names that differ from those set by the spec, plan or existing code) as Important.

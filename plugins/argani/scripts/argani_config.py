@@ -9,6 +9,7 @@ Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
 """
 import fnmatch
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -23,8 +24,12 @@ DEFAULTS = {
     "protectedPaths": [],
     "mrCommand": None,
     "branchPattern": "feature/{slug}",
+    "recordCommitMessage": "chore(argani): record {slug} {what}",
+    "commitTrailers": [],
 }
 SLUG_PLACEHOLDER = "{slug}"
+WHAT_PLACEHOLDER = "{what}"
+TRAILER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*: \S.*$")
 GLOB_CHARS = "*?["
 
 
@@ -146,6 +151,28 @@ def _branch_pattern(value):
     return pattern
 
 
+def _record_commit_message(value):
+    message = _optional_string(value)
+    if message.count(WHAT_PLACEHOLDER) != 1:
+        raise ValueError(f"must contain {WHAT_PLACEHOLDER} exactly once")
+    if "\n" in message or not message.strip():
+        raise ValueError("must be a single, non-empty subject line")
+    return message
+
+
+def _commit_trailers(value):
+    trailers = _string_list(value)
+    for trailer in trailers:
+        if not TRAILER.match(trailer):
+            raise ValueError(f"'{trailer}' is not a git trailer such as 'Co-Authored-By: Name <email>'")
+    return trailers
+
+
+def record_commit_message(config, slug, what):
+    """Subject of an orchestrator record commit, such as 'chore(argani): record login decision'."""
+    return config["recordCommitMessage"].replace(SLUG_PLACEHOLDER, slug).replace(WHAT_PLACEHOLDER, what)
+
+
 def protected_match(config, branch):
     """The protectedBranches entry (name or glob) that branch matches, else None."""
     return next((entry for entry in config["protectedBranches"]
@@ -181,6 +208,8 @@ COERCERS = {
     "verifyCommand": _optional_string,
     "mrCommand": _optional_string,
     "branchPattern": _branch_pattern,
+    "recordCommitMessage": _record_commit_message,
+    "commitTrailers": _commit_trailers,
 }
 
 

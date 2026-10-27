@@ -13,13 +13,26 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 `spec.md`, `plan.md`, `build.md`, `review-<checklist>.md` or `decision.md`; agents do. Its own files:
 `mr.md` and, for `rework`, `review-human.md`. Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
 
+Commits: invoking `/argani:factory` is the human's explicit instruction to make the commits this skill
+describes on the job branch (the orchestrator's record commits and the builder's commits), and no
+others. It never pushes without `mrCommand` and never merges. Repositories whose rules forbid commits
+without a separate instruction per commit should use the manual loop (`/argani:spec`, `/argani:plan`,
+`/argani:review`) instead.
+
 Tools: the list above is the minimum, no `Bash(*)`. `mrCommand` runs through `Bash`, which the human
 permits when asked. Cost: one spec-writer, one builder per round, N reviewers per round, one approver;
 use it for jobs with clear acceptance criteria.
 
 ## Step 1
 
-1. Parse `$ARGUMENTS`: `<slug>` or `rework <slug> <note>`.
+1. Parse `$ARGUMENTS`:
+   - empty: **stop** and print the usage `/argani:factory <slug> | rework <slug> <note>`;
+   - first word `rework`: `rework <slug> <note>`;
+   - exactly one word: `<slug>`;
+   - anything else (a description of new work, not a slug): **stop** without writing anything. The
+     factory only runs a job that already has an intent. Say: start with `/argani:intent <the text>`,
+     then `/argani:intent approve <slug>`, then `/argani:factory <slug>`.
+   If step 3 reports no job folder for a one-word argument, give the same advice with that word.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it exits non-zero, **stop** and show its
    error. If `verifyCommand` is empty or `reviewers` is empty, **stop** and name `<toplevel>/.claude/argani.json`.
    Keep the JSON (call it the config).

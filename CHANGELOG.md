@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   `main` and `develop` both protected). Agent prompts carry `Base branch` instead of `Default branch`,
   and the factory state reports `base_branch` and `protected_branches` instead of `default_branch`.
 - `docs/argani.md` records the behaviour verified in the spike; `docs/config.md` defines `protectedPaths` glob semantics.
+- `/argani:factory` given a description instead of a slug (or a slug with no job folder) stops and
+  points to `/argani:intent`, instead of improvising; an empty argument prints the usage. The skill and
+  `docs/argani.md` state that invoking the factory is the explicit instruction for the commits it makes,
+  and that repositories requiring a separate instruction per commit should use the manual loop.
 - Factory commit messages are configurable: `recordCommitMessage` (default
   `chore(argani): record {slug} {what}`) sets the subject of the orchestrator's record commits, and
   `commitTrailers` (default `[]`) adds git trailers such as `Co-Authored-By` to every orchestrator and

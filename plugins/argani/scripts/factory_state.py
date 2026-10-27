@@ -42,11 +42,11 @@ def first_word(path):
     return lines[0].split(None, 1)[0] if lines and lines[0].strip() else ""
 
 
-def document_state(path, kind):
+def document_state(path, kind, branch_types=()):
     """{exists, status}: status is draft | approved | invalid | missing."""
     if not path.is_file():
         return {"exists": False, "status": "missing"}
-    violations, status = artifact_check.run_check(kind, artifact_check.normalize(read_text(path)))
+    violations, status = artifact_check.run_check(kind, artifact_check.normalize(read_text(path)), branch_types)
     return {"exists": True, "status": "invalid" if violations else status}
 
 
@@ -192,10 +192,17 @@ def build_state(slug, start_dir="."):
     job_dir = toplevel / config["artifactRoot"] / slug
     if not job_dir.is_dir():
         return None
-    branch = argani_config.job_branch(config, slug)
     current = argani_config.current_branch(start_dir)
-
-    intent = document_state(job_dir / "intent.md", "Intent")
+    intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"])
+    intent_path = job_dir / "intent.md"
+    job_type = (artifact_check.intent_type(artifact_check.normalize(read_text(intent_path)))
+                if intent_path.is_file() else None)
+    try:
+        branch = argani_config.job_branch(config, slug, job_type)
+    except ValueError:
+        if intent["status"] != "invalid":  # a protected branch, not a missing type
+            raise
+        branch = None  # the intent names no valid Type yet; the stage stops at intent approval
     spec = document_state(job_dir / "spec.md", "Spec")
     build_path = job_dir / "build.md"
     build = {
@@ -220,11 +227,12 @@ def build_state(slug, start_dir="."):
     return {
         "slug": slug,
         "job_dir": str(job_dir),
+        "type": job_type,
         "branch": branch,
         "current_branch": current,
-        "on_job_branch": current == branch,
+        "on_job_branch": branch is not None and current == branch,
         "dirty": is_dirty(toplevel, job_dir),
-        "base_branch": config["baseBranch"],
+        "base_branch": argani_config.base_branch_for(config, job_type),
         "protected_branches": config["protectedBranches"],
         "intent": intent,
         "spec": spec,
@@ -241,6 +249,14 @@ def build_state(slug, start_dir="."):
     }
 
 
+def missing_job_branch_hint(config, slug):
+    """The job branch to suggest when the job folder is missing; `<type>` when the type is unknown."""
+    try:
+        return argani_config.job_branch(config, slug)
+    except ValueError:
+        return config["branchPattern"].replace("{slug}", slug).replace("{type}", "<type>")
+
+
 def main(argv):
     if len(argv) not in (2, 3):
         print(__doc__.strip(), file=sys.stderr)
@@ -251,11 +267,11 @@ def main(argv):
         return 1
     try:
         state = build_state(argv[1], start_dir)
-        branch = None if state else argani_config.job_branch(argani_config.load_config(start_dir), argv[1])
     except ValueError as error:
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
+        branch = missing_job_branch_hint(argani_config.load_config(start_dir), argv[1])
         print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository. "
               f"After the first build the artifacts live on the job branch: try 'git switch {branch}'.")
         return 1

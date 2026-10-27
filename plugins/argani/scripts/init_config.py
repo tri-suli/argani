@@ -168,9 +168,11 @@ def propose(start_dir="."):
     prefixes = branch_prefixes(names)
     if prefixes:
         questions.append({"key": "branchPattern",
-                          "candidates": [f"{prefix}/{{slug}}" for prefix in prefixes[:3]],
-                          "ask": "Existing branches use these prefixes. Which pattern should job branches "
-                                 "follow? {slug} is required; the default is feature/{slug}."})
+                          "candidates": ["{type}/{slug}"] + [f"{prefix}/{{slug}}" for prefix in prefixes[:3]],
+                          "types": prefixes,
+                          "ask": "Existing branches use these prefixes. Should the job branch take its prefix "
+                                 "from the job's type ({type}/{slug}, with these prefixes as branchTypes), or "
+                                 "use one fixed prefix? {slug} is required; the default is feature/{slug}."})
 
     if "develop" in names:
         questions.append({"key": "baseBranch", "candidates": ["develop", default_branch],

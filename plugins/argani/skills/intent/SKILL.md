@@ -13,7 +13,7 @@ This skill never writes code.
 ## Setup
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it fails, show its error and stop.
-   Read `toplevel` and `artifactRoot` from the JSON. Artifacts live in
+   Read `toplevel`, `artifactRoot` and `branchTypes` from the JSON. Artifacts live in
    `<toplevel>/<artifactRoot>/<slug>/`; use the current directory when `toplevel` is null.
 2. Artifact language: the language of this repository's CLAUDE.md, else the user's. Only the
    prose is in that language. The `# Intent:` title prefix, the `##` section headings, file names,
@@ -30,6 +30,7 @@ This skill never writes code.
    - What is the problem, and who is affected?
    - What constraints apply (policies, deadlines, compatibility)?
    - What does "better" look like?
+   - When `branchTypes` is not empty: which type of job this is, one of `branchTypes`.
    - For each success criterion: how will it be verified (a command, a test, or a named manual step)?
      When only a person can check it (judgement, data that stays local), write
      `verify: manual: <who does what>`.
@@ -37,7 +38,8 @@ This skill never writes code.
    If it fails (no ASCII letters or digits in the title), ask the user for an ASCII slug.
 3. If `<artifact dir>/<slug>/intent.md` already exists, stop and ask before touching it.
 4. Write it from `${CLAUDE_PLUGIN_ROOT}/templates/intent.md` with `Status: draft`. Replace every
-   placeholder and delete guidance comments. Every acceptance criterion must read
+   placeholder and delete guidance comments. Write `Type: <type>` with the chosen type when
+   `branchTypes` is not empty; otherwise delete the `Type:` line. Every acceptance criterion must read
    `n. [ ] <claim> — verify: <how>`, numbered 1 to n in order; item n is AC-n when you refer to
    it. Do not invent criteria the user has not confirmed; list unknowns under Open questions.
 5. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py intent <file>`; fix the file until

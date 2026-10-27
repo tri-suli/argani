@@ -66,8 +66,10 @@ def test_shared_branch_prefixes_become_pattern_candidates(make_repo):
     repo = make_repo()
     for name in ("feat/a", "feat/b", "fix/c", "fix/d", "chore/e"):
         git(repo, "branch", name)
-    candidates = question(propose(repo), "branchPattern")["candidates"]
-    assert set(candidates) == {"feat/{slug}", "fix/{slug}"}
+    item = question(propose(repo), "branchPattern")
+    assert item["candidates"][0] == "{type}/{slug}"
+    assert set(item["candidates"][1:]) == {"feat/{slug}", "fix/{slug}"}
+    assert set(item["types"]) == {"feat", "fix"}
     assert "branchPattern" not in propose(repo)["proposal"]
 
 

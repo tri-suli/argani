@@ -36,6 +36,8 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
    `## Rework after round <K>` section to `build.md` for each listed folder K, listing each finding
    and how it was handled
    (before the closing line, which stays last). Rerun the verify command and replace its output.
+   List every AC verified `manual: <step>` under `## Pending human verification` with what you
+   prepared for it; never mark it verified yourself.
 6. Commit on the feature branch with Conventional Commits, one commit per logical change, with the
    trailers from the prompt and no others. Commit `plan.md` and `build.md` too. At the end the
    working tree must be clean (`git status --porcelain` prints nothing).

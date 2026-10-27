@@ -24,6 +24,8 @@ Create the `Spec` file from `<plugin root>/templates/spec.md`, with `Status: dra
 - Approach, and the alternatives you rejected.
 - Affected areas, as concrete paths.
 - Acceptance criteria mapping: one row per AC in the intent, each with a concrete way to verify it.
+  An AC whose intent verification is `manual: <step>` stays manual: keep the step and say what the
+  build must prepare for the human (a command to run, an output to inspect).
 - Flagged concerns. Flag conflicting constraints or policies (with each other or with the
   approach); never resolve a conflict silently.
 - Open questions carried forward from the intent, plus new ones.

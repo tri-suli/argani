@@ -136,6 +136,9 @@ Record first (only with `on_job_branch` true). Then:
   request from <branch> into <base_branch>"; the human writes `mr.md` (URL and branch) or
   configures `mrCommand` and re-runs.
 
+In both cases, when `decision.md` has `## Human verification before merge`, copy that checklist into
+`mr.md` and into the final message: the human does those steps and ticks them before merging.
+
 ## `rework <slug> <note>`
 
 1. Allowed only when `stage` is `needs-decision` and `round` is 1 (after a clean round 1, before a

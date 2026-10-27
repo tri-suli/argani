@@ -56,6 +56,13 @@ Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
 A filler instead of a verification (`TBD`, `TODO`, `N/A`, `none`, `?`, `-`, `...`) or an empty
 code span fails the check, so the intent cannot be approved until each AC names a real one.
 
+A criterion that only a human can check (a judgement, or data that never leaves someone's machine)
+reads `verify: manual: <who does what>`, and the step must be named (`manual: TBD` fails). Agents
+never claim it: the builder lists it under `## Pending human verification` in `build.md` with what
+it prepared, the compliance reviewer checks that list instead of evidence, and the approver does not
+escalate because of it but copies it into `decision.md` as `## Human verification before merge`.
+The merge request carries that list, and the human ticks it before merging.
+
 Artifact prose follows the language of the repository's `CLAUDE.md` or of the user. File names,
 Status lines, `AC-n`, `verify:` and verdict words stay in English. So do the `# Intent:`,
 `# Spec:` and `# Plan:` title prefixes and the `##` section headings; only the prose is in the
@@ -69,7 +76,8 @@ project language.
 3. Context comes from files, not conversation. Every agent is told which paths to read.
 4. One writer per file. Each agent writes only its own artifact.
 5. Acceptance criteria must be verifiable. Intent without a command, test, or named manual step
-   per criterion cannot be approved.
+   (`manual: <step>`) per criterion cannot be approved. Manual steps are done by a human before
+   merging, never claimed by an agent.
 6. The verdict is the first line of a review (`PASS` or `CHANGES`) or decision (`APPROVE` or `ESCALATE`).
 7. At most two review rounds, then escalate to a human.
 8. A correction made twice becomes a rule in the repo's `CLAUDE.md` or a hook.

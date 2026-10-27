@@ -31,6 +31,8 @@ This skill never writes code.
    - What constraints apply (policies, deadlines, compatibility)?
    - What does "better" look like?
    - For each success criterion: how will it be verified (a command, a test, or a named manual step)?
+     When only a person can check it (judgement, data that stays local), write
+     `verify: manual: <who does what>`.
 2. Compute the slug: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py slug "<title>"`.
    If it fails (no ASCII letters or digits in the title), ask the user for an ASCII slug.
 3. If `<artifact dir>/<slug>/intent.md` already exists, stop and ask before touching it.

@@ -22,6 +22,14 @@ Date: {{YYYY-MM-DD}}
 {{output of verifyCommand}}
 ```
 
+## Pending human verification
+
+<!-- One item per AC whose verification is `manual: <step>`: the AC, the step, and what this build
+     prepared for it (a command to run, a file to inspect). Do not claim these as verified.
+     Write "None" if there are none. -->
+
+- {{AC-n: step, and what was prepared}}
+
 ## Deviations from plan
 
 <!-- Where the work differs from plan.md and why. Write "None" if there are none. -->

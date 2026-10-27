@@ -5,14 +5,16 @@
 Whether the work matches what was approved:
 
 - The diff `<baseBranch>...HEAD` matches `spec.md` and `plan.md`.
-- Every acceptance criterion in the spec's mapping table has evidence in `build.md`.
+- Every acceptance criterion in the spec's mapping table has evidence in `build.md`, except an AC
+  verified `manual: <step>`, which must instead be listed under `## Pending human verification`.
 - The literal output of `verifyCommand` is present in `build.md`.
 - Deviations from `plan.md` are recorded in `build.md`.
 
 ## What Important means here
 
 - The diff does something `spec.md` does not ask for, or leaves out something it asks for.
-- An AC in the mapping table has no evidence in `build.md`.
+- An AC in the mapping table has no evidence in `build.md` (a manual AC: is not listed under
+  `## Pending human verification`, or `build.md` claims it as verified by an agent).
 - The literal `verifyCommand` output is missing, summarised instead of pasted, or shows a failure.
 - The diff departs from `plan.md` without a recorded deviation.
 

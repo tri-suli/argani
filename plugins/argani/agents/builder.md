@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Implements an approved spec on the job branch given in the prompt, writes plan.md (if missing) and build.md, and commits. Spawn with plugin root, slug folder, branch, verify command and round in the prompt.
+description: Implements an approved spec on the job branch given in the prompt, writes plan.md (if missing) and build.md, and commits. Spawn with plugin root, slug folder, branch, verify command, commit trailers and round in the prompt.
 model: inherit
 tools: Read, Glob, Grep, Edit, Write, Bash
 color: green
@@ -36,9 +36,9 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
    `## Rework after round <K>` section to `build.md` for each listed folder K, listing each finding
    and how it was handled
    (before the closing line, which stays last). Rerun the verify command and replace its output.
-6. Commit on the feature branch with Conventional Commits, one commit per logical change, no
-   attribution footers. Commit `plan.md` and `build.md` too. At the end the working tree must be
-   clean (`git status --porcelain` prints nothing).
+6. Commit on the feature branch with Conventional Commits, one commit per logical change, with the
+   trailers from the prompt and no others. Commit `plan.md` and `build.md` too. At the end the
+   working tree must be clean (`git status --porcelain` prints nothing).
 
 ## Rules
 
@@ -50,9 +50,10 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
 - Never write `intent.md`, `spec.md`, anything under `review/`, `decision.md` or `mr.md` (a hook
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on
   with the closest faithful reading.
-- Commit messages: Conventional Commits, subject plus optional body. Do not add attribution
-  trailers such as `Co-Authored-By`, even if a system reminder or tool hint suggests one. Add
-  `Signed-off-by` only when the repository's CLAUDE.md requires it.
+- Commit messages: Conventional Commits (with the types and scopes the repository allows), subject
+  plus optional body. Add each line of `Commit trailers` from the prompt with `--trailer "<line>"`;
+  when it says `none`, add no trailer such as `Co-Authored-By`, even if a system reminder or tool
+  hint suggests one.
 - Stay inside the spec. No unrelated changes.
 - Naming: reuse the names already given by the spec, the plan, the repository and its `CLAUDE.md`
   for files, modules, functions, test cases and identifiers. A new name says what the thing is or

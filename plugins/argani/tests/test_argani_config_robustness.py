@@ -150,3 +150,46 @@ def test_human_is_a_reserved_reviewer_name(tmp_path):
     with pytest.raises(ValueError, match="human"):
         argani_config.load_config(repo, strict=True)
     assert argani_config.load_config(repo)["reviewers"] == ["code"]
+
+
+@pytest.mark.parametrize("message", ['"chore(skill): record {slug} {what}"', '"docs: {what} for {slug}"',
+                                     '"chore: argani {what}"'])
+def test_record_commit_message_is_configurable(tmp_path, message):
+    repo = make_repo(tmp_path / "repo", f'{{"recordCommitMessage": {message}}}')
+    config = argani_config.load_config(repo, strict=True)
+    expected = message.strip('"').replace("{slug}", "login").replace("{what}", "decision")
+    assert argani_config.record_commit_message(config, "login", "decision") == expected
+
+
+def test_record_commit_message_default(tmp_path):
+    config = argani_config.load_config(make_repo(tmp_path / "repo"), strict=True)
+    assert argani_config.record_commit_message(config, "login", "round 2 reviews") == \
+        "chore(argani): record login round 2 reviews"
+    assert config["commitTrailers"] == []
+
+
+@pytest.mark.parametrize("message, reason", [
+    ('"chore(skill): record {slug}"', "exactly once"),
+    ('"{what} {what}"', "exactly once"),
+    ('"chore: {what}\\nbody"', "single, non-empty subject line"),
+    ("7", "expected a string"),
+])
+def test_invalid_record_commit_message_is_rejected(tmp_path, message, reason):
+    repo = make_repo(tmp_path / "repo", f'{{"recordCommitMessage": {message}}}')
+    with pytest.raises(ValueError, match=reason):
+        argani_config.load_config(repo, strict=True)
+
+
+def test_commit_trailers_are_kept(tmp_path):
+    trailers = '["Co-Authored-By: Claude <noreply@anthropic.com>", "Signed-off-by: Dev <dev@example.com>"]'
+    repo = make_repo(tmp_path / "repo", f'{{"commitTrailers": {trailers}}}')
+    assert argani_config.load_config(repo, strict=True)["commitTrailers"] == [
+        "Co-Authored-By: Claude <noreply@anthropic.com>", "Signed-off-by: Dev <dev@example.com>"]
+
+
+@pytest.mark.parametrize("trailers", ['["Claude <noreply@anthropic.com>"]', '["Co-Authored-By:"]',
+                                      '"Co-Authored-By: x"', '[1]'])
+def test_invalid_commit_trailers_are_rejected(tmp_path, trailers):
+    repo = make_repo(tmp_path / "repo", f'{{"commitTrailers": {trailers}}}')
+    with pytest.raises(ValueError):
+        argani_config.load_config(repo, strict=True)

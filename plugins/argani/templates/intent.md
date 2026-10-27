@@ -33,13 +33,14 @@ Date: {{YYYY-MM-DD}}
 
 ## Acceptance criteria
 
-<!-- Every item must use this exact shape, with a verification that someone can run or do:
-     - AC-1: {{claim}} — verify: {{command | test | named manual step}}
+<!-- Every item must use this exact shape, numbered 1, 2, 3 in order, with a verification that
+     someone can run or do. Item n is referred to as AC-n in the spec, build, reviews and decision:
+     1. [ ] {{claim}} — verify: {{command | test | named manual step}}
      A criterion only a human can check (judgement, data that stays on someone's machine) reads
      `verify: manual: <who does what>`; it becomes a checklist item in the merge request.
      Intent without verifiable criteria cannot be approved. -->
 
-- AC-1: {{claim}} — verify: {{command | test | named manual step}}
+1. [ ] {{claim}} — verify: {{command | test | named manual step}}
 
 ## Out of scope
 

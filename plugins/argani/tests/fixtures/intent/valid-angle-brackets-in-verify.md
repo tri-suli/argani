@@ -13,7 +13,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: x < 5 and y > 3
+1. [ ] Login works — verify: x < 5 and y > 3
 ## Out of scope
 - x
 ## Open questions

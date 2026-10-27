@@ -13,9 +13,9 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: a — verify: x
-- AC-1: b — verify: y
-- AC-7: c — verify: z
+1. [ ] a — verify: x
+1. [ ] b — verify: y
+7. [ ] c — verify: z
 ## Out of scope
 - x
 ## Open questions

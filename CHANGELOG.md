@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
 - Factory orchestrator commits the job folder on `argani/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/argani:factory <slug>` and `/argani:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
+- **Breaking:** acceptance criteria are a numbered task list, `n. [ ] <claim> — verify: <how>`,
+  numbered 1 to n in order; item n is still referred to as AC-n everywhere else. `artifact_check.py`
+  rejects the old `- AC-n: ...` bullets with a message showing the new shape, and accepts a ticked
+  box. To migrate an intent, rewrite `- AC-n: <claim>` as `n. [ ] <claim>`.
 - Acceptance criteria may read `verify: manual: <step>` for checks only a human can do; the step must
   be named (`manual: TBD` fails `artifact_check.py`). The builder lists them under
   `## Pending human verification` in `build.md`, the compliance reviewer checks that list instead of

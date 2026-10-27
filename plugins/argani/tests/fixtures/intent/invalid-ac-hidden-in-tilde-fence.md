@@ -13,9 +13,9 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest
+1. [ ] Login works — verify: pytest
 ~~~
-- AC-2: hidden — no verify
+2. [ ] hidden — no verify
 ~~~
 ## Out of scope
 - x

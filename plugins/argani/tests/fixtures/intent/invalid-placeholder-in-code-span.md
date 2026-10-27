@@ -13,7 +13,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: `{{claim}}` — verify: `{{command | test | named manual step}}`
+1. [ ] `{{claim}}` — verify: `{{command | test | named manual step}}`
 ## Out of scope
 - x
 ## Open questions

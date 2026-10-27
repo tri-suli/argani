@@ -22,7 +22,11 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 STATUS_LINE_PATTERN = re.compile(r"^Status:")
 STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}-\d{2}-\d{2}))$")
-AC_ITEM_PATTERN = re.compile(r"^- AC-(\d+): .+ — verify: (\S.*)$")
+# `n. [ ] <claim> — verify: <how>`; item n is referred to as AC-n everywhere else.
+AC_ITEM_PATTERN = re.compile(r"^(\d+)\. \[[ xX]\] .+ — verify: (\S.*)$")
+OLD_AC_ITEM_PATTERN = re.compile(r"^- AC-\d+: ")
+AC_NUMBER_PATTERN = re.compile(r"^(\d+)\. ")
+AC_ITEM_SHAPE = "n. [ ] <claim> — verify: <how>"
 # Values that stand in for a verification instead of naming one (compared case-insensitively).
 FILLER_VERIFY_VALUES = {"tbd", "tba", "tbc", "todo", "later", "unknown", "none", "n/a", "na", "-", "—", "?", "…"}
 # `verify: manual: <step>` marks a criterion only a human can check; the step must be named.
@@ -156,16 +160,23 @@ def check_acceptance_criteria(lines):
     if not items:
         return ["Acceptance criteria has no items"]
     for line in items:
+        numbered = AC_NUMBER_PATTERN.match(line)
+        if numbered:
+            numbers.append(numbered.group(1))
+        label = f"AC-{numbered.group(1)}" if numbered else "line in Acceptance criteria"
         match = AC_ITEM_PATTERN.match(line)
-        if not match:
-            violations.append(f"line in Acceptance criteria must read '- AC-n: <claim> — verify: <how>': {line!r}")
-        else:
-            numbers.append(match.group(1))
-            if is_filler_verify(match.group(2)):
-                violations.append(f"AC-{match.group(1)} has no real verification (got {match.group(2).strip()!r}); "
-                                  "name a command, a test, or 'manual: <step a human does>'")
-    for number in sorted({n for n in numbers if numbers.count(n) > 1}):
-        violations.append(f"duplicate AC number: AC-{number}")
+        if not match and OLD_AC_ITEM_PATTERN.match(line):
+            violations.append(f"old acceptance criterion format; write '{AC_ITEM_SHAPE}' "
+                              f"(the number is the n of AC-n): {line!r}")
+        elif not match:
+            violations.append(f"{label} must read '{AC_ITEM_SHAPE}': {line!r}")
+        elif is_filler_verify(match.group(2)):
+            violations.append(f"{label} has no real verification (got {match.group(2).strip()!r}); "
+                              "name a command, a test, or 'manual: <step a human does>'")
+    expected = [str(n) for n in range(1, len(numbers) + 1)]
+    if numbers != expected:
+        violations.append(f"acceptance criteria must be numbered 1 to {len(numbers)} in order, so item n "
+                          f"is AC-n (got {', '.join(numbers)})")
     return violations
 
 

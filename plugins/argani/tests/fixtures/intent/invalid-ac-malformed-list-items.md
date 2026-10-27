@@ -13,11 +13,12 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: pytest
-* AC-2: no verify here
-  - AC-3: nested no verify
-AC-4: paragraph no verify
-1. AC-5: numbered
+1. [ ] Login works — verify: pytest
+* [ ] bullet instead of a number — verify: x
+  2. [ ] nested — verify: x
+paragraph no verify
+3. [] no space in the checkbox — verify: x
+4. no checkbox — verify: x
 ## Out of scope
 - x
 ## Open questions

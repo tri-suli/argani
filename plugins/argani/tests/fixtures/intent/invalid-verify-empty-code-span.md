@@ -13,7 +13,7 @@ x
 ## Constraints
 - x
 ## Acceptance criteria
-- AC-1: Login works — verify: ``
+1. [ ] Login works — verify: ``
 ## Out of scope
 - x
 ## Open questions

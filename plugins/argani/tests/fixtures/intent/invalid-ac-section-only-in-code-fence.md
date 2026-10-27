@@ -14,9 +14,9 @@ x
 - x
 ```
 ## Acceptance criteria
-- AC-9: fake — verify: x
+9. [ ] fake — verify: x
 ```
-- AC-1: Login works
+1. [ ] Login works
 ## Out of scope
 - x
 ## Open questions

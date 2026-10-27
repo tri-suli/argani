@@ -50,8 +50,13 @@ mr.md         merge request URL and branch, written once the MR exists
 Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
 
 ```
-- AC-1: <claim> — verify: <command | test | named manual step>
+1. [ ] <claim> — verify: <command | test | named manual step>
+2. [ ] <claim> — verify: manual: <who does what>
 ```
+
+Items are numbered 1 to n in order; item n is AC-n wherever it is referred to (the spec's mapping
+table, `build.md`, reviews, `decision.md`, and in conversation). The checkbox may be ticked
+(`[x]`) without changing anything. The old `- AC-n: ...` bullets fail the check.
 
 A filler instead of a verification (`TBD`, `TODO`, `N/A`, `none`, `?`, `-`, `...`) or an empty
 code span fails the check, so the intent cannot be approved until each AC names a real one.

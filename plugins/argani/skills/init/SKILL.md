@@ -17,6 +17,8 @@ Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill write
    `docs/config.md`). Never overwrite it.
 3. Show `proposal` as the starting point. Then ask the human about each entry in `questions`, a few
    at a time, offering its `candidates` (none means an open question). Rules for the answers:
+   - `artifactRoot`: the folder for job folders, relative to the toplevel (for example
+     `docs/tasks`); no absolute path, no `..`, not under `.git`. Omit it to keep `argani`.
    - `verifyCommand`: required; the factory refuses to run without it. A command that fails until
      the first job adds tests is fine.
    - `branchPattern`: must contain `{slug}` exactly once; keep the default `feature/{slug}` unless

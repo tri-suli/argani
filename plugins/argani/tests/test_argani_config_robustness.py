@@ -193,3 +193,24 @@ def test_invalid_commit_trailers_are_rejected(tmp_path, trailers):
     repo = make_repo(tmp_path / "repo", f'{{"commitTrailers": {trailers}}}')
     with pytest.raises(ValueError):
         argani_config.load_config(repo, strict=True)
+
+
+@pytest.mark.parametrize("root, expected", [
+    ('"docs/tasks"', "docs/tasks"), ('" ./work/jobs/ "', "work/jobs"), ('"tasks"', "tasks"),
+])
+def test_artifact_root_is_normalized(tmp_path, root, expected):
+    repo = make_repo(tmp_path / "repo", f'{{"artifactRoot": {root}}}')
+    assert argani_config.load_config(repo, strict=True)["artifactRoot"] == expected
+
+
+@pytest.mark.parametrize("root, reason", [
+    ('""', "must name a folder"), ('"./"', "must name a folder"),
+    ('"/tmp/jobs"', "absolute"), ('"C:/jobs"', "absolute"),
+    ('"../outside"', "leaves the repository"), ('"docs/../../x"', "leaves the repository"),
+    ('".git/jobs"', "inside .git"), ('"./.git"', "inside .git"),
+])
+def test_unsafe_artifact_root_is_rejected(tmp_path, root, reason):
+    repo = make_repo(tmp_path / "repo", f'{{"artifactRoot": {root}}}')
+    with pytest.raises(ValueError, match=reason):
+        argani_config.load_config(repo, strict=True)
+    assert argani_config.load_config(repo)["artifactRoot"] == "argani"

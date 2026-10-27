@@ -160,6 +160,10 @@ def propose(start_dir="."):
         questions.append({"key": "verifyCommand", "candidates": candidates,
                           "ask": "Which command proves a job's work (tests, linters)? Required by factory mode."})
 
+    questions.append({"key": "artifactRoot", "candidates": ["argani"],
+                      "ask": "Which folder, relative to the repository toplevel, holds the job folders "
+                             "(<folder>/<slug>/intent.md, spec.md, reviews)? The default is argani."})
+
     names = branch_names(top)
     prefixes = branch_prefixes(names)
     if prefixes:

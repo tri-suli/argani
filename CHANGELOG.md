@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
 - Factory orchestrator commits the job folder on `argani/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/argani:factory <slug>` and `/argani:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
+- `artifactRoot` is validated: it must be a folder relative to the toplevel, without `..` and not under
+  `.git` (an empty, absolute or escaping value made the factory and the artifact guard use paths outside
+  the repository). Surrounding slashes and `./` are dropped. `/argani:init` now asks for it.
 - **Breaking:** acceptance criteria are a numbered task list, `n. [ ] <claim> — verify: <how>`,
   numbered 1 to n in order; item n is still referred to as AC-n everywhere else. `artifact_check.py`
   rejects the old `- AC-n: ...` bullets with a message showing the new shape, and accepts a ticked

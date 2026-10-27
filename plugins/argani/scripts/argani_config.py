@@ -105,6 +105,21 @@ def _optional_string(value):
     raise ValueError("expected a string")
 
 
+def _artifact_root(value):
+    """A folder relative to the toplevel, inside the repository and outside .git."""
+    root = _optional_string(value).strip()
+    if root.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", root):
+        raise ValueError(f"'{root}' is absolute; use a folder relative to the repository toplevel")
+    parts = [part for part in root.replace("\\", "/").split("/") if part not in ("", ".")]
+    if not parts:
+        raise ValueError("must name a folder, for example 'argani' or 'docs/tasks'")
+    if ".." in parts:
+        raise ValueError(f"'{root}' leaves the repository; '..' is not allowed")
+    if parts[0] == ".git":
+        raise ValueError(f"'{root}' is inside .git")
+    return "/".join(parts)
+
+
 def _check_branch_name(name):
     """Raise ValueError unless git accepts name as a branch name."""
     try:
@@ -201,7 +216,7 @@ def _reject_remote_prefixes(overrides, start_dir):
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
-    "artifactRoot": _optional_string,
+    "artifactRoot": _artifact_root,
     "defaultBranch": _branch,
     "baseBranch": _branch,
     "protectedBranches": _protected_branches,

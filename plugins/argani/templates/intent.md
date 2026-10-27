@@ -2,9 +2,12 @@
 
 Author: {{name}}
 Status: draft
+Type: {{job type}}
 Date: {{YYYY-MM-DD}}
 
-<!-- Status is "draft" until a human approves it with /argani:intent approve {{slug}}.
+<!-- Type is one of branchTypes in .claude/argani.json (it fills {type} in the job branch and picks
+     the base branch). Delete the Type line when the repository sets no branchTypes.
+     Status is "draft" until a human approves it with /argani:intent approve {{slug}}.
      The approved form is: Status: approved by {{name}} on {{YYYY-MM-DD}} -->
 
 ## Problem

@@ -22,7 +22,9 @@ Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill write
    - `verifyCommand`: required; the factory refuses to run without it. A command that fails until
      the first job adds tests is fine.
    - `branchPattern`: must contain `{slug}` exactly once; keep the default `feature/{slug}` unless
-     the human picks another.
+     the human picks another. With `{type}` (one prefix per kind of job), also set `branchTypes`
+     (start from the question's `types`) and, for types that start from another branch (a hotfix
+     from `main` in Git Flow), `baseBranchByType`; `mrCommand` can then use `{base}`.
    - `baseBranch`: set it only when jobs should not branch from `defaultBranch`.
    - `recordCommitMessage`: `<type>(<scope>): record {slug} {what}` with a type and scope the
      repository's commit rules accept; `{what}` exactly once.

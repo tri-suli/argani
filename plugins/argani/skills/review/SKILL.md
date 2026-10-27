@@ -12,8 +12,10 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
 
 ## Steps
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`, `baseBranch`,
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`,
    `protectedBranches`, `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
+   Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `base_branch` (the
+   job's base: `baseBranchByType` for its type, else `baseBranch`); call it `<baseBranch>` below.
 2. The slug folder is `<toplevel>/<artifactRoot>/$ARGUMENTS/`. If `spec.md` is not there, **stop**
    and name the missing file.
 3. Check the change: `git rev-parse --abbrev-ref HEAD` must not be in `protectedBranches`,

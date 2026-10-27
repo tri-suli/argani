@@ -26,8 +26,12 @@ DEFAULTS = {
     "branchPattern": "feature/{slug}",
     "recordCommitMessage": "chore(argani): record {slug} {what}",
     "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
+    "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
+    "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
 }
 SLUG_PLACEHOLDER = "{slug}"
+TYPE_PLACEHOLDER = "{type}"
+TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 WHAT_PLACEHOLDER = "{what}"
 MODEL_PLACEHOLDER = "{model}"
 PLACEHOLDER = re.compile(r"\{[^{}]*\}")
@@ -164,8 +168,39 @@ def _branch_pattern(value):
     pattern = _optional_string(value)
     if pattern.count(SLUG_PLACEHOLDER) != 1:
         raise ValueError(f"must contain {SLUG_PLACEHOLDER} exactly once")
-    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug"))
+    if pattern.count(TYPE_PLACEHOLDER) > 1:
+        raise ValueError(f"may contain {TYPE_PLACEHOLDER} at most once")
+    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug").replace(TYPE_PLACEHOLDER, "feat"))
     return pattern
+
+
+def _branch_types(value):
+    types = _string_list(value)
+    for name in types:
+        if not TYPE_NAME.match(name):
+            raise ValueError(f"'{name}' is not a job type; use letters, digits, '.', '_' or '-', like 'feat'")
+    if len(set(types)) != len(types):
+        raise ValueError("lists a job type twice")
+    return types
+
+
+def _base_branch_by_type(value):
+    if not isinstance(value, dict):
+        raise ValueError("expected an object mapping a job type to a branch, like {\"hotfix\": \"main\"}")
+    return {name: _branch(branch) for name, branch in value.items()}
+
+
+def _check_job_types(config):
+    """Cross-key rules for {type}: raises ValueError when they do not fit together."""
+    types = config["branchTypes"]
+    if TYPE_PLACEHOLDER in config["branchPattern"] and not types:
+        raise ValueError(f"branchPattern uses {TYPE_PLACEHOLDER} but branchTypes is empty")
+    unknown = [name for name in config["baseBranchByType"] if name not in types]
+    if unknown:
+        raise ValueError(f"baseBranchByType names {', '.join(unknown)}, which branchTypes does not list")
+    for name in types:
+        _check_branch_name(config["branchPattern"].replace(SLUG_PLACEHOLDER, "example-slug")
+                           .replace(TYPE_PLACEHOLDER, name))
 
 
 def _record_commit_message(value):
@@ -204,18 +239,31 @@ def protected_match(config, branch):
                  if fnmatch.fnmatchcase(branch, entry)), None)
 
 
-def job_branch(config, slug):
-    """The job branch for a slug. Raises ValueError when it would be a protected branch."""
-    branch = config["branchPattern"].replace(SLUG_PLACEHOLDER, slug)
+def job_branch(config, slug, job_type=None):
+    """The job branch for a slug and its intent's Type. Raises ValueError when the pattern needs a
+    type that is missing or not in branchTypes, or when the branch would be a protected branch."""
+    pattern = config["branchPattern"]
+    if TYPE_PLACEHOLDER in pattern:
+        if job_type not in config["branchTypes"]:
+            raise ValueError(f"branchPattern needs the job type; intent.md 'Type:' must be one of "
+                             f"{', '.join(config['branchTypes'])}, got {job_type!r}")
+        pattern = pattern.replace(TYPE_PLACEHOLDER, job_type)
+    branch = pattern.replace(SLUG_PLACEHOLDER, slug)
     if protected_match(config, branch):
         raise ValueError(f"branchPattern gives '{branch}' for slug '{slug}', which is a protected branch")
     return branch
 
 
+def base_branch_for(config, job_type=None):
+    """The branch a job of this type starts from and merges into."""
+    return config["baseBranchByType"].get(job_type, config["baseBranch"])
+
+
 def _reject_remote_prefixes(overrides, start_dir):
     """Raise ValueError when a configured branch starts with a remote name, like origin/develop."""
     remotes = remote_names(start_dir)
-    names = [overrides.get("defaultBranch"), overrides.get("baseBranch"), *overrides.get("protectedBranches", [])]
+    names = [overrides.get("defaultBranch"), overrides.get("baseBranch"), *overrides.get("protectedBranches", []),
+             *overrides.get("baseBranchByType", {}).values()]
     for name in filter(None, names):
         remote = name.split("/", 1)[0]
         is_glob = any(char in name for char in GLOB_CHARS)  # 'release/*' is a pattern, not a remote
@@ -235,6 +283,8 @@ COERCERS = {
     "branchPattern": _branch_pattern,
     "recordCommitMessage": _record_commit_message,
     "commitTrailers": _commit_trailers,
+    "branchTypes": _branch_types,
+    "baseBranchByType": _base_branch_by_type,
 }
 
 
@@ -267,7 +317,8 @@ def _config_file_exists(path):
 
 def load_config(start_dir=".", strict=False):
     """Effective config. Never raises unless strict=True; a bad file falls back to defaults."""
-    config = {key: (list(value) if isinstance(value, list) else value) for key, value in DEFAULTS.items()}
+    config = {key: (type(value)(value) if isinstance(value, (list, dict)) else value)
+              for key, value in DEFAULTS.items()}
     root = toplevel(start_dir)
     if root:
         path = Path(root) / ".claude" / "argani.json"
@@ -275,6 +326,7 @@ def load_config(start_dir=".", strict=False):
             if _config_file_exists(path):
                 overrides = read_config_file(path)
                 _reject_remote_prefixes(overrides, start_dir)
+                _check_job_types({**config, **overrides})
                 config.update(overrides)
         except ValueError as error:
             if strict:
@@ -284,7 +336,8 @@ def load_config(start_dir=".", strict=False):
         config["defaultBranch"] = detect_default_branch(start_dir) if root else "main"
     if not config["baseBranch"]:
         config["baseBranch"] = config["defaultBranch"]
-    protected = [config["defaultBranch"], config["baseBranch"], *config["protectedBranches"]]
+    protected = [config["defaultBranch"], config["baseBranch"], *config["baseBranchByType"].values(),
+                 *config["protectedBranches"]]
     config["protectedBranches"] = list(dict.fromkeys(protected))
     config["toplevel"] = root
     config["currentBranch"] = current_branch(start_dir) if root else None

@@ -35,7 +35,9 @@ Operate is recorded as a stage but not yet automated.
 
 ## Artifact location
 
-Per job, in `<artifactRoot>/<slug>/` (default `argani/<slug>/`, see `config.md`):
+Per job, in `<artifactRoot>/<slug>/` (default `argani/<slug>/`, see `config.md`). When the repository
+sets `branchTypes`, `intent.md` carries a `Type:` header line with one of them; it fills `{type}` in
+`branchPattern` and picks the base branch from `baseBranchByType`.
 
 ```
 intent.md     Status: draft | approved by <name> on <YYYY-MM-DD>; acceptance criteria in a fixed shape

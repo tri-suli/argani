@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-27
+
+### Added
+
+- Job types. `branchPattern` may contain `{type}` once, filled from a new `Type:` header line in
+  `intent.md`. `branchTypes` lists the allowed types (required with `{type}`), and
+  `baseBranchByType` gives a type its own base branch, for example a Git Flow hotfix from `main`;
+  those bases are protected too. `artifact_check.py intent` rejects an intent without a listed
+  type when `branchTypes` is set. `factory_state.py` reports `type`, and derives `branch` and
+  `base_branch` per job. `/argani:review` diffs against the job's base, and `/argani:intent` asks
+  for the type.
+- `mrCommand` accepts `{base}`, replaced by the job's base branch.
+- `/argani:init` offers `{type}/{slug}`, with the existing branch prefixes as `branchTypes`.
+
+### Changed
+
+- The intent template has a `Type:` line; delete it when the repository sets no `branchTypes`.
+
 ## [0.3.0] - 2026-10-27
 
 ### Changed

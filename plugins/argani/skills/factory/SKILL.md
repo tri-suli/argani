@@ -59,7 +59,8 @@ terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at m
 | `escalate`                                     | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3.                              |
 
 `<branch>` below is the state's `branch`: the repository's `branchPattern` (default `feature/{slug}`)
-with the slug filled in. Never build the name yourself.
+with the slug and, for `{type}`, the intent's `Type:` filled in. `<base_branch>` is the state's
+`base_branch`: `baseBranchByType` for that type, else `baseBranch`. Never build either name yourself.
 "Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `<branch>`.
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
 overwrite the file completely". If `review:human` is partial, do not spawn anything: tell the human to
@@ -130,7 +131,7 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 
 Record first (only with `on_job_branch` true). Then:
 - `mrCommand` configured: `git push -u origin <branch>`, then `mrCommand` with `{branch}` replaced by
-  `<branch>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
+  `<branch>` and `{base}` by `<base_branch>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
   (output or URL, branch, today's date), commit it (Record with `{what}` = `merge request`, local only),
   and stop: "MR ready for human review".
 - Not configured: do **not** push. Stop and print `git push -u origin <branch>` and "open a merge

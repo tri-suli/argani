@@ -57,6 +57,15 @@ claude plugin install argani@argani
 
 `bash scripts/check.sh` runs both validations and the test suite.
 
+## Releasing
+
+Claude Code caches an installed plugin by version, so a change only reaches installed copies with a
+new version. Any change under `plugins/argani/` since the last `v*` tag needs a higher `version` in
+`plugins/argani/.claude-plugin/plugin.json` (SemVer) and a `## [x.y.z]` section in `CHANGELOG.md`;
+`scripts/check.sh` fails otherwise. After merging, tag the release (`git tag vX.Y.Z`) on `main`.
+Installed copies then update with `claude plugin marketplace update argani` and
+`claude plugin update argani@argani`, then a restart of the session.
+
 ## Factory mode
 
 Prerequisites: an approved `intent.md` (the factory writes the spec and stops for your approval), and

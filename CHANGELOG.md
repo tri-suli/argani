@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+First tagged release. Installed copies of the earlier untagged `0.1.0` do not update by
+themselves: run `claude plugin marketplace update argani`, then reinstall or update `argani@argani`.
+
 ### Added
 
 - MIT license, README, changelog, and `scripts/check.sh` (marketplace and plugin validation plus tests).

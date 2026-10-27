@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `scripts/factory_state.py <slug>`: read-only JSON report of a job (stage, rounds, partial artifacts, branch, next step), with tests.
 - Factory orchestrator commits the job folder on `argani/<slug>` (before build, after each round and decision); the builder commits code and `plan.md`/`build.md`.
 - Skill `/argani:factory <slug>` and `/argani:factory rework <slug> <note>`: orchestrator that runs spec, build, review rounds and decision with fresh subagents and stops at the spec gate and the merge request.
+- Skill `/argani:init` and `scripts/init_config.py`: propose `.claude/argani.json` from the repository
+  (test entry point, shared branch prefixes, commitlint scopes resolved by the repository's own
+  commitlint, a `develop` branch, the remote host for `mrCommand`), ask what cannot be detected,
+  write and validate the file. It never overwrites an existing config and never commits.
 - Eval suite (`plugins/argani/evals`): `intent-produces-artifact` and `spec-refuses-unapproved-intent`, plus a README and a pytest check that the scaffolded fixtures pass `artifact_check.py`.
 - `bootstrap/`: versioned global `CLAUDE.md`, `settings.fragment.json` (marketplace registration only) and an idempotent `install.sh` with `--dry-run`, `--force`, backups and atomic settings merge, with pytest coverage against fake directories.
 

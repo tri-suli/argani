@@ -1,6 +1,9 @@
 # Configuration: `.claude/argani.json`
 
-Per-repository settings for the `argani` plugin. The file is optional; every key has a default.
+Per-repository settings for the `argani` plugin. The file is optional; every key has a default,
+except that factory mode needs `verifyCommand`. `/argani:init` proposes the file from what the
+repository already uses (test command, branch prefixes, commitlint scopes, remote host), asks for
+the rest, writes it and validates it; it never overwrites an existing file and never commits.
 
 ## Location
 

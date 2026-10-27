@@ -185,8 +185,10 @@ def propose(start_dir="."):
                               "ask": f"{name} {allowed}; which type and scope should the factory's record "
                                      "commits use, as '<type>(<scope>): record {slug} {what}'?"})
 
-    questions.append({"key": "commitTrailers", "candidates": [],
-                      "ask": "Must commits carry trailers (for example 'Co-Authored-By: ...')? Empty means none."})
+    questions.append({"key": "commitTrailers",
+                      "candidates": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
+                      "ask": "Which trailers should commits carry? {model} becomes the committing agent's "
+                             "model name; the default is the candidate, [] means none."})
     host = remote_host(top)
     base = "{baseBranch}"
     mr_candidates = {

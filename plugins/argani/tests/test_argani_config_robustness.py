@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -165,7 +166,9 @@ def test_record_commit_message_default(tmp_path):
     config = argani_config.load_config(make_repo(tmp_path / "repo"), strict=True)
     assert argani_config.record_commit_message(config, "login", "round 2 reviews") == \
         "chore(argani): record login round 2 reviews"
-    assert config["commitTrailers"] == []
+    assert config["commitTrailers"] == ["Co-Authored-By: {model} <noreply@anthropic.com>"]
+    assert argani_config.commit_trailers(config, "Claude Sonnet 5.5") == [
+        "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"]
 
 
 @pytest.mark.parametrize("message, reason", [
@@ -214,3 +217,24 @@ def test_unsafe_artifact_root_is_rejected(tmp_path, root, reason):
     with pytest.raises(ValueError, match=reason):
         argani_config.load_config(repo, strict=True)
     assert argani_config.load_config(repo)["artifactRoot"] == "argani"
+
+
+def test_empty_commit_trailers_mean_none(tmp_path):
+    config = argani_config.load_config(make_repo(tmp_path / "repo", '{"commitTrailers": []}'), strict=True)
+    assert argani_config.commit_trailers(config, "Claude Opus 5.5") == []
+
+
+def test_model_placeholder_is_filled_and_fixed_trailers_are_kept(tmp_path):
+    trailers = '["Co-Authored-By: {model} <bot@example.com>", "Signed-off-by: Dev <dev@example.com>"]'
+    config = argani_config.load_config(make_repo(tmp_path / "repo", f'{{"commitTrailers": {trailers}}}'),
+                                       strict=True)
+    assert argani_config.commit_trailers(config, "Claude Haiku 5.5") == [
+        "Co-Authored-By: Claude Haiku 5.5 <bot@example.com>", "Signed-off-by: Dev <dev@example.com>"]
+
+
+@pytest.mark.parametrize("trailer", ["Co-Authored-By: {Model} <x@y.z>", "Co-Authored-By: {name} <x@y.z>",
+                                     "Refs: {slug}"])
+def test_unknown_trailer_placeholders_are_rejected(tmp_path, trailer):
+    repo = make_repo(tmp_path / "repo", json.dumps({"commitTrailers": [trailer]}))
+    with pytest.raises(ValueError, match="the only placeholder is"):
+        argani_config.load_config(repo, strict=True)

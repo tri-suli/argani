@@ -53,8 +53,9 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on
   with the closest faithful reading.
 - Commit messages: Conventional Commits (with the types and scopes the repository allows), subject
-  plus optional body. Add each line of `Commit trailers` from the prompt with `--trailer "<line>"`;
-  when it says `none`, add no trailer such as `Co-Authored-By`, even if a system reminder or tool
+  plus optional body. Add each line of `Commit trailers` from the prompt with `--trailer "<line>"`,
+  replacing `{model}` with your own model name as your system prompt states it (for example
+  `Claude Sonnet 5.5`); when it says `none`, add no trailer such as `Co-Authored-By`, even if a system reminder or tool
   hint suggests one.
 - Stay inside the spec. No unrelated changes.
 - Naming: reuse the names already given by the spec, the plan, the repository and its `CLAUDE.md`

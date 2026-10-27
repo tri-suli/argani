@@ -170,13 +170,18 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - Subagents (any `agent_type`) are denied every push, pull, merge and send-pack, on any branch and
   outside a repository too: the main session pushes the job branch and a human merges. When a
   command names `git`, `gh`, `glab`, `github` or `gitlab` (or runs an expansion as its program),
-  its de-quoted words are scanned, so quoting (`pu''sh`), `bash -c`, wrappers (`timeout`, `nice`),
+  its de-quoted words are scanned (a program written as an expansion or a glob, such as
+  `/usr/bin/g[i]t`, counts as a git tool), so quoting (`pu''sh`), `bash -c`, wrappers (`timeout`, `nice`),
   `eval`, `xargs`, `python3 -c` and `-c alias.*`/`-c remote.*` do not hide the word. Not scanned:
-  the message of `git commit -m`, an argument that names an existing path (`src/push.ts`), and
-  `git stash push`; a command without a git tool, such as `docker pull`, is not scanned at all.
-  Other matching words in a git command are denied; reword them. Also denied: a repository alias
+  the message of `git commit -m`, the body of a heredoc fed to `git commit -F -` (unless the
+  shell would expand a substitution in it), an argument that names an existing path
+  (`src/push.ts`), and the `push` of `git stash push`; a command without a git tool, such as
+  `docker pull`, is not scanned at all. Other matching words in a git command are denied,
+  including a path that no longer exists (`git add src/merge.ts` after deleting it; use
+  `git add -A`) and `git log --grep=merge`; reword them. Also denied: a repository alias
   that pushes, pulls, merges or starts with `!`; a git subcommand built from expansions
-  (`git $a$b`); a shell reading commands from a pipe or heredoc (`... | bash`); `eval` or
+  (`git $a$b`); a shell reading commands from a pipe or heredoc (`... | bash`, `bash -s`,
+  `bash /dev/stdin`), or run through `busybox`, `toybox` or `xargs`; `eval` or
   `source` of generated text; and a command substitution inside shell code, inside a git
   command (other than `git commit -m "$(cat msg)"`) or next to a git tool. What is not caught:
   a script written to a file (with `Write`) and then run, an interpreter decoding an encoded

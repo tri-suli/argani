@@ -92,6 +92,9 @@ Who commits what on the job branch: the builder commits code, `plan.md` and `bui
 orchestrator commits the rest of the job folder (`intent.md`, `spec.md`, `review/**`, `decision.md`,
 `mr.md`), adding only paths under `<artifactRoot>/<slug>/`: before the build, after each review round,
 after the decision and before the push. Nothing is ever pushed or merged without a human.
+Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that
+requires a separate instruction for every commit uses the manual loop instead. Commit subjects and
+trailers follow `recordCommitMessage` and `commitTrailers` in `.claude/argani.json`.
 
 ## Reviewers
 

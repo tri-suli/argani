@@ -43,6 +43,13 @@ into the repository. See [`plugins/argani/docs/config.md`](plugins/argani/docs/c
 with `--all`, by column (Backlog, Design, In progress, Ready for MR, In review, Done, Needs human).
 It only reads.
 
+## For users
+
+Install or update the plugin (`claude plugin marketplace update argani`, `claude plugin update
+argani@argani`), restart the session, and run `python3 <plugin root>/scripts/argani_config.py` in a
+project to confirm its configuration loads. The test suite is the plugin's responsibility and runs in
+CI before every release; a project that uses argani never needs to run it.
+
 ## Local development
 
 ```bash
@@ -60,7 +67,9 @@ claude plugin install argani@argani
 Claude Code caches an installed plugin by version, so a change only reaches installed copies with a
 new version. Any change under `plugins/argani/` since the last `v*` tag needs a higher `version` in
 `plugins/argani/.claude-plugin/plugin.json` (SemVer) and a `## [x.y.z]` section in `CHANGELOG.md`;
-`scripts/check.sh` fails otherwise. After merging, tag the release (`git tag vX.Y.Z`) on `main`.
+`scripts/check.sh` fails otherwise. The same script runs in CI (`.github/workflows/check.yml`) on every pull
+request, on `main` and on every `v*` tag, so a release is verified before it is tagged. After merging,
+tag the release (`git tag vX.Y.Z`) on `main`.
 Installed copies then update with `claude plugin marketplace update argani` and
 `claude plugin update argani@argani`, then a restart of the session.
 

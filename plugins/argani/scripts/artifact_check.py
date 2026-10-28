@@ -18,6 +18,8 @@ from datetime import datetime
 from pathlib import Path
 
 import argani_config
+import argani_home
+import project_registry
 
 MAX_SLUG_LENGTH = 60
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
@@ -254,7 +256,19 @@ def load(path):
 
 
 def configured_branch_types(path):
-    """branchTypes of the repository that holds the file (none outside a repository)."""
+    """branchTypes of the project whose hub tasks folder holds the file, else of the repository
+    that holds it (none outside a repository)."""
+    try:
+        home = argani_home.home_path()
+    except Exception:  # an unusable home means no hub paths
+        home = None
+    owner = project_registry.project_of_path(path, home) if home else None
+    if owner and owner[1].parts[0] == argani_config.TASKS_DIR:
+        try:
+            return argani_config.load_project_config(home, owner[0])["branchTypes"]
+        except ValueError as error:
+            print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
+            return []
     return argani_config.load_config(Path(path).resolve().parent)["branchTypes"]
 
 

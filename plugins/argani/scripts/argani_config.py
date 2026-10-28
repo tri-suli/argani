@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Effective argani configuration for the repository containing a directory.
 
-Config lives at <repository toplevel>/.claude/argani.json. The toplevel is
+Config lives in the project.json of the repository's project in the argani home, else (legacy,
+removed in 1.0.0) at <repository toplevel>/.claude/argani.json. The toplevel is
 resolved from the given directory, never from CLAUDE_PROJECT_DIR, so the
 result is correct in worktrees and subagents.
 
@@ -13,6 +14,13 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+import argani_home
+import git_cli
+import project_registry
+
+IDENTITY_KEYS = ("name", "remotes", "paths")  # project.json keys that identify a project, not config
+TASKS_DIR = "tasks"  # folder of a project's job folders inside its hub entry
 
 DEFAULTS = {
     "artifactRoot": "argani",
@@ -60,20 +68,8 @@ TRAILER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*: \S.*$")
 GLOB_CHARS = "*?["
 
 
-def _git(start_dir, *args):
-    """Return stripped stdout of a git command, or None on any failure."""
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(start_dir), *args],
-            capture_output=True, text=True, check=True, timeout=10,
-        )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return None
-    return result.stdout.strip() or None
-
-
-def toplevel(start_dir):
-    return _git(start_dir, "rev-parse", "--show-toplevel")
+_git = git_cli.git_output  # re-exported: hooks and tests use these names
+toplevel = git_cli.toplevel
 
 
 def branch_exists(start_dir, name):
@@ -424,33 +420,112 @@ def _config_file_exists(path):
         raise ValueError(f"{path}: {error}") from error
 
 
-def load_config(start_dir=".", strict=False):
-    """Effective config. Never raises unless strict=True; a bad file falls back to defaults."""
-    config = {key: (type(value)(value) if isinstance(value, (list, dict)) else value)
-              for key, value in DEFAULTS.items()}
-    root = toplevel(start_dir)
-    if root:
-        path = Path(root) / ".claude" / "argani.json"
-        try:
-            if _config_file_exists(path):
-                overrides = read_config_file(path)
-                _reject_remote_prefixes(overrides, start_dir)
-                _check_cross_keys({**config, **overrides})
-                config.update(overrides)
-        except ValueError as error:
-            if strict:
-                raise
-            print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
+def project_overrides(project_file):
+    """The validated config keys of a project.json; the identity keys are not config."""
+    overrides = read_config_file(Path(project_file))
+    return {key: value for key, value in overrides.items() if key not in IDENTITY_KEYS}
+
+
+def _fresh_defaults():
+    return {key: (type(value)(value) if isinstance(value, (list, dict)) else value)
+            for key, value in DEFAULTS.items()}
+
+
+def _derive_branches(config, fallback_default_branch):
+    """Fill defaultBranch and baseBranch when unset and complete protectedBranches."""
     if not config["defaultBranch"]:
-        config["defaultBranch"] = detect_default_branch(start_dir) if root else "main"
+        config["defaultBranch"] = fallback_default_branch()
     if not config["baseBranch"]:
         config["baseBranch"] = config["defaultBranch"]
     protected = [config["defaultBranch"], config["baseBranch"], *config["baseBranchByType"].values(),
                  *config["protectedBranches"]]
     config["protectedBranches"] = list(dict.fromkeys(protected))
-    config["toplevel"] = root
-    config["currentBranch"] = current_branch(start_dir) if root else None
+
+
+def _project_tasks_dir(home, name):
+    return home / argani_home.PROJECTS_DIR / name / TASKS_DIR
+
+
+def load_project_config(home, name):
+    """Effective config of a registered project, without any git call. Raises ValueError when
+    the project.json is missing or invalid."""
+    config = _fresh_defaults()
+    config.update(project_overrides(project_registry.project_file(home, name)))
+    _check_cross_keys(config)
+    _derive_branches(config, lambda: "main")
+    config.update(project=name, home=str(home), tasksDir=str(_project_tasks_dir(home, name)),
+                  toplevel=None, currentBranch=None)
     return config
+
+
+def _resolve_project(start_dir, root):
+    """(home, project) for a repository; either is None when unusable. Never raises: the registry
+    is shared by every repository, so a broken home or entry must not block them, not even in
+    strict mode."""
+    home = None
+    try:
+        home = argani_home.home_path()
+        return home, (project_registry.resolve(start_dir, home, root) if root else None)
+    except Exception as error:  # the contract is never to raise, whatever the registry holds
+        print(f"argani: ignoring the argani home: {error}", file=sys.stderr)
+        return home, None
+
+
+def _note_ignored_repo_file(repo_file, name, source):
+    """Say that the repository's own file is not read; an unreadable .claude never matters here."""
+    try:
+        exists = _config_file_exists(repo_file)
+    except ValueError:
+        return
+    if exists:
+        print(f"argani: {repo_file} is ignored; the project {name} is configured in {source}", file=sys.stderr)
+
+
+def load_config(start_dir=".", strict=False):
+    """Effective config. Never raises unless strict=True; a bad file falls back to defaults.
+
+    The config of a registered project comes from its project.json in the argani home; a
+    repository without a project reads .claude/argani.json (legacy, removed in 1.0.0)."""
+    config = _fresh_defaults()
+    root = toplevel(start_dir)
+    home, project = _resolve_project(start_dir, root)
+    repo_file = Path(root) / ".claude" / "argani.json" if root else None
+    try:
+        if project:
+            source = project_registry.project_file(home, project["name"])
+            overrides = project_overrides(source)
+            _note_ignored_repo_file(repo_file, project["name"], source)
+        elif root and _config_file_exists(repo_file):
+            overrides = read_config_file(repo_file)
+        else:
+            overrides = None
+        if overrides is not None:
+            _reject_remote_prefixes(overrides, start_dir)
+            _check_cross_keys({**config, **overrides})
+            config.update(overrides)
+    except ValueError as error:
+        if strict:
+            raise
+        print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
+    _derive_branches(config, lambda: detect_default_branch(start_dir) if root else "main")
+    if project:
+        job_root = _project_tasks_dir(home, project["name"])
+    else:
+        job_root = Path(root) / config["artifactRoot"] if root else None
+    config.update(project=project["name"] if project else None, home=str(home) if home else None,
+                  tasksDir=str(job_root) if job_root else None, toplevel=root,
+                  currentBranch=current_branch(start_dir) if root else None)
+    return config
+
+
+def tasks_dir(config):
+    """The folder holding the job folders, or None outside a repository."""
+    return Path(config["tasksDir"]) if config["tasksDir"] else None
+
+
+def job_dir(config, slug):
+    folder = tasks_dir(config)
+    return folder / slug if folder else None
 
 
 def main(argv):

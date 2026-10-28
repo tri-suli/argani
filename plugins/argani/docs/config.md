@@ -1,7 +1,15 @@
-# Configuration: `.claude/argani.json`
+# Configuration: `project.json` in the argani home
 
-Per-repository settings for the `argani` plugin. The file is optional; every key has a default,
-except that factory mode needs `verifyCommand`. `/argani:init` proposes the file from what the
+Settings for the `argani` plugin. They live in the project's `project.json` in the [argani
+home](#argani-home), beside its identity keys (`name`, `remotes`, `paths`); the keys are the ones
+documented below. `.claude/argani.json` in the repository still works as a fallback for a
+repository that is not registered as a project, and 1.0.0 removes it. When a repository has both,
+the project wins and scripts print `argani: <toplevel>/.claude/argani.json is ignored; the project
+<name> is configured in <project file>` on stderr. A broken home or project registry never blocks
+a repository: it is ignored with a note on stderr, even in strict mode.
+
+The rest of this page says `.claude/argani.json` where it applies to either file. The file is
+optional; every key has a default, except that factory mode needs `verifyCommand`. `/argani:init` proposes the file from what the
 repository already uses (test command, branch prefixes, commitlint scopes, remote host), asks for
 the rest, writes it and validates it; it never overwrites an existing file and never commits.
 
@@ -149,7 +157,12 @@ Release branches, which bundle several jobs, are not modelled; cut them by hand.
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py [dir]
 ```
 
-Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`. `null` values are
+Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`, the `project` name
+(`null` for a legacy repository), the `home`, and `tasksDir`, the folder of the job folders:
+`<home>/projects/<name>/tasks` for a project, `<toplevel>/<artifactRoot>` for a legacy repository,
+`null` outside git. The identity keys are never part of it. `load_project_config()` reads a project
+without git, so it cannot reject remote-prefixed branch names such as `origin/develop`; write plain
+branch names. `null` values are
 ignored and types are checked (`reviewers` and `protectedPaths` must be lists of strings, the other
 keys strings). An unusable file makes the command exit 1 with an error on stderr, while
 `load_config()` falls back to the defaults with a note on stderr so that hooks fail open.

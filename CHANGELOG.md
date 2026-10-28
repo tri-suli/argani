@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-28
+
+### Added
+
+- `scripts/argani_config.py` reads the argani config keys from the project's `project.json` in the
+  argani home. `load_project_config(home, name)` gives a project's effective config without git.
+- The effective config reports `project`, `home` and `tasksDir`; `tasks_dir()` and `job_dir()` give
+  the job folders (`<home>/projects/<name>/tasks/<slug>` for a project).
+- `project_registry.project_of_path()` tells which project's folder a path in the home is in.
+
+### Changed
+
+- A repository registered as a project ignores its `.claude/argani.json` (with a note on stderr);
+  `.claude/argani.json` stays as a fallback for unregistered repositories until 1.0.0.
+- A broken home or project registry is ignored with a note, never blocking a repository.
+- `artifact_check.py` takes `branchTypes` from the project when the file is in its hub tasks folder.
+
 ## [0.8.0] - 2026-10-28
 
 ### Added

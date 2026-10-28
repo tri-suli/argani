@@ -121,9 +121,10 @@ after round 2, and the hook denies `round-3`.
 
 ## Who commits what
 
-The builder commits code, `plan.md` and `build.md`. The factory orchestrator commits `intent.md`,
-`spec.md`, `review/**`, `decision.md` and `mr.md` (only paths under the slug folder) after each step,
-so the audit trail is in the branch history.
+The builder commits code, and `plan.md` and `build.md` when the slug folder is inside the repository.
+The factory orchestrator commits the slug folder (only paths under it) after each step: for a
+registered project into the argani home's git repository, so the audit trail is in the home's
+history; for a legacy repository onto the job branch.
 
 ## Agents
 
@@ -153,6 +154,7 @@ Language: <project language>
 # argani:builder
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
+Job folder in repository: <yes|no>
 Branch: <branch>
 Verify command: <verifyCommand>
 Commit skill: <commitSkill, or "none">

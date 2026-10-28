@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-28
+
+### Added
+
+- The argani home is a git repository: `argani_home.py --create` runs `git init` when it is not one yet (never touching an existing repository) and reports `git`.
+- `factory_state.py` reports `project`, `home`, `record_dir` and `job_dir_in_repo`, and `build_state` accepts a config so the board can read a job without a checkout (`current_branch` and `dirty` are then null).
+
+### Changed
+
+- `/argani:factory` and `/argani:review` find the job folder through `job_dir` from the state, so they work on the board. For a registered project the orchestrator records the job folder in the argani home's git repository with the fixed message `argani: record <project>/<slug> <what>`, independent of the project repository's branch.
+- The builder commits `plan.md` and `build.md` only when the prompt says `Job folder in repository: yes`.
+- `recordCommitMessage` is legacy only: `register_project.py` refuses it and `/argani:init` does not carry it over.
+- The "No job folder" message names the tasks folder and suggests `git switch` only for a legacy repository.
+
 ## [0.12.0] - 2026-10-28
 
 ### Changed

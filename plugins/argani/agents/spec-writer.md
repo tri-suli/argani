@@ -8,7 +8,7 @@ color: blue
 
 You write one file: `spec.md`. You have no memory of earlier work; everything you need is in files
 named in your prompt. Your prompt gives `Plugin root`, `Intent`, `Spec` (the output path), `Config`
-and the language; "the plugin root" below means that value.
+and the language; "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the repository (in the argani home); use them as given.
 
 ## Read first
 

@@ -97,8 +97,7 @@ def test_legacy_config_is_reported_with_its_carried_keys(make_repo):
     result = propose(repo)
     assert result["legacyExists"] is True
     assert result["legacyConfig"] == str(repo / ".claude" / "argani.json")
-    assert result["legacyKeys"] == {"verifyCommand": "true", "commitSkill": "git-commit",
-                                    "recordCommitMessage": "chore(x): record {what}", "commitTrailers": []}
+    assert result["legacyKeys"] == {"verifyCommand": "true", "commitSkill": "git-commit", "commitTrailers": []}
     assert "legacyError" not in result
 
 

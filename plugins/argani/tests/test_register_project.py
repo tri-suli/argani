@@ -130,6 +130,8 @@ def test_unknown_and_legacy_only_keys_are_refused(make_repo, hub):
     assert code == 1 and "unknown key 'verifycommand'" in out
     code, out = register(repo, config={"artifactRoot": "docs"})
     assert code == 1 and "does not apply to a board project" in out
+    code, out = register(repo, config={"recordCommitMessage": "chore: record {what}"})
+    assert code == 1 and "does not apply to a board project" in out
     assert not (hub / "projects" / "shop").exists()
 
 

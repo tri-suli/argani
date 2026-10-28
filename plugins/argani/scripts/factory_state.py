@@ -3,7 +3,8 @@
 
 Usage: python3 factory_state.py <slug> [dir]
 
-Prints JSON. Reads files and git only, never writes. Exit 0 whenever the slug
+The job folder is found through the config of the repository in dir: the project's task folder
+in the argani home, or (legacy) the artifact root of the repository. Prints JSON. Reads files and git only, never writes. Exit 0 whenever the slug
 folder exists; exit 1 with a message for a bad slug or a missing folder; exit 2 for an invalid
 config (including a reviewer named 'human', which is reserved). The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
@@ -16,6 +17,7 @@ from pathlib import Path
 
 import artifact_check
 import argani_config
+import git_cli
 
 CLOSING_BUILD = "=== END OF BUILD ==="
 CLOSING_REVIEW = "=== END OF REVIEW ==="
@@ -87,13 +89,20 @@ def decision_state(path):
     }
 
 
-def is_dirty(toplevel, job_dir):
-    """Uncommitted changes outside the job folder (job artifacts are expected to be untracked)."""
-    exclude = f":(exclude){job_dir.relative_to(toplevel)}"
-    result = subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(toplevel), "status", "--porcelain", "--", ".", exclude],
-        capture_output=True, text=True,
-    )
+def is_inside(folder, parent):
+    return folder == parent or parent in folder.parents
+
+
+def is_dirty(toplevel, excluded_folders):
+    """Uncommitted changes outside the excluded folders (the job folder and, for a registered
+    project, the argani home: their files are expected to be untracked); folders outside the
+    repository need no exclusion."""
+    command = ["git", "--no-optional-locks", "-C", str(toplevel), "status", "--porcelain"]
+    excludes = [f":(exclude){folder.relative_to(toplevel)}" for folder in excluded_folders
+                if is_inside(folder, toplevel)]
+    if excludes:
+        command += ["--", ".", *excludes]
+    result = subprocess.run(command, capture_output=True, text=True)
     return result.returncode != 0 or bool(result.stdout.strip())  # fail closed
 
 
@@ -107,6 +116,11 @@ def changed_paths(toplevel, base_branch, branch, config):
         capture_output=True, text=True,
     )
     return result.stdout.split("\n")[:-1] if result.returncode == 0 else None
+
+
+def excluded_folders(config, job_dir):
+    """Folders whose files never make the repository dirty."""
+    return [job_dir, *([Path(config["home"]).resolve()] if config["project"] else [])]
 
 
 def review_plan(rounds, reviewers, build_text):
@@ -194,17 +208,30 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
             "/argani:factory rework is refused at round 3.", None, None)
 
 
-def build_state(slug, start_dir="."):
-    config = argani_config.load_config(start_dir, strict=True)
+def record_repo_ok(config):
+    """True when the job folder is recorded in the right repository: legacy always; a registered
+    project needs the argani home to be a repository of its own, not a folder inside another one."""
+    if not config["project"]:
+        return True
+    home = Path(config["home"]).resolve()
+    top = git_cli.toplevel(home)
+    return top is not None and Path(top).resolve() == home
+
+
+def build_state(slug, start_dir=".", config=None):
+    """The state of a job. config is the project's effective config when the caller has no checkout
+    (see argani_config.load_project_config); otherwise it is loaded for start_dir. Without a
+    checkout the changed paths are unknown, so every reviewerPaths reviewer counts as active, and a
+    branchPattern that gives a protected branch still raises ValueError."""
+    if config is None:
+        config = argani_config.load_config(start_dir, strict=True)
     if "human" in config["reviewers"]:
         raise ValueError("reviewers: 'human' is reserved for human rework notes; rename that reviewer")
-    if not config["toplevel"]:
+    job_dir = argani_config.job_dir(config, slug)
+    if job_dir is None or not job_dir.is_dir():
         return None
-    toplevel = Path(config["toplevel"]).resolve()
-    job_dir = toplevel / config["artifactRoot"] / slug
-    if not job_dir.is_dir():
-        return None
-    current = argani_config.current_branch(start_dir)
+    toplevel = Path(config["toplevel"]).resolve() if config["toplevel"] else None
+    current = argani_config.current_branch(start_dir) if toplevel else None
     intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"])
     intent_path = job_dir / "intent.md"
     intent_text = artifact_check.normalize(read_text(intent_path)) if intent_path.is_file() else ""
@@ -224,7 +251,8 @@ def build_state(slug, start_dir="."):
     }
     build_text = read_text(build_path) if build["exists"] else ""
     base_branch = argani_config.base_branch_for(config, job_type)
-    reviewers = argani_config.active_reviewers(config, changed_paths(toplevel, base_branch, branch, config))
+    paths = changed_paths(toplevel, base_branch, branch, config) if toplevel else None
+    reviewers = argani_config.active_reviewers(config, paths)
     config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
     rounds = collect_rounds(job_dir, reviewers)
     decision = decision_state(job_dir / "decision.md")
@@ -242,12 +270,17 @@ def build_state(slug, start_dir="."):
         slug, config, intent, spec, build, rounds, decision, mr, build_text)
     return {
         "slug": slug,
+        "project": config["project"],
+        "home": config["home"] if config["project"] else None,
         "job_dir": str(job_dir),
+        "job_dir_in_repo": config["project"] is None and bool(toplevel) and is_inside(job_dir, toplevel),
+        "record_repo_ok": record_repo_ok(config),
+        "record_dir": config["home"] if config["project"] else (str(toplevel) if toplevel else None),
         "type": job_type,
         "branch": branch,
         "current_branch": current,
         "on_job_branch": branch is not None and current == branch,
-        "dirty": is_dirty(toplevel, job_dir),
+        "dirty": is_dirty(toplevel, excluded_folders(config, job_dir)) if toplevel else None,
         "base_branch": base_branch,
         "risk": risk,
         "reviewers": reviewers,
@@ -290,14 +323,21 @@ def main(argv):
         print(f"Invalid slug '{argv[1]}': use lowercase letters, digits and hyphens.")
         return 1
     try:
-        state = build_state(argv[1], start_dir)
+        config = argani_config.load_config(start_dir, strict=True)
+        state = build_state(argv[1], start_dir, config)
     except ValueError as error:
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
-        branch = missing_job_branch_hint(argani_config.load_config(start_dir), argv[1])
-        print(f"No job folder for slug '{argv[1]}' under the artifact root of this repository. "
-              f"After the first build the artifacts live on the job branch: try 'git switch {branch}'.")
+        if not config["tasksDir"]:
+            print("Not inside a project repository; open the repository and run /argani:init "
+                  "if it is not registered yet.")
+            return 1
+        message = f"No job folder for slug '{argv[1]}' under {config['tasksDir']}."
+        if not config["project"]:
+            branch = missing_job_branch_hint(config, argv[1])
+            message += f" After the first build the artifacts live on the job branch: try 'git switch {branch}'."
+        print(message)
         return 1
     print(json.dumps(state, indent=2))
     return 0

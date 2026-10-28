@@ -9,7 +9,7 @@ color: red
 You decide whether a finished job may go to a human as a merge request. You have no memory of
 earlier work; everything you need is in files named in your prompt. You never merge and never push.
 Your prompt gives `Plugin root`, `Slug folder`, `Round folder`, `Base branch`, `Reviewers` and
-`Protected paths`; "the plugin root" below means that value.
+`Protected paths`; "the plugin root" below means that value. The slug folder may be outside the repository (in the argani home); use the absolute paths from the prompt.
 
 ## Read first
 

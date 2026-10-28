@@ -104,13 +104,17 @@ per job, up to two rounds), so use it only for jobs with clear acceptance criter
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
 `scripts/factory_state.py <slug>`, which only reports and never writes.
 
-Who commits what on the job branch: the builder commits code, `plan.md` and `build.md`; the
-orchestrator commits the rest of the job folder (`intent.md`, `spec.md`, `review/**`, `decision.md`,
-`mr.md`), adding only paths under `<artifactRoot>/<slug>/` (legacy repositories; for a registered project the factory records them in the argani home from 0.13.0): before the build, after each review round,
-after the decision and before the push. Nothing is ever pushed or merged without a human.
+Who commits what: the builder commits code to the job branch (and `plan.md` and `build.md` when the
+job folder is inside the repository). The orchestrator records the job folder (`intent.md`, `spec.md`,
+`plan.md`, `build.md`, `review/**`, `decision.md`, `mr.md`): before the build, after the builder
+(for a registered project, whose `plan.md` and `build.md` the builder leaves uncommitted), after each
+review round, after the decision and before the push. For a project registered in the argani home it commits them
+in the home's own git repository with a fixed message `argani: record <project>/<slug> <what>`, so the
+project repository only ever sees code. For a legacy repository it commits only paths under
+`<artifactRoot>/<slug>/` on the job branch, with subjects and trailers from `recordCommitMessage` and
+`commitTrailers` in `.claude/argani.json`. Nothing is ever pushed or merged without a human.
 Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that
-requires a separate instruction for every commit uses the manual loop instead. Commit subjects and
-trailers follow `recordCommitMessage` and `commitTrailers` in `.claude/argani.json`.
+requires a separate instruction for every commit uses the manual loop instead.
 
 ## Reviewers
 

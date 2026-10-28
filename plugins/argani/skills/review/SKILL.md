@@ -12,13 +12,16 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
 
 ## Steps
 
+Run each command on its own: never chain with `&&` or `;` and never `cd` first, so the allowed-tools
+patterns match and the human is not prompted.
+
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`,
-   `protectedBranches`, `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
-   Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `base_branch` (the
+   and `protectedBranches`. If `reviewers` contains `human` (a reserved name), **stop**.
+   Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `job_dir`, `base_branch` (the
    job's base: `baseBranchByType` for its type, else `baseBranch`; call it `<baseBranch>` below),
    `reviewers` (the checklists this diff needs: one scoped by `reviewerPaths` runs only when the diff
    touches its paths) and `models.reviewers`. "Configured reviewer" below means one of these.
-2. The slug folder is `<toplevel>/<artifactRoot>/$ARGUMENTS/`. If `spec.md` is not there, **stop**
+2. The slug folder is `job_dir` from the state. If `spec.md` is not there, **stop**
    and name the missing file.
 3. Check the change: `git rev-parse --abbrev-ref HEAD` must not be in `protectedBranches`,
    and `git diff --quiet <baseBranch>...HEAD` must report a difference (exit 1).

@@ -276,3 +276,31 @@ def test_the_number_command_is_carried_over_from_a_legacy_file(make_repo):
     result = propose(repo)
     assert result["proposal"]["branchNumberCommand"] == "cat n.txt"
     assert question(result, "branchNumberCommand") is None
+
+
+def test_a_second_worktree_asks_for_the_worktree_path(make_repo):
+    repo = make_repo()
+    assert question(propose(repo), "worktreePath") is None
+    git(repo, "worktree", "add", "-q", "-b", "other", str(repo.parent / "other-tree"))
+    asked = question(propose(repo), "worktreePath")
+    assert asked["candidates"] == [".worktrees/{branch}"]
+    assert "never switches branches in the main checkout" in asked["ask"]
+
+
+@pytest.mark.parametrize("folder, candidates", [
+    (".worktrees", [".worktrees/{branch}"]),
+    (".claude/worktrees", [".worktrees/{branch}", ".claude/worktrees/{branch}"]),
+])
+def test_an_existing_worktree_folder_asks_for_the_worktree_path(make_repo, folder, candidates):
+    repo = make_repo()
+    (repo / folder).mkdir(parents=True)
+    assert question(propose(repo), "worktreePath")["candidates"] == candidates
+
+
+def test_worktree_keys_are_carried_over_from_a_legacy_file(make_repo):
+    repo = make_repo(config={"worktreePath": ".wt/{branch}", "worktreeCommand": "mk {path}"})
+    (repo / ".worktrees").mkdir()
+    result = propose(repo)
+    assert result["proposal"]["worktreePath"] == ".wt/{branch}"
+    assert result["proposal"]["worktreeCommand"] == "mk {path}"
+    assert question(result, "worktreePath") is None

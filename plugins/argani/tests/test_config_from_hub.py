@@ -294,3 +294,38 @@ def test_board_skill_is_read_only_and_runs_board_py():
     for required in ("board.py", "--all", "/argani:init"):
         assert required in text, required
     assert "Write" not in frontmatter and "Edit" not in frontmatter
+
+
+@pytest.mark.parametrize("path, required", [
+    ("skills/factory/SKILL.md", ["worktree_command.py", "Checkout:", "checkout", "worktree_mode"]),
+    ("skills/review/SKILL.md", ["git -C", "Checkout:", "checkout"]),
+    ("agents/builder.md", ["Checkout"]),
+    ("agents/reviewer.md", ["Checkout"]),
+    ("agents/approver.md", ["Checkout"]),
+])
+def test_worktree_mode_is_described_where_the_agents_read(path, required):
+    text = (SCRIPTS.parent / path).read_text()
+    for phrase in required:
+        assert phrase in text, f"{path} does not mention {phrase}"
+
+
+def make_worktree(repo, name="feature-x"):
+    folder = repo.parent / name
+    git(repo, "worktree", "add", "-q", "-b", name, str(folder))
+    return folder
+
+
+def test_a_project_registered_by_path_resolves_from_its_linked_worktree(make_repo, register_project):
+    repo, _ = registered_repo(make_repo, register_project, verifyCommand="hub")
+    worktree = make_worktree(repo)
+    config = argani_config.load_config(worktree, strict=True)
+    assert (config["project"], config["verifyCommand"]) == ("demo", "hub")
+    assert config["toplevel"] == str(worktree.resolve())
+
+
+def test_guard_artifacts_denies_a_protected_path_written_inside_a_worktree(make_repo, register_project):
+    from hook_helpers import decision_of, file_payload, run_hook
+    repo, _ = registered_repo(make_repo, register_project, protectedPaths=["raw/**"])
+    worktree = make_worktree(repo)
+    output = run_hook("guard_artifacts.py", file_payload("Write", worktree, worktree / "raw" / "a.txt", content="x"))
+    assert decision_of(output) == "deny"

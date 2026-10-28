@@ -40,7 +40,13 @@ use it for jobs with clear acceptance criteria.
    Keep the JSON (call it the config).
 3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
    show its output. Print `stage` and `next`. Read `project`, `job_dir`, `job_dir_in_repo`,
-   `record_dir` and `records_enabled` from it and use them below.
+   `record_dir`, `records_enabled`, `worktree_mode`, `worktree_path`, `main_checkout` and `checkout` from it and use them below.
+
+Worktree mode (`worktree_mode` true): the job runs in its own git worktree. `checkout` is the folder
+holding the branch (null until it exists) and replaces the repository everywhere below: every git
+command for the job (`git push`, diff checks) uses `git -C <checkout>`, `mr_description.py` gets
+`<checkout>` as its directory, and the agents get `Checkout: <checkout>` in their prompts. Without
+worktree mode `<checkout>` means the toplevel.
 
 Commands: run each command on its own. Never chain with `&&` or `;` and never `cd` first (use
 `git -C`), so the allowed-tools patterns match and the human is not prompted.
@@ -66,7 +72,8 @@ terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at m
 `<branch>` below is the state's `branch`: the repository's `branchPattern` (default `feature/{slug}`)
 with the slug and, for `{type}`, the intent's `Type:` filled in. `<base_branch>` is the state's
 `base_branch`: `baseBranchByType` for that type, else `baseBranch`. Never build either name yourself.
-"Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `<branch>`.
+"Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `<branch>`
+(in worktree mode: that the job has no checkout holding `<branch>`).
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
 overwrite the file completely". If `review:human` is partial, do not spawn anything: tell the human to
 fix or delete `review-human.md`.
@@ -130,10 +137,17 @@ Language: <language of the repository's CLAUDE.md, else of the intent>
 ### Branch and builder
 
 1. **Stop** if `current_branch` is `HEAD` (detached) or `dirty` is true (job-folder files do not count):
-   ask the human to switch branch or commit/stash.
-2. If `on_job_branch` is false: `git switch <branch>` if `git rev-parse --verify <branch>` succeeds,
+   ask the human to switch branch or commit/stash. A `next` that says the worktree is stale: **stop** and
+   show it (the human prunes, then re-runs). (In worktree mode both describe the `checkout`; with
+   no checkout yet they are null and this check passes.)
+2. Worktree mode: never `git switch`. If `checkout` is null, run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree_command.py <slug>`, which prints JSON `{"path", "toplevel", "command"}`,
+   then run `command` verbatim (it names the main checkout itself and does not depend on the working
+   directory); never rebuild or re-quote it. If the script exits non-zero (for example the path exists
+   and holds another branch) or the command fails, **stop** and show the output. Skip the next sentence.
+   Otherwise, if `on_job_branch` is false: `git switch <branch>` if `git rev-parse --verify <branch>` succeeds,
    else `git switch -c <branch> <base_branch>`. If the switch fails, **stop** and show the error.
-3. Re-run state; if `on_job_branch` is still false, **stop**. Only then Record (`artifacts before build`;
+3. Re-run state; if `on_job_branch` is still false (in worktree mode: `checkout` is still null), **stop**. Only then Record (`artifacts before build`;
    a legacy job is never committed on any other branch), and spawn `argani:builder`:
 
 ```
@@ -141,6 +155,7 @@ Plugin root: <plugin root>
 Slug folder: <job_dir>
 Job folder in repository: <yes when job_dir_in_repo is true, else no>
 Branch: <branch>
+Checkout: <checkout, the toplevel without worktree mode>
 Verify command: <verifyCommand>
 Commit skill: <commitSkill, or "none">
 Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
@@ -165,20 +180,21 @@ Plugin root: <plugin root>
 Slug folder: <job_dir>
 Round folder: <job_dir>/review/round-<review_round>/
 Base branch: <base_branch>
+Checkout: <checkout, the toplevel without worktree mode>
 Reviewers: <the state's reviewers, comma-separated>
 Protected paths: <protectedPaths, comma-separated, or "none">
 ```
 
 ### Merge request (`needs-mr`)
 
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> --write`. If it exits non-zero, stop and
+1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <checkout> --write`. If it exits non-zero, stop and
    show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
    verification checklist of `decision.md`, where the task folder is) and prints JSON with `title`,
    `bodyFile` and, when `mrCommand` is configured, `command`. `mr-body.md` is an artifact of the job
    folder and is recorded with it.
 2. Record (for a legacy job only with `on_job_branch` true), so `mr-body.md` is committed before the push.
 - `mrCommand` configured:
-  3. `git push -u origin <branch>`.
+  3. `git -C <checkout> push -u origin <branch>`.
   4. Run the printed `command` verbatim; never rebuild or re-quote it.
   If 3 or 4 fails, stop and show the error (no `mr.md`).
   5. Write `<job_dir>/mr.md` (output or URL, branch, base, today's date).

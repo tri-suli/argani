@@ -2,7 +2,7 @@
 name: review
 description: Run one review round on a job's branch, one parallel reviewer per configured checklist, and summarise the verdicts. Use after the builder finishes or after rework. Slash form /argani:review <slug>.
 argument-hint: "<slug>"
-allowed-tools: Read, Glob, Grep, Agent, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git rev-parse *), Bash(git diff *)
+allowed-tools: Read, Glob, Grep, Agent, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git rev-parse *), Bash(git diff *), Bash(git -C *)
 ---
 
 # /argani:review
@@ -17,14 +17,16 @@ patterns match and the human is not prompted.
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`,
    and `protectedBranches`. If `reviewers` contains `human` (a reserved name), **stop**.
-   Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `job_dir`, `base_branch` (the
+   Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `job_dir`, `checkout` (where the job branch is checked out: the repository, or the job's own
+   worktree; if it is null, **stop**: with `worktree_mode` true say the job has no worktree yet, else say the
+   session is on `<current_branch>`, not `<branch>`), `base_branch` (the
    job's base: `baseBranchByType` for its type, else `baseBranch`; call it `<baseBranch>` below),
    `reviewers` (the checklists this diff needs: one scoped by `reviewerPaths` runs only when the diff
    touches its paths) and `models.reviewers`. "Configured reviewer" below means one of these.
 2. The slug folder is `job_dir` from the state. If `spec.md` is not there, **stop**
    and name the missing file.
-3. Check the change: `git rev-parse --abbrev-ref HEAD` must not be in `protectedBranches`,
-   and `git diff --quiet <baseBranch>...HEAD` must report a difference (exit 1).
+3. Check the change: `git -C <checkout> rev-parse --abbrev-ref HEAD` must not be in `protectedBranches`,
+   and `git -C <checkout> diff --quiet <baseBranch>...HEAD` must report a difference (exit 1).
    Otherwise **stop** and say there is nothing to review.
 4. Pick the round number `N` from the highest existing `review/round-*` folder `H`:
    - No round folder: `N = 1`.
@@ -44,7 +46,8 @@ patterns match and the human is not prompted.
    Slug folder: <absolute slug folder>
    Round: <N>
    Base branch: <baseBranch>
-   Review the diff <baseBranch>...HEAD and write <slug folder>/review/round-<N>/review-<name>.md.
+   Checkout: <checkout>
+   Review the diff <baseBranch>...HEAD in the checkout and write <slug folder>/review/round-<N>/review-<name>.md.
    ```
 6. Wait for all of them. Then check each expected `review-<name>.md` exists and its last line is
    `=== END OF REVIEW ===`. Rerun a missing or cut-off seat once (same prompt); if it is still

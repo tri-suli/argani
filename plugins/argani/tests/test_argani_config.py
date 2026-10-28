@@ -129,3 +129,37 @@ def test_mr_command_for_keeps_a_path_with_a_space_as_one_argument():
     command = argani_config.mr_command_for(config, {"bodyFile": "/my home/mr-body.md", "branch": "feat/x"})
     assert shlex.split(command) == ["tool", "--body-file", "/my home/mr-body.md", "--head", "feat/x"]
     assert argani_config.mr_command_for({"mrCommand": None}, {"branch": "x"}) is None
+
+
+@pytest.mark.parametrize("value", ["/abs/{branch}", "../{branch}", ".git/{branch}", "wt", "{branch}/{branch}", "{branch}/x", "wt-{branch}/x"])
+def test_worktree_path_rejects_unusable_folders(value):
+    with pytest.raises(ValueError):
+        argani_config._worktree_path(value)
+
+
+def test_worktree_path_accepts_a_relative_folder_with_the_branch_once():
+    assert argani_config._worktree_path(".worktrees/{branch}") == ".worktrees/{branch}"
+
+
+def test_worktree_path_replaces_slashes_of_the_branch(tmp_path):
+    config = {"worktreePath": ".worktrees/{branch}"}
+    assert argani_config.worktree_path(config, "feat/a/b", tmp_path) == tmp_path.resolve() / ".worktrees" / "feat-a-b"
+    assert argani_config.worktree_path({**config, "worktreePath": None}, "x", tmp_path) is None
+
+
+@pytest.mark.parametrize("pattern, folder", [(".worktrees/{branch}", ".worktrees"),
+                                             (".claude/worktrees/{branch}", ".claude/worktrees"),
+                                             (None, None)])
+def test_worktree_folder_is_the_path_before_the_branch_segment(pattern, folder):
+    assert argani_config.worktree_folder({"worktreePath": pattern}) == folder
+
+
+@pytest.mark.parametrize("command", ["mk {branch} {base} {path} {toplevel}", "mk {path}", "mk"])
+def test_worktree_command_accepts_its_placeholders(command):
+    assert argani_config._worktree_command(command) == command
+
+
+@pytest.mark.parametrize("command", ["mk {title}", "mk '{path}'", "", "mk\nmore"])
+def test_worktree_command_rejects_other_placeholders_quotes_and_lines(command):
+    with pytest.raises(ValueError):
+        argani_config._worktree_command(command)

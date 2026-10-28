@@ -49,6 +49,9 @@ into the repository.
    - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
      job branch and its base branch. Leave it out when the human wants to push and open merge
      requests themselves.
+   - `worktreePath`: when asked, jobs run in their own git worktree under that pattern (`{branch}`
+     stays as it is) and the factory never switches branches in the main checkout; remind the human to
+     add the folder to `.gitignore`. `worktreeCommand` is optional (see `docs/config.md`).
    Ask also whether to add checklists to `reviewers` (catalog in `docs/config.md`) and whether some
    paths must never be written by agents (`protectedPaths`). Omit keys the human leaves at their
    default, but keep `defaultBranch` from the proposal.

@@ -6,7 +6,8 @@ import pytest
 AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
 AGENT_FILES = sorted(AGENTS_DIR.glob("*.md"))
 EXPECTED = {"spec-writer", "builder", "reviewer", "approver"}
-READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write", "Bash(git diff *)", "Bash(git log *)"}
+READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write", "Bash(git diff *)", "Bash(git log *)",
+                    "Bash(git -C *)"}  # git -C <Checkout>; the git guard hook still allows only read-only subcommands
 CLOSING_LINES = {
     "builder": "=== END OF BUILD ===",
     "reviewer": "=== END OF REVIEW ===",

@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import argani_home
+import git_cli
 from git_cli import git_output, toplevel
 
 PROJECT_FILE = "project.json"
@@ -162,7 +163,15 @@ def resolve(start_dir, home, top=None):
     } - {None}
     if len(remote_names) > 1:
         raise ProjectError(f"remotes of {real_top} match projects {' and '.join(sorted(remote_names))}")
-    name = remote_names.pop() if remote_names else _only_match(projects, "path", real_top, "paths")
+    if remote_names:
+        name = remote_names.pop()
+    else:  # a linked worktree belongs to the project registered by the path of its main checkout
+        main = git_cli.main_checkout(start_dir)
+        candidates = dict.fromkeys([real_top, os.path.realpath(main)] if main else [real_top])
+        path_names = {_only_match(projects, "path", path, "paths") for path in candidates} - {None}
+        if len(path_names) > 1:
+            raise ProjectError(f"{' and '.join(candidates)} match projects {' and '.join(sorted(path_names))}")
+        name = path_names.pop() if path_names else None
     return by_name[name] if name else None
 
 

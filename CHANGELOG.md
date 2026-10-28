@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-28
+
+### Added
+
+- Worktree mode: `worktreePath` (a folder with `{branch}` once, for example `.worktrees/{branch}`) makes the factory run every job in its own git worktree and never switch branches in the main checkout; `worktreeCommand` optionally creates the worktree (placeholders `{branch}`, `{base}`, `{path}`), else argani runs `git worktree add`. New `scripts/worktree_command.py <slug>` prints the filled command. The factory state gains `worktree_mode`, `worktree_path` and `checkout`; `current_branch`, `on_job_branch` and `dirty` describe the checkout, and the top folder of `worktreePath` never makes the main checkout dirty. Every git command of a job, `mr_description.py` and the builder, reviewer and approver prompts (`Checkout:`) use the checkout. Only for a registered project. `/argani:init` asks for `worktreePath` when the repository already uses worktrees. `checkout`, `current_branch` and `dirty` are null before the worktree exists; `/argani:review` then says the job has no worktree yet. A project registered by `paths` resolves from its linked worktrees (through the path of the main checkout), worktree mode is anchored on the main checkout whichever worktree runs the scripts, a stale (prunable) worktree is reported instead of used, and `worktreeCommand` has a `{toplevel}` placeholder. The reviewer and approver agents may also call `git -C`; the git guard still allows only read-only subcommands.
+
 ## [0.18.0] - 2026-10-28
 
 ### Added

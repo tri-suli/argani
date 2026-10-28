@@ -54,7 +54,7 @@ def test_home_with_parent_segment_is_refused(tmp_path):
 
 def test_first_creation_makes_the_home_and_projects_folders(tmp_path):
     home = tmp_path / "board"
-    assert argani_home.ensure_home(home) == [home, home / "projects"]
+    assert argani_home.ensure_home(home) == [home, home / "projects", home / ".git"]
     assert (home / "projects").is_dir()
 
 
@@ -68,10 +68,35 @@ def test_second_creation_makes_nothing_and_keeps_existing_files(tmp_path):
     assert entry.read_text() == "kept\n"
 
 
+def test_the_home_becomes_a_git_repository_once(tmp_path):
+    home = tmp_path / "board"
+    argani_home.ensure_home(home)
+    assert (home / ".git").is_dir()
+    assert argani_home.report(home)["git"] is True
+    assert argani_home.ensure_home(home) == []
+
+
+def test_an_existing_repository_in_the_home_is_kept(tmp_path):
+    home = tmp_path / "board"
+    home.mkdir()
+    for args in (["init", "-q", "-b", "main"],
+                 ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "kept"]):
+        subprocess.run(["git", "-C", str(home), *args], check=True, capture_output=True)
+    assert argani_home.ensure_home(home) == [home / "projects"]
+    log = subprocess.run(["git", "-C", str(home), "log", "--format=%s"], capture_output=True, text=True)
+    assert log.stdout.split() == ["kept"]
+
+
+def test_a_failing_git_init_is_a_home_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("PATH", str(tmp_path))
+    with pytest.raises(argani_home.HomeError, match="git init"):
+        argani_home.ensure_home(tmp_path / "board")
+
+
 def test_missing_projects_folder_is_added_to_an_existing_home(tmp_path):
     home = tmp_path / "board"
     home.mkdir()
-    assert argani_home.ensure_home(home) == [home / "projects"]
+    assert argani_home.ensure_home(home) == [home / "projects", home / ".git"]
 
 
 @pytest.mark.parametrize("blocked", ["home", "projects"])
@@ -93,7 +118,8 @@ def test_script_reports_without_creating_anything(tmp_path):
     home = tmp_path / "board"
     result = run_script(env_home=home)
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "exists": False}
+    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "exists": False,
+                                      "git": False}
     assert not home.exists()
 
 
@@ -101,7 +127,7 @@ def test_script_create_reports_the_folders_it_made(tmp_path):
     home = tmp_path / "board"
     first = json.loads(run_script("--create", env_home=home).stdout)
     second = json.loads(run_script("--create", env_home=home).stdout)
-    assert first["exists"] and first["created"] == [str(home), str(home / "projects")]
+    assert first["exists"] and first["created"] == [str(home), str(home / "projects"), str(home / ".git")]
     assert second["exists"] and second["created"] == []
 
 

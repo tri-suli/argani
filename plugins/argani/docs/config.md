@@ -153,3 +153,14 @@ Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`. `n
 ignored and types are checked (`reviewers` and `protectedPaths` must be lists of strings, the other
 keys strings). An unusable file makes the command exit 1 with an error on stderr, while
 `load_config()` falls back to the defaults with a note on stderr so that hooks fail open.
+
+## argani home
+
+The board that will hold every project's tasks lives in the argani home: `$ARGANI_HOME` when set,
+else `~/.argani`. It is a folder of the user, apart from the plugin (whose installed copy is
+replaced on every release) and from the project repositories. `ARGANI_HOME` must be an absolute
+path (a leading `~` is expanded) without `..`.
+
+`python3 <plugin root>/scripts/argani_home.py` prints the home and whether its folders exist;
+`--create` makes the missing ones (the home and `projects/`) and never touches existing files. Its
+parent folder must already exist.

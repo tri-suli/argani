@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-28
+
+### Added
+
+- The project registry: `projects/<name>/project.json` in the argani home holds a project's identity
+  (`name`, `remotes`, `paths`). `scripts/project_registry.py [dir]` reports which project a
+  directory belongs to, matching the repository's normalized git remotes first and its real path
+  second, so clones and worktrees share a project. A broken entry is skipped with a warning, two
+  projects claiming one remote is an error, and the home itself is never a project. Nothing uses
+  the registry yet.
+
 ## [0.7.0] - 2026-10-28
 
 ### Added

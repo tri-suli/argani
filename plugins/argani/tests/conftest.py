@@ -1,7 +1,12 @@
 import json
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import argani_home  # noqa: E402
 
 
 def git(directory, *args):
@@ -42,3 +47,35 @@ def repo(make_repo):
 def feature_repo(repo):
     git(repo, "checkout", "-q", "-b", "feature")
     return repo
+
+
+@pytest.fixture(autouse=True)
+def hermetic_argani_home(tmp_path, monkeypatch):
+    """Point the argani home and HOME into tmp_path so tests never see the developer's ~/.argani.
+
+    The home is not created; hook subprocesses inherit os.environ, so they stay inside tmp_path too.
+    """
+    monkeypatch.setenv("ARGANI_HOME", str(tmp_path / "argani-home"))
+    user_home = tmp_path / "user-home"
+    user_home.mkdir()
+    monkeypatch.setenv("HOME", str(user_home))
+    monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+
+
+@pytest.fixture
+def hub():
+    """The argani home, created with its layout."""
+    home = argani_home.home_path()
+    argani_home.ensure_home(home)
+    return home
+
+
+@pytest.fixture
+def register_project(hub):
+    """Factory: write projects/<name>/project.json with identity keys plus any extra config."""
+    def register(name, remotes=(), paths=(), **config):
+        path = hub / "projects" / name / "project.json"
+        path.parent.mkdir()
+        path.write_text(json.dumps({"name": name, "remotes": list(remotes), "paths": list(paths), **config}))
+        return path
+    return register

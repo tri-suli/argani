@@ -164,3 +164,22 @@ path (a leading `~` is expanded) without `..`.
 `python3 <plugin root>/scripts/argani_home.py` prints the home and whether its folders exist;
 `--create` makes the missing ones (the home and `projects/`) and never touches existing files. Its
 parent folder must already exist.
+
+Each project registered on the board has an entry, `projects/<name>/project.json`:
+
+```
+<home>/
+  projects/
+    <name>/project.json     {"name": "<name>", "remotes": [...], "paths": [...]}
+```
+
+`name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `remotes` are normalized git remote
+URLs (lowercase host and path, no scheme, user, port or `.git`, so `git@github.com:Org/repo.git` and
+`https://github.com/org/repo` are the same; local path remotes keep their case, and relative remotes
+are ignored); `paths` are real paths of checkouts that have no shared
+remote. A repository belongs to the project that lists any of its remotes, else the project that
+lists the real path of its top-level folder; clones and worktrees of one remote therefore share a
+project, and two projects claiming one remote is an error. The home itself is never a project. A
+broken entry is skipped with a warning on stderr so it cannot block other repositories.
+`python3 <plugin root>/scripts/project_registry.py [dir]` prints the project of `dir` (default: the
+current directory) and exits 1 when there is none. Later releases add the config and tasks here.

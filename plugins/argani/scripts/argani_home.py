@@ -6,12 +6,14 @@ copy is replaced on every release, and outside the project repositories.
 
 Usage: python3 argani_home.py [--create]
 
-Prints JSON: home, projects (the folder of project entries), exists. With --create, makes the
-missing folders first and reports which ones it made; existing files are never touched. Exit 1
-with a message when ARGANI_HOME is not usable.
+Prints JSON: home, projects (the folder of project entries), exists, git (the home is a git
+repository). With --create, makes the missing folders first, runs `git init` when the home is
+not a repository yet (it records every job folder), and reports what it made; existing files and
+existing repositories are never touched. Exit 1 with a message when ARGANI_HOME is not usable.
 """
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,7 +47,8 @@ def layout(home):
 
 
 def ensure_home(home):
-    """Create the missing layout folders; return the ones created (empty when all existed)."""
+    """Create the missing layout folders and, when absent, the home's git repository; return what
+    was created (empty when all existed)."""
     created = []
     for folder in layout(home):
         if folder.is_dir():
@@ -54,7 +57,19 @@ def ensure_home(home):
             raise HomeError(f"{folder} exists and is not a folder")
         folder.mkdir()
         created.append(folder)
+    repository = home / ".git"
+    if not repository.exists():
+        initialise_repository(home)
+        created.append(repository)
     return created
+
+
+def initialise_repository(home):
+    try:
+        subprocess.run(["git", "-C", str(home), "init", "-q"], check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        detail = error.stderr.decode(errors="replace").strip() if isinstance(error, subprocess.CalledProcessError) else error
+        raise HomeError(f"cannot run git init in {home}: {detail}") from error
 
 
 def report(home, created=None):
@@ -62,6 +77,7 @@ def report(home, created=None):
         "home": str(home),
         "projects": str(home / PROJECTS_DIR),
         "exists": all(folder.is_dir() for folder in layout(home)),
+        "git": (home / ".git").exists(),
     }
     if created is not None:
         result["created"] = [str(folder) for folder in created]

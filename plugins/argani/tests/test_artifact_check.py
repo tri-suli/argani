@@ -145,3 +145,17 @@ def test_spec_missing_title_fails(tmp_path):
 
 def test_missing_file_fails(tmp_path):
     assert run_check("intent", tmp_path / "nope.md").returncode == 1
+
+
+def test_acceptance_criteria_are_listed_with_number_claim_and_verification():
+    import artifact_check
+    assert artifact_check.acceptance_criteria(VALID_INTENT) == [
+        (1, "Login works", "pytest tests/test_login.py"),
+        (2, "Bad password is rejected",
+         'manual: tester enters a wrong password and sees "Wrong password"'),
+    ]
+
+
+def test_acceptance_criteria_are_empty_without_the_section():
+    import artifact_check
+    assert artifact_check.acceptance_criteria("# Intent: x\n\n## Problem\np\n") == []

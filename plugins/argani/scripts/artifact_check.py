@@ -31,7 +31,7 @@ RISK_LINE_PATTERN = re.compile(r"^Risk:")
 RISK_VALUE_PATTERN = re.compile(r"^Risk: (low|medium|high)$")
 STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}-\d{2}-\d{2}))$")
 # `n. [ ] <claim> — verify: <how>`; item n is referred to as AC-n everywhere else.
-AC_ITEM_PATTERN = re.compile(r"^(\d+)\. \[[ xX]\] .+ — verify: (\S.*)$")
+AC_ITEM_PATTERN = re.compile(r"^(\d+)\. \[[ xX]\] (.+) — verify: (\S.*)$")
 OLD_AC_ITEM_PATTERN = re.compile(r"^- AC-\d+: ")
 AC_NUMBER_PATTERN = re.compile(r"^(\d+)\. ")
 AC_ITEM_SHAPE = "n. [ ] <claim> — verify: <how>"
@@ -217,14 +217,22 @@ def check_acceptance_criteria(lines):
                               f"(the number is the n of AC-n): {line!r}")
         elif not match:
             violations.append(f"{label} must read '{AC_ITEM_SHAPE}': {line!r}")
-        elif is_filler_verify(match.group(2)):
-            violations.append(f"{label} has no real verification (got {match.group(2).strip()!r}); "
+        elif is_filler_verify(match.group(3)):
+            violations.append(f"{label} has no real verification (got {match.group(3).strip()!r}); "
                               "name a command, a test, or 'manual: <step a human does>'")
     expected = [str(n) for n in range(1, len(numbers) + 1)]
     if numbers != expected:
         violations.append(f"acceptance criteria must be numbered 1 to {len(numbers)} in order, so item n "
                           f"is AC-n (got {', '.join(numbers)})")
     return violations
+
+
+def acceptance_criteria(text):
+    """The acceptance criteria of a normalized intent as (number, claim, verify) tuples; lines that
+    do not have the AC shape are skipped (artifact_check reports them)."""
+    _, sections, _ = parse(text)
+    matches = (AC_ITEM_PATTERN.match(line) for line in sections.get("Acceptance criteria", []))
+    return [(int(m.group(1)), m.group(2).strip(), m.group(3).strip()) for m in matches if m]
 
 
 def check_table_has_rows(lines, section):

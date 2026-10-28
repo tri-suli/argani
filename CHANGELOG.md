@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-28
+
+### Fixed
+
+- `/argani:init` offers `mrCommand` candidates with `{base}`, which the factory fills since 0.4.0,
+  instead of a literal `{baseBranch}` the human had to replace by hand.
+
 ## [0.4.0] - 2026-10-27
 
 ### Added

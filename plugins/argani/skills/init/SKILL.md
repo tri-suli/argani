@@ -30,8 +30,9 @@ Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill write
      repository's commit rules accept; `{what}` exactly once.
    - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
      key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.
-   - `mrCommand`: optional; replace `{baseBranch}` in a candidate with the real base branch and keep
-     `{branch}`. Leave it out when the human wants to push and open merge requests themselves.
+   - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
+     job branch and its base branch. Leave it out when the human wants to push and open merge
+     requests themselves.
    Ask also whether to add checklists to `reviewers` (catalog in `docs/config.md`) and whether some
    paths must never be written by agents (`protectedPaths`). Omit keys the human leaves at their
    default.

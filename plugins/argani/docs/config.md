@@ -184,7 +184,7 @@ parent folder must already exist.
 cannot be detected, and runs `python3 <plugin root>/scripts/register_project.py <name> < config.json`,
 which creates the home when missing and writes `projects/<name>/project.json` (identity keys plus
 the config keys read from stdin, validated like any config). Registering a second clone of the same
-repository only adds its path. The script never writes into the repository.
+repository only adds its path. The script never writes into the repository. `tasksDir` in the output of `argani_config.py` is where the skills write the artifacts.
 
 Each project registered on the board has an entry, `projects/<name>/project.json`:
 

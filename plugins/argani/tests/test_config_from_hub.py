@@ -220,3 +220,62 @@ def test_guard_artifacts_denies_a_protected_path_from_the_project(make_repo, reg
     repo, _ = registered_repo(make_repo, register_project, protectedPaths=["raw/**"])
     output = run_hook("guard_artifacts.py", file_payload("Write", repo, repo / "raw" / "a.txt", content="x"))
     assert decision_of(output) == "deny"
+
+
+def run_script(name, *args):
+    return subprocess.run([sys.executable, str(SCRIPTS / name), *map(str, args)], capture_output=True, text=True)
+
+
+def perform_intent_setup(repo):
+    """The steps /argani:intent performs: read tasksDir, write a draft, validate it, read its status."""
+    config = json.loads(run_script("argani_config.py", repo).stdout)
+    intent = Path(config["tasksDir"]) / "login" / "intent.md"
+    intent.parent.mkdir(parents=True)
+    intent.write_text(INTENT.format(status="draft", type_line=""))
+    assert run_script("artifact_check.py", "intent", intent).stdout.startswith("VALID")
+    assert run_script("artifact_check.py", "status", intent).stdout.strip() == "draft"
+    return config
+
+
+def test_skill_steps_for_a_registered_project_leave_the_repository_clean(make_repo, register_project, hub):
+    repo, _ = registered_repo(make_repo, register_project)
+    config = perform_intent_setup(repo)
+    assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
+    status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True)
+    assert status.stdout == ""
+
+
+def test_skill_steps_for_a_legacy_repository_write_into_it(make_repo, hub):
+    repo = make_repo(config={"verifyCommand": "repo"})
+    config = perform_intent_setup(repo)
+    assert config["tasksDir"] == str(repo / "argani")
+    assert (repo / "argani" / "login" / "intent.md").is_file()
+
+
+def test_intent_spec_plan_skills_use_tasks_dir_not_the_repository_path():
+    # review is still on the old path until the factory/review scope changes it
+    allowed_for_now = {"review", "factory"}
+    for skill in (SCRIPTS.parent / "skills").glob("*/SKILL.md"):
+        if skill.parent.name not in allowed_for_now:
+            assert "<toplevel>/<artifactRoot>/" not in skill.read_text(), skill
+
+
+@pytest.mark.parametrize("skill", ["intent", "spec", "plan"])
+def test_setup_of_the_artifact_skills(skill):
+    text = (SCRIPTS.parent / "skills" / skill / "SKILL.md").read_text()
+    for required in ("tasksDir", "/argani:init", "stop", "<artifact dir>/<slug>/"):
+        assert required in text, (skill, required)
+    for forbidden in ("current directory", "<toplevel>/<artifactRoot>/", "<tasksDir>/<slug>"):
+        assert forbidden not in text, (skill, forbidden)
+
+
+def test_type_is_checked_against_the_project_where_the_file_lives(make_repo, register_project, hub):
+    register_project("demo", branchTypes=["feat"])
+    repo = make_repo(config={"branchTypes": ["fix"]})
+    text = INTENT.format(status="draft", type_line="Type: feat\n")
+    in_hub = write_intent(hub, "Type: feat\n")
+    assert run_script("artifact_check.py", "intent", in_hub).returncode == 0
+    in_repo = repo / "intent.md"
+    in_repo.write_text(text)
+    result = run_script("artifact_check.py", "intent", in_repo)
+    assert result.returncode == 1 and "Type" in result.stdout

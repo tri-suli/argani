@@ -678,3 +678,20 @@ def test_outside_a_repository_the_message_points_to_init(tmp_path):
     assert result.returncode == 1
     assert "/argani:init" in result.stdout
     assert "None" not in result.stdout and "git switch" not in result.stdout
+
+
+def test_without_working_tree_skips_status_and_branch_calls(hub_job, monkeypatch):
+    hub_job.intent()
+    calls = []
+    real_run = subprocess.run
+
+    def spy(command, *args, **kwargs):
+        calls.append(command)
+        return real_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    config = argani_config.load_project_config(hub_job.hub, "demo")
+    config["toplevel"] = str(hub_job.root)
+    state = factory_state.build_state("demo", str(hub_job.root), config=config, with_working_tree=False)
+    assert state["dirty"] is None and state["current_branch"] is None and state["record_repo_ok"] is True
+    assert not any("status" in command for command in calls)

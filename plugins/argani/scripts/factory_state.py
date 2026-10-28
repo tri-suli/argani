@@ -218,11 +218,13 @@ def record_repo_ok(config):
     return top is not None and Path(top).resolve() == home
 
 
-def build_state(slug, start_dir=".", config=None):
+def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     """The state of a job. config is the project's effective config when the caller has no checkout
     (see argani_config.load_project_config); otherwise it is loaded for start_dir. Without a
     checkout the changed paths are unknown, so every reviewerPaths reviewer counts as active, and a
-    branchPattern that gives a protected branch still raises ValueError."""
+    branchPattern that gives a protected branch still raises ValueError. with_working_tree=False
+    skips the git calls about the working tree (current branch, dirty, record repository): those
+    fields are None (record_repo_ok True)."""
     if config is None:
         config = argani_config.load_config(start_dir, strict=True)
     if "human" in config["reviewers"]:
@@ -231,7 +233,7 @@ def build_state(slug, start_dir=".", config=None):
     if job_dir is None or not job_dir.is_dir():
         return None
     toplevel = Path(config["toplevel"]).resolve() if config["toplevel"] else None
-    current = argani_config.current_branch(start_dir) if toplevel else None
+    current = argani_config.current_branch(start_dir) if toplevel and with_working_tree else None
     intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"])
     intent_path = job_dir / "intent.md"
     intent_text = artifact_check.normalize(read_text(intent_path)) if intent_path.is_file() else ""
@@ -274,13 +276,13 @@ def build_state(slug, start_dir=".", config=None):
         "home": config["home"] if config["project"] else None,
         "job_dir": str(job_dir),
         "job_dir_in_repo": config["project"] is None and bool(toplevel) and is_inside(job_dir, toplevel),
-        "record_repo_ok": record_repo_ok(config),
+        "record_repo_ok": record_repo_ok(config) if with_working_tree else True,
         "record_dir": config["home"] if config["project"] else (str(toplevel) if toplevel else None),
         "type": job_type,
         "branch": branch,
         "current_branch": current,
         "on_job_branch": branch is not None and current == branch,
-        "dirty": is_dirty(toplevel, excluded_folders(config, job_dir)) if toplevel else None,
+        "dirty": is_dirty(toplevel, excluded_folders(config, job_dir)) if toplevel and with_working_tree else None,
         "base_branch": base_branch,
         "risk": risk,
         "reviewers": reviewers,

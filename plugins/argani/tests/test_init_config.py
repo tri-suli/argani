@@ -100,9 +100,9 @@ def test_unreadable_commitlint_scopes_still_ask(make_repo):
 
 
 @pytest.mark.parametrize("url, expected", [
-    ("git@github.com:o/r.git", "gh pr create --fill --base {baseBranch} --head {branch}"),
+    ("git@github.com:o/r.git", "gh pr create --fill --base {base} --head {branch}"),
     ("https://gitlab.example.com/o/r.git",
-     "glab mr create --fill --target-branch {baseBranch} --source-branch {branch}"),
+     "glab mr create --fill --target-branch {base} --source-branch {branch}"),
 ])
 def test_merge_request_command_follows_the_remote_host(make_repo, url, expected):
     repo = make_repo()

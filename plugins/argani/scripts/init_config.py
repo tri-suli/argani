@@ -192,14 +192,14 @@ def propose(start_dir="."):
                       "ask": "Which trailers should commits carry? {model} becomes the committing agent's "
                              "model name; the default is the candidate, [] means none."})
     host = remote_host(top)
-    base = "{baseBranch}"
     mr_candidates = {
-        "github": [f"gh pr create --fill --base {base} --head {{branch}}"],
-        "gitlab": [f"glab mr create --fill --target-branch {base} --source-branch {{branch}}"],
+        "github": ["gh pr create --fill --base {base} --head {branch}"],
+        "gitlab": ["glab mr create --fill --target-branch {base} --source-branch {branch}"],
     }.get(host, [])
     questions.append({"key": "mrCommand", "candidates": mr_candidates,
                       "ask": "Should the factory push and open the merge request itself? Without mrCommand "
-                             "nothing is pushed; replace {baseBranch} with the real base branch."})
+                             "nothing is pushed. The factory fills {branch} with the job branch and {base} "
+                             "with its base branch."})
 
     return {
         "toplevel": str(top),

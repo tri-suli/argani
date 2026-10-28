@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-28
+
+### Changed
+
+- **The git guard only gates merging.** argani no longer overrides a repository's own git rules.
+  Held, as before, for the main session (ask) and now for every subagent alike (deny): a push
+  that lands on a protected branch, a `git merge` while on a protected branch, and a PR/MR merge,
+  which now also covers a merge through `gh api` / `glab api`. Pushing and pulling job branches,
+  and merging into them, follow the repository's rules: the blanket subagent ban on push, pull,
+  merge and send-pack (0.2.0) is removed, and so are its false positives, such as
+  `grep merge notes.md && git status`. `git pull` is no longer held anywhere. The builder's
+  instructions say the same.
+
+### Fixed
+
+- `test_bootstrap.py` skips when `bootstrap/` is absent, as in an installed copy of the plugin,
+  instead of failing with FileNotFoundError.
+
 ## [0.4.1] - 2026-10-28
 
 ### Fixed

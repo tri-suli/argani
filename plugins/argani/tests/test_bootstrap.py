@@ -11,6 +11,9 @@ from pathlib import Path
 import pytest
 
 REAL_BOOTSTRAP = Path(__file__).resolve().parents[3] / "bootstrap"
+# bootstrap/ lives at the marketplace root, not in the plugin, so an installed copy has no tests to run.
+pytestmark = pytest.mark.skipif(not REAL_BOOTSTRAP.is_dir(),
+                                reason="bootstrap/ is not shipped with the installed plugin")
 GITHUB_ENTRY = {"source": {"source": "github", "repo": "tri-suli/argani"}}
 
 

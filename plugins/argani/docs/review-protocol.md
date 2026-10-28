@@ -168,33 +168,17 @@ Protected paths: <comma-separated globs, or "none">
 
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:
 
-- Subagents (any `agent_type`) are denied every push, pull, merge and send-pack, on any branch and
-  outside a repository too: the main session pushes the job branch and a human merges. When a
-  command names `git`, `gh`, `glab`, `github` or `gitlab` (or runs an expansion as its program),
-  its de-quoted words are scanned (a program written as an expansion or a glob, such as
-  `/usr/bin/g[i]t`, counts as a git tool), so quoting (`pu''sh`), `bash -c`, wrappers (`timeout`, `nice`),
-  `eval`, `xargs`, `python3 -c` and `-c alias.*`/`-c remote.*` do not hide the word. Not scanned:
-  the message of `git commit -m`, the body of a heredoc fed to `git commit -F -` (unless the
-  shell would expand a substitution in it), an argument that names an existing path
-  (`src/push.ts`), and the `push` of `git stash push`; a command without a git tool, such as
-  `docker pull`, is not scanned at all. Other matching words in a git command are denied,
-  including a path that no longer exists (`git add src/merge.ts` after deleting it; use
-  `git add -A`) and `git log --grep=merge`; reword them. Also denied: a repository alias
-  that pushes, pulls, merges or starts with `!`; a git subcommand built from expansions
-  (`git $a$b`); a shell reading commands from a pipe or heredoc (`... | bash`, `bash -s`,
-  `bash /dev/stdin`), or run through `busybox`, `toybox` or `xargs`; `eval` or
-  `source` of generated text; and a command substitution inside shell code, inside a git
-  command (other than `git commit -m "$(cat msg)"`) or next to a git tool. What is not caught:
-  a script written to a file (with `Write`) and then run, an interpreter decoding an encoded
-  command (`python3 -c` with base64), and git moving a remote branch without those words
-  (`git branch -f` and `git update-ref` only move local refs). These need deliberate evasion;
-  branch protection on the remote is what stops them.
-- The checks below apply to the main session, which is asked, not denied. They are a safety net
-  for mistakes, not a sandbox: shell expansions, aliases, `git -c` settings, `cd` to a directory
-  that does not exist, repositories created inside the command and refspecs such as `:` are not
-  simulated.
+- The git guard holds only merging into a protected branch: a push whose destination is
+  protected, a `git merge` while on a protected branch, and a PR/MR merge (`gh pr merge`,
+  `glab mr merge`, or a merge through `gh api` / `glab api`). The main session is asked; every
+  subagent is denied. Pushing and pulling job branches, and merging into them, are left to the
+  repository's own rules, for the main session and every subagent alike. The branch is simulated
+  through the command chain; shell expansions, aliases, `git -c` settings, `cd` to a directory
+  that does not exist, repositories created inside the command, refspecs such as `:`, and encoded
+  or generated commands are not. Branch protection on the remote is what stops a deliberate
+  bypass.
 - `git branch -f <default> ...` and `git update-ref refs/heads/<default> ...` move the default
-  branch without `push`/`merge`/`pull`, and `guard_git.py` does not look for them.
+  branch without `push`/`merge`, and `guard_git.py` does not look for them.
 - Writing a file through Bash (heredoc, `tee`, `sed -i`) bypasses `guard_artifacts.py`, which only
   sees `Write` and `Edit`.
 - `xargs`, `eval` and similar indirection hide the git command from the parser. `bash|sh|zsh -c
@@ -203,10 +187,10 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is protected.
 - A broken `.claude/argani.json` is not a bypass: the git guard asks (main session) or denies
-  (subagent) for every push, merge and pull, because the protected branches are unknown, and the
+  (subagent) for every push and merge, because the protected branches are unknown, and the
   artifact guard does the same for every write, because `protectedPaths` cannot be checked.
 - A `checkout` or `switch` whose result cannot be determined (`-`, a commit, an unknown name) holds
-  any later push, merge or pull in the same command.
+  any later push or merge in the same command.
 
 Acceptable because the reviewer, approver and spec-writer have `Write`, but the hook limits it to
 their own file everywhere: any other path is denied, including paths outside the repository and
@@ -218,7 +202,7 @@ Pipes, `;`, `&&`, redirections and `bash -c` are segments like any other, so the
 allowlist, and a backtick or `$(` anywhere in the command (quoted or not) is denied. `--output` and
 `--ext-diff` are refused. A `diff.external` that a human configured in the repository's own
 `.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist
-beyond the push, pull and merge ban above. The protection that matters is on the remote: protect
+beyond the merge gate above. The protection that matters is on the remote: protect
 `defaultBranch` and `baseBranch` with branch protection rules on GitHub or GitLab, so that only a
 human-owned merge request can change them. If a bypass is ever observed, add it to the hook
 rather than widening trust.

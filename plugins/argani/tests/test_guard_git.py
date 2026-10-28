@@ -34,7 +34,7 @@ def test_default_branch_changes_are_caught_from_feature_branch(feature_repo, com
 
 @pytest.mark.parametrize("command", [
     "git push", "git push origin", "git push -u origin", "git push --force-with-lease",
-    "git push origin HEAD", "git merge feature", "git pull",
+    "git push origin HEAD", "git merge feature",
 ])
 def test_bare_push_merge_pull_caught_while_on_default_branch(repo, command):
     assert decision_of(decide(command, repo)) == "ask"
@@ -51,7 +51,7 @@ def test_other_commands_are_allowed_on_feature_branch(feature_repo, command):
 
 def test_checkout_default_then_merge_is_caught(feature_repo):
     assert decision_of(decide("git checkout main && git merge feature", feature_repo)) == "ask"
-    assert decision_of(decide("git switch main; git pull", feature_repo)) == "ask"
+    assert decision_of(decide("git switch main; git merge feature", feature_repo)) == "ask"
 
 
 def test_cd_into_subdirectory_resolves_the_repo(feature_repo):
@@ -79,7 +79,7 @@ def test_gh_merge_is_caught_even_outside_a_repository(tmp_path):
     assert decision_of(decide("gh pr merge 12", tmp_path)) == "ask"
 
 
-@pytest.mark.parametrize("command", ["git push origin 'main", "echo \"pull"])
+@pytest.mark.parametrize("command", ["git push origin 'main", "echo \"merge"])
 def test_unparsable_command_with_keyword_asks_or_denies(feature_repo, command):
     output = decide(command, feature_repo)
     assert decision_of(output) == "ask"
@@ -139,7 +139,7 @@ def test_unparsable_shell_c_string_asks(feature_repo):
     ("git checkout main && git push", "ask"),
     ("git checkout main && git push origin HEAD", "ask"),
     ("git checkout main && git push origin @", "ask"),
-    ("git switch main && git pull", "ask"),
+    ("git switch main && git merge feature", "ask"),
     ("git switch -c feature2 main && git merge x", None),
     ("git checkout -b feature3 && git push", None),
     ("git checkout -b main2 && git push origin HEAD", None),
@@ -152,7 +152,7 @@ def test_current_branch_is_simulated_from_feature(feature_repo, command, expecte
     "git checkout feature && git merge main",
     "git switch -c newb && git push",
     "git checkout -b newb && git merge x",
-    "git switch feature && git pull",
+    "git switch feature && git merge x",
 ])
 def test_current_branch_is_simulated_from_main(repo, command):
     git(repo, "branch", "feature")
@@ -186,11 +186,11 @@ def test_simulated_branch_survives_cd_within_the_same_repository(feature_repo):
 
 
 def test_checkout_with_paths_does_not_move_head(feature_repo):
-    assert decide("git checkout main file.txt && git pull", feature_repo) is None
+    assert decide("git checkout main file.txt && git merge x", feature_repo) is None
 
 
 def test_checkout_with_empty_path_list_moves_head(feature_repo):
-    assert decision_of(decide("git checkout main -- && git pull", feature_repo)) == "ask"
+    assert decision_of(decide("git checkout main -- && git merge feature", feature_repo)) == "ask"
 
 
 @pytest.fixture
@@ -204,7 +204,7 @@ def git_flow_repo(make_repo):
 
 @pytest.mark.parametrize("command", [
     "git push origin main", "git push origin develop", "git push origin HEAD:develop",
-    "git checkout develop && git merge feature", "git switch main && git pull",
+    "git checkout develop && git merge feature", "git switch main && git merge feature",
 ])
 def test_git_flow_protects_default_and_base_branches(git_flow_repo, command):
     assert decision_of(decide(command, git_flow_repo)) == "ask", command
@@ -236,12 +236,12 @@ def fresh_git_flow_clone(make_repo):
 
 
 @pytest.mark.parametrize("command", [
-    "git switch develop && git pull",
+    "git switch develop && git merge feature",
     "git switch develop && git merge feature/x && git push",
     "git checkout develop && git push",
     "git checkout --track origin/develop && git push",
     "git switch -t origin/develop && git merge feature/x",
-    "git switch --track=direct origin/develop && git pull",
+    "git switch --track=direct origin/develop && git merge feature",
     "git switch - && git push",
     "git checkout 1234abcd && git merge feature/x",
 ])
@@ -251,10 +251,10 @@ def test_switch_to_a_remote_only_or_unknown_branch_is_caught(fresh_git_flow_clon
 
 
 @pytest.mark.parametrize("command", [
-    "git checkout notes.txt && git pull",
+    "git checkout notes.txt && git merge x",
     "git checkout -- notes.txt && git push origin feature/x",
     "git switch -c feature/y && git push -u origin feature/y",
-    "git switch --detach HEAD && git pull",
+    "git switch --detach HEAD && git merge x",
 ])
 def test_switch_that_stays_off_protected_branches_is_allowed(fresh_git_flow_clone, command):
     assert decide(command, fresh_git_flow_clone) is None, command
@@ -311,7 +311,7 @@ def test_attached_and_clustered_create_flags_are_followed(git_flow_repo, command
 @pytest.mark.parametrize("command", [
     "git checkout HEAD -- notes.txt && git push origin HEAD",
     "git checkout HEAD~0 -- notes.txt && git push origin HEAD",
-    "git checkout origin/develop -- notes.txt && git pull",
+    "git checkout origin/develop -- notes.txt && git merge x",
     "git checkout develop -- notes.txt && git push origin HEAD",
 ])
 def test_restoring_paths_from_a_tree_does_not_move_head(fresh_git_flow_clone, command):
@@ -335,7 +335,7 @@ def test_unreadable_config_directory_holds_pushes(feature_repo):
     "git checkout -fBdevelop && git push origin HEAD",
     "git checkout -qbdevelop && git push origin HEAD",
     "git switch --conflict merge develop && git push origin HEAD",
-    "git checkout --conflict diff3 develop && git pull",
+    "git checkout --conflict diff3 develop && git merge feature",
 ])
 def test_clustered_attached_names_and_option_values_are_followed(git_flow_repo, command):
     assert decision_of(decide(command, git_flow_repo)) == "ask", command

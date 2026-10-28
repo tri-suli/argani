@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-28
+
+### Added
+
+- The argani home: `$ARGANI_HOME`, else `~/.argani`, the folder that will hold the board of every
+  project. `scripts/argani_home.py` reports it and, with `--create`, makes the missing folders
+  (the home and `projects/`) without touching existing files. A relative path or one with `..` is
+  refused. Nothing uses the home yet.
+
 ## [0.6.1] - 2026-10-28
 
 ### Removed

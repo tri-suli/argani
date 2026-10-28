@@ -28,6 +28,16 @@ def emit(payload, main_session_decision, reason):
     }}))
 
 
+def emit_allow(payload, reason):
+    """Print an explicit allow, in the main session and in subagents alike. An allow also spares the
+    permission prompt Claude Code shows for writes outside the working directory."""
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "allow",
+        "permissionDecisionReason": reason,
+    }}))
+
+
 def run_guard(guard):
     """Run guard(payload); an internal error is logged and the call is allowed."""
     payload = read_payload()

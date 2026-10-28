@@ -5,7 +5,8 @@ the mechanical parts (verdict line, round limit, who writes what); the rest is i
 
 ## Files
 
-All paths are under `<artifactRoot>/<slug>/` (default `argani/<slug>/`).
+All paths are under the task folder `<home>/projects/<name>/tasks/<slug>/` in the argani home
+(legacy: `<artifactRoot>/<slug>/`, default `argani/<slug>/`).
 
 | File                                   | Written by                                          | Line 1                  | Last line                 |
 |----------------------------------------|-----------------------------------------------------|-------------------------|---------------------------|
@@ -84,6 +85,16 @@ The hook reads `agent_type` from the hook input (value `argani:<agent>`):
 | `argani:approver`    | `<artifactRoot>/<slug>/decision.md`                               | anything else in the repository                                                             |
 | `argani:spec-writer` | `<artifactRoot>/<slug>/spec.md`                                   | anything else in the repository                                                             |
 | `argani:builder`     | everything else, including `plan.md`, `build.md` and source files | under `<artifactRoot>/<slug>/`: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
+| the three sole writers | -                                                               | anything else in the argani home; other agents get no decision there                       |
+
+The same table applies in the task folder of the argani home. Hub artifact writes that pass the rules
+are explicitly allowed by the guard, which also spares the permission prompt for writes outside the
+working directory. `protectedPaths` apply to the project repository only.
+
+Verified 2026-10-28 with `claude -p --plugin-dir` (headless): a Write to
+`<home>/projects/demo/tasks/login/intent.md` succeeded through the guard's allow, while a Write to
+another folder outside the working directory was refused. Whether `deny` rules in the user's settings
+outrank a hook allow was not tested.
 
 Paths outside any git repository are not touched by this rule. The main session and other agent
 types are not restricted by it. A reviewer writes only the file for its own checklist; the hook

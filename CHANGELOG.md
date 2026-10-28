@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-28
+
+### Added
+
+- `guard_artifacts.py` applies the writer, round and verdict rules to the task folders of the argani home
+  (`<home>/projects/<name>/tasks/<slug>/`) and explicitly allows the writes that pass, in the main
+  session and in subagents, which also spares the permission prompt for writes outside the working
+  directory. `protectedPaths` are not checked there.
+- `hook_common.emit_allow` prints an explicit allow decision; `argani_config.SLUG_PATTERN` is shared with `factory_state.py`.
+
+### Changed
+
+- Only a proper artifact path `tasks/<slug>/<file>` (valid slug, no dotted part) is allowed explicitly;
+  other paths under `projects/<valid name>/` get no decision and sole-file writers are denied there.
+  The home is not treated as a legacy repository for paths under `projects/<valid name>/`; other paths
+  in the home still take the ordinary flow. `protectedPaths` through a repository symlink into the hub
+  are still enforced. Inside the hub an unverifiable verdict edit is denied. Guard messages refer to "the project's configuration" instead of `.claude/argani.json`.
+
 ## [0.10.0] - 2026-10-28
 
 ### Added

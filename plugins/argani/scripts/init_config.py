@@ -24,6 +24,7 @@ import git_cli
 import project_registry
 
 NPM_DEFAULT_TEST = 'echo "Error: no test specified"'
+NUMBERED_BRANCH = re.compile(r"^(?P<prefix>.+?[/_-])(?P<n>[0-9]+)-")  # feat/common-56-receipt
 BRANCH_PREFIX_MINIMUM = 2  # branches sharing a prefix before it becomes the proposed pattern
 
 
@@ -102,6 +103,15 @@ def branch_prefixes(names):
     """`<prefix>/` values shared by at least two branches, most common first."""
     prefixes = Counter(name.split("/", 1)[0] for name in names if "/" in name)
     return [prefix for prefix, count in prefixes.most_common() if count >= BRANCH_PREFIX_MINIMUM]
+
+
+def numbered_branch_patterns(names):
+    """`<prefix>{n}-{slug}` for each prefix shared by at least two branches like `feat/common-56-receipt`,
+    most common first, then by name."""
+    prefixes = Counter(match.group("prefix") for match in map(NUMBERED_BRANCH.match, names) if match)
+    shared = sorted((item for item in prefixes.items() if item[1] >= BRANCH_PREFIX_MINIMUM),
+                    key=lambda item: (-item[1], item[0]))
+    return [f"{prefix}{argani_config.NUMBER_PLACEHOLDER}-{argani_config.SLUG_PLACEHOLDER}" for prefix, _ in shared]
 
 
 def remote_host(top):
@@ -210,13 +220,16 @@ def propose(start_dir="."):
 
     names = branch_names(top)
     prefixes = branch_prefixes(names)
-    if prefixes:
+    number_patterns = numbered_branch_patterns(names)[:3]
+    if prefixes or number_patterns:
+        typed = ["{type}/{slug}"] if prefixes else []
         questions.append({"key": "branchPattern",
-                          "candidates": ["{type}/{slug}"] + [f"{prefix}/{{slug}}" for prefix in prefixes[:3]],
+                          "candidates": typed + [f"{prefix}/{{slug}}" for prefix in prefixes[:3]] + number_patterns,
                           "types": prefixes,
                           "ask": "Existing branches use these prefixes. Should the job branch take its prefix "
                                  "from the job's type ({type}/{slug}, with these prefixes as branchTypes), or "
-                                 "use one fixed prefix? {slug} is required; the default is feature/{slug}."})
+                                 "use one fixed prefix? {slug} is required; the default is feature/{slug}. "
+                                 "A candidate with {n} puts a running job number in the branch name."})
 
     if "develop" in names:
         questions.append({"key": "baseBranch", "candidates": ["develop", default_branch],
@@ -245,6 +258,13 @@ def propose(start_dir="."):
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)
     questions = [item for item in questions if item["key"] == "project" or item["key"] not in carried]
+    offered = [candidate for item in questions if item["key"] == "branchPattern" for candidate in item["candidates"]]
+    carried_pattern = carried.get("branchPattern", "")
+    if ("branchNumberCommand" not in carried
+            and any(argani_config.NUMBER_PLACEHOLDER in text for text in [*offered, carried_pattern])):
+        questions.append({"key": "branchNumberCommand", "candidates": [],
+                          "ask": "Which command prints the next job number? Leave empty to let argani count "
+                                 "from the existing intents."})
 
     return {
         "toplevel": str(top),

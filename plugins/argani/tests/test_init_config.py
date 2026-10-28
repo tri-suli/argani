@@ -237,3 +237,42 @@ def test_unknown_legacy_keys_are_left_behind(make_repo):
     assert result["legacyUnknownKeys"] == ["verifycommand"]
     assert "verifycommand" not in result["proposal"] and "verifycommand" not in result["legacyKeys"]
     assert result["proposal"]["verifyCommand"] == "true"
+
+
+def test_two_numbered_branches_offer_an_n_pattern_and_the_number_command(make_repo):
+    repo = make_repo()
+    for name in ("feat/common-56-a", "feat/common-57-b"):
+        git(repo, "branch", name)
+    result = propose(repo)
+    assert "feat/common-{n}-{slug}" in question(result, "branchPattern")["candidates"]
+    assert "next job number" in question(result, "branchNumberCommand")["ask"]
+
+
+@pytest.mark.parametrize("name", ["release/2024-01", "feat/oauth2-login", "renovate/node-18-x", "feat/v2-api",
+                                  "feat/common-56-a"])
+def test_a_lone_or_unseparated_number_proposes_nothing(make_repo, name):
+    repo = make_repo()
+    git(repo, "branch", name)
+    result = propose(repo)
+    assert question(result, "branchPattern") is None and question(result, "branchNumberCommand") is None
+
+
+def test_a_carried_n_pattern_asks_for_the_number_command(make_repo):
+    repo = make_repo(config={"branchPattern": "feat/{n}-{slug}"})
+    assert question(propose(repo), "branchNumberCommand") is not None
+
+
+def test_no_numbered_branch_asks_nothing_about_numbers(make_repo):
+    repo = make_repo()
+    for name in ("feat/a", "feat/b"):
+        git(repo, "branch", name)
+    result = propose(repo)
+    assert not any("{n}" in candidate for candidate in question(result, "branchPattern")["candidates"])
+    assert all(item["key"] != "branchNumberCommand" for item in result["questions"])
+
+
+def test_the_number_command_is_carried_over_from_a_legacy_file(make_repo):
+    repo = make_repo(config={"branchPattern": "feat/{n}-{slug}", "branchNumberCommand": "cat n.txt"})
+    result = propose(repo)
+    assert result["proposal"]["branchNumberCommand"] == "cat n.txt"
+    assert question(result, "branchNumberCommand") is None

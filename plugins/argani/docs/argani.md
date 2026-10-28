@@ -41,6 +41,8 @@ Per job, in the task folder `<home>/projects/<project>/tasks/<slug>/` of the arg
 sets `branchTypes`, `intent.md` carries a `Type:` header line with one of them; it fills `{type}` in
 `branchPattern` and picks the base branch from `baseBranchByType`. An optional `Risk:` line
 (`low`, `medium` or `high`, default `medium`) picks the models of the agents through `agentModels`.
+When `branchPattern` contains `{n}`, `intent.md` carries a `Number: <n>` line (a positive integer,
+assigned once by `/argani:intent`) that fills `{n}` in the job branch.
 
 ```
 intent.md     Status: draft | approved by <name> on <YYYY-MM-DD>; acceptance criteria in a fixed shape

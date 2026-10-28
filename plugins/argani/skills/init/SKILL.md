@@ -33,7 +33,12 @@ into the repository.
    - `branchPattern`: must contain `{slug}` exactly once; keep the default `feature/{slug}` unless
      the human picks another. With `{type}` (one prefix per kind of job), also set `branchTypes`
      (start from the question's `types`) and, for types that start from another branch (a hotfix
-     from `main` in Git Flow), `baseBranchByType`; `mrCommand` can then use `{base}`.
+     from `main` in Git Flow), `baseBranchByType`; `mrCommand` can then use `{base}`. `{n}` (at most
+     once) puts a running job number in the branch name, like `feat/common-{n}-{slug}`; candidates
+     with it come from existing branches such as `feat/common-56-x`.
+   - `branchNumberCommand`: asked only when the pattern has `{n}`; a one-line shell command, run in
+     the repository, that prints the next job number. Omit it to let argani count from the existing
+     intents. Ask it also when the human types a pattern with `{n}` themselves.
    - `defaultBranch`: asked when git cannot tell it; the board reads it without a checkout.
    - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
      key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.

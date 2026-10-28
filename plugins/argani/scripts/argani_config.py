@@ -34,6 +34,7 @@ DEFAULTS = {
     "protectedPaths": [],
     "mrCommand": None,
     "branchPattern": "feature/{slug}",
+    "branchNumberCommand": None,  # prints the next job number for {n} in branchPattern; else argani counts the intents
     "recordCommitMessage": "chore(argani): record {slug} {what}",
     "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
     "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
@@ -63,6 +64,7 @@ SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]*$")
 SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")  # a job slug; match with fullmatch
 SLUG_PLACEHOLDER = "{slug}"
 TYPE_PLACEHOLDER = "{type}"
+NUMBER_PLACEHOLDER = "{n}"
 TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 WHAT_PLACEHOLDER = "{what}"
 MODEL_PLACEHOLDER = "{model}"
@@ -208,8 +210,20 @@ def _branch_pattern(value):
         raise ValueError(f"must contain {SLUG_PLACEHOLDER} exactly once")
     if pattern.count(TYPE_PLACEHOLDER) > 1:
         raise ValueError(f"may contain {TYPE_PLACEHOLDER} at most once")
-    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug").replace(TYPE_PLACEHOLDER, "feat"))
+    if pattern.count(NUMBER_PLACEHOLDER) > 1:
+        raise ValueError(f"may contain {NUMBER_PLACEHOLDER} at most once")
+    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug").replace(TYPE_PLACEHOLDER, "feat")
+                       .replace(NUMBER_PLACEHOLDER, "1"))
     return pattern
+
+
+def _branch_number_command(value):
+    command = _optional_string(value)
+    if not command.strip():
+        raise ValueError("must not be empty")
+    if "\n" in command or "\r" in command:
+        raise ValueError("must be a single line")
+    return command
 
 
 def _branch_types(value):
@@ -323,7 +337,7 @@ def _check_cross_keys(config):
         raise ValueError(f"reviewerPaths names {', '.join(unscoped)}, which reviewers does not list")
     for name in types:
         _check_branch_name(config["branchPattern"].replace(SLUG_PLACEHOLDER, "example-slug")
-                           .replace(TYPE_PLACEHOLDER, name))
+                           .replace(TYPE_PLACEHOLDER, name).replace(NUMBER_PLACEHOLDER, "1"))
 
 
 def _record_commit_message(value):
@@ -362,15 +376,20 @@ def protected_match(config, branch):
                  if fnmatch.fnmatchcase(branch, entry)), None)
 
 
-def job_branch(config, slug, job_type=None):
-    """The job branch for a slug and its intent's Type. Raises ValueError when the pattern needs a
-    type that is missing or not in branchTypes, or when the branch would be a protected branch."""
+def job_branch(config, slug, job_type=None, number=None):
+    """The job branch for a slug, its intent's Type and Number. Raises ValueError when the pattern needs
+    a type that is missing or not in branchTypes, a number that is missing, or when the branch would
+    be a protected branch."""
     pattern = config["branchPattern"]
     if TYPE_PLACEHOLDER in pattern:
         if job_type not in config["branchTypes"]:
             raise ValueError(f"branchPattern needs the job type; intent.md 'Type:' must be one of "
                              f"{', '.join(config['branchTypes'])}, got {job_type!r}")
         pattern = pattern.replace(TYPE_PLACEHOLDER, job_type)
+    if NUMBER_PLACEHOLDER in pattern:
+        if number is None:
+            raise ValueError("branchPattern needs the job number; intent.md 'Number:' is missing")
+        pattern = pattern.replace(NUMBER_PLACEHOLDER, str(number))
     branch = pattern.replace(SLUG_PLACEHOLDER, slug)
     if protected_match(config, branch):
         raise ValueError(f"branchPattern gives '{branch}' for slug '{slug}', which is a protected branch")
@@ -411,6 +430,7 @@ COERCERS = {
     "verifyCommand": _optional_string,
     "mrCommand": _mr_command,
     "branchPattern": _branch_pattern,
+    "branchNumberCommand": _branch_number_command,
     "recordCommitMessage": _record_commit_message,
     "commitTrailers": _commit_trailers,
     "branchTypes": _branch_types,

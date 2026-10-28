@@ -13,7 +13,7 @@ This skill never writes code.
 ## Setup
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it fails, show its error and stop.
-   Read `tasksDir`, `project` and `branchTypes` from the JSON. Then:
+   Read `tasksDir`, `project`, `branchTypes` and `branchPattern` from the JSON. Then:
    - `tasksDir` set: `<artifact dir>` is `tasksDir`, the folder that holds the job folders; a job
      folder is `<artifact dir>/<slug>/`. For a registered project (`project` is set) it is the task
      folder in the argani home: the job folder is outside the repository and nothing is written
@@ -22,7 +22,7 @@ This skill never writes code.
    - `tasksDir` null (not in a git repository): stop. argani works from inside a project
      repository; say to open the repository and run `/argani:init` if it is not registered yet.
    Always pass the full path under `<artifact dir>` to `artifact_check.py`: it reads `branchTypes`
-   from the file's location.
+   and `branchPattern` from the file's location.
 2. Artifact language: the language of this repository's CLAUDE.md, else the user's. Only the
    prose is in that language. The `# Intent:` title prefix, the `##` section headings, file names,
    `Status:` lines, `AC-n`, `verify:` and verdict words always stay English.
@@ -50,7 +50,14 @@ This skill never writes code.
 4. Write it from `${CLAUDE_PLUGIN_ROOT}/templates/intent.md` with `Status: draft`. Replace every
    placeholder and delete guidance comments. Write `Type: <type>` with the chosen type when
    `branchTypes` is not empty; otherwise delete the `Type:` line. Write `Risk: <level>` with the
-   level the user chose; delete the line to keep `medium`. Every acceptance criterion must read
+   level the user chose; delete the line to keep `medium`. When `branchPattern` contains `{n}`, run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/next_number.py` (it prints the next job number from the
+   project's `branchNumberCommand`, else counts the existing intents) and write `Number: <number>`
+   after `Type:`; otherwise delete the `Number:` line. If `next_number.py` exits non-zero, show its
+   output and stop; never invent a number. If the user gives a number themselves (a ticket number),
+   use it when it is a positive integer and tell them it must be unique. The number is assigned
+   once, here, and is never changed afterwards: it is part of the job branch name; revising a draft
+   never runs `next_number.py` again. Every acceptance criterion must read
    `n. [ ] <claim> — verify: <how>`, numbered 1 to n in order; item n is AC-n when you refer to
    it. Do not invent criteria the user has not confirmed; list unknowns under Open questions.
 5. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py intent <file>`; fix the file until

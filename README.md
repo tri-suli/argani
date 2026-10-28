@@ -39,6 +39,10 @@ The first step in a repository is `/argani:init`: it registers the repository as
 board in `~/.argani` (or `$ARGANI_HOME`), from what the repository already uses, and writes nothing
 into the repository. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
+`/argani:board [--all]` shows the board: the tasks of this repository's project, or of every project
+with `--all`, by column (Backlog, Design, In progress, Ready for MR, In review, Done, Needs human).
+It only reads.
+
 ## Local development
 
 ```bash
@@ -103,6 +107,7 @@ scripts/check.sh                  validate and test
 | Agents (spec-writer, builder, reviewer, approver) | available |
 | Review protocol and checklists | available |
 | Skill `/argani:review` | available |
+| Skill `/argani:board` (the board of a project or of all projects) | available |
 | Factory orchestrator `/argani:factory` | available |
 | Evals (`plugins/argani/evals`, two cases) | available |
 

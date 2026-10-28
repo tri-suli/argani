@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-28
+
+### Added
+
+- Skill `/argani:board [--all]` shows the board of this repository's project, or of every project, by column. It runs `board.py` and writes nothing.
+
 ## [0.14.0] - 2026-10-28
 
 ### Added

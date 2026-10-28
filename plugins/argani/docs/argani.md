@@ -96,6 +96,8 @@ python3 board.py [dir]                    # the project of dir (default: the cur
 python3 board.py --all [--write] [--json] # every project; --write saves <home>/board.md
 ```
 
+`/argani:board [--all]` runs `board.py` and shows the result.
+
 `board.md` is generated and never edited by hand; it is untracked in the home repository and regenerated on every `--write`.
 
 A project's checkout is the first path in its `project.json` `paths` that is a git repository toplevel; without one, branches are unknown and finished jobs show In review. A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.

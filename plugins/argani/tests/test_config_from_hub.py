@@ -281,3 +281,16 @@ def test_type_is_checked_against_the_project_where_the_file_lives(make_repo, reg
     in_repo.write_text(text)
     result = run_script("artifact_check.py", "intent", in_repo)
     assert result.returncode == 1 and "Type" in result.stdout
+
+
+def test_board_skill_is_read_only_and_runs_board_py():
+    text = (SCRIPTS.parent / "skills" / "board" / "SKILL.md").read_text()
+    frontmatter = text.split("---")[1]
+    assert "name: board\n" in frontmatter
+    assert 'argument-hint: "[--all]"' in frontmatter
+    assert "allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read\n" in frontmatter
+    for column in ("Backlog", "Design", "In progress", "Ready for MR", "In review", "Done", "Needs human"):
+        assert column in frontmatter + text
+    for required in ("board.py", "--all", "/argani:init"):
+        assert required in text, required
+    assert "Write" not in frontmatter and "Edit" not in frontmatter

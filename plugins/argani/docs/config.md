@@ -177,10 +177,14 @@ replaced on every release) and from the project repositories. `ARGANI_HOME` must
 path (a leading `~` is expanded) without `..`.
 
 `python3 <plugin root>/scripts/argani_home.py` prints the home and whether its folders exist;
-`--create` makes the missing ones (the home and `projects/`) and runs `git init` in the home when it is
-not a repository yet, and never touches existing files or an existing repository. Its parent folder
-must already exist. The home is a git repository because the factory records every job folder of a
-registered project there (`argani: record <project>/<slug> <what>`); nothing is pushed.
+`--create` makes the missing folders only (the home and `projects/`) and never touches existing files.
+Its parent folder must already exist. The home is a plain folder: argani never runs `git init` there.
+Version control is optional and the user's own choice; when the user makes the home a git repository
+of its own (`git init` in the home), the factory records every job folder of a registered project
+there (`argani: record <project>/<slug> <what>`; nothing is pushed). Without it the artifacts stay as
+files and nothing is committed. The `git` field of the script's output only reports whether the home
+is a repository of its own. In a versioned home, add `board.md` to its `.gitignore`: the board is
+regenerated and never recorded.
 
 `/argani:init` registers the current repository as a project: it detects the settings, asks what
 cannot be detected, and runs `python3 <plugin root>/scripts/register_project.py <name> < config.json`,

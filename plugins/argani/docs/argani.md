@@ -8,8 +8,10 @@ knowledge bases) and to organization.
 Writing the work is no longer the bottleneck. The bottleneck moved to the stages around it:
 deciding what is wanted, designing, reviewing, testing, releasing. Those stages run at human
 speed and mostly inside conversations, which leave no audit trail. The plugin turns each stage
-into a committed artifact, so that who asked for what, what an agent produced, and who approved
-it are all readable from the repository (legacy repositories; for a registered project the artifacts live in the argani home and the factory records them there from 0.13.0).
+into a written artifact, so that who asked for what, what an agent produced, and who approved it
+are all readable afterwards: for a registered project in the task folder of the argani home (a
+plain folder; when the user keeps the home under git, the factory also records each stage as a
+commit there), for a legacy repository as committed files on the job branch.
 
 The loop is one and the same in every mode:
 
@@ -99,7 +101,7 @@ python3 board.py --all [--write] [--json] # every project; --write saves <home>/
 
 `/argani:board [--all]` runs `board.py` and shows the result.
 
-`board.md` is generated and never edited by hand; it is untracked in the home repository and regenerated on every `--write`.
+`board.md` is generated and never edited by hand; it is regenerated on every `--write`.
 
 A project's checkout is the first path in its `project.json` `paths` that is a git repository toplevel; without one, branches are unknown and finished jobs show In review. A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
 
@@ -139,7 +141,8 @@ job folder is inside the repository). The orchestrator records the job folder (`
 (for a registered project, whose `plan.md` and `build.md` the builder leaves uncommitted), after each
 review round, after the decision and before the push. For a project registered in the argani home it commits them
 in the home's own git repository with a fixed message `argani: record <project>/<slug> <what>`, so the
-project repository only ever sees code. For a legacy repository it commits only paths under
+project repository only ever sees code, but only when the user has made the home a git repository of
+its own (argani never runs `git init` there); otherwise nothing is committed and the artifacts stay as files. For a legacy repository it commits only paths under
 `<artifactRoot>/<slug>/` on the job branch, with subjects and trailers from `recordCommitMessage` and
 `commitTrailers` in `.claude/argani.json`. Nothing is ever pushed or merged without a human.
 Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that

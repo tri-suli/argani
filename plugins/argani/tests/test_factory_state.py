@@ -575,6 +575,7 @@ def test_hub_artifacts_do_not_make_the_repository_dirty_and_repo_changes_still_d
 
 def test_recording_the_job_folder_in_the_hub_leaves_the_repository_clean(hub_job):
     job = hub_job
+    git(job.hub, "init", "-q")  # recording is opt-in: the user makes the home a repository
     prepare(job)
     git(job.hub, "add", "--", str(job.path))
     git(job.hub, "commit", "-q", "-m", "argani: record demo/demo test", "--", str(job.path))
@@ -610,6 +611,7 @@ def git_in_home(job, *args):
 
 def test_the_skills_hub_record_commits_exactly_the_job_folder_and_project_json(hub_job):
     job = hub_job
+    git(job.hub, "init", "-q")  # recording is opt-in: the user makes the home a repository
     prepare(job)
     (job.hub / "unrelated.txt").write_text("left alone")
     git(job.hub, "add", "--", str(job.path), "projects/demo/project.json")
@@ -624,26 +626,27 @@ def test_the_skills_hub_record_commits_exactly_the_job_folder_and_project_json(h
     assert job.state()["dirty"] is False
 
 
-def test_the_record_repository_is_ok_only_when_the_home_is_its_own_repository(hub_job, tmp_path):
+def test_records_are_enabled_only_when_the_user_made_the_home_a_repository_of_its_own(hub_job, tmp_path):
     job = hub_job
-    assert job.state()["record_repo_ok"] is True
+    assert job.state()["records_enabled"] is False  # argani never runs git init in the home
+    git(job.hub, "init", "-q")
+    assert job.state()["records_enabled"] is True
     shutil.rmtree(job.hub / ".git")
-    assert job.state()["record_repo_ok"] is False  # the home is no repository at all
     parent = tmp_path / "parent-repo"
     parent.mkdir()
     git(parent, "init", "-q")
     nested = parent / "board"
     job.hub.rename(nested)
     config = argani_config.load_project_config(nested, "demo")
-    assert factory_state.build_state("demo", config=config)["record_repo_ok"] is False  # git walks up
-    argani_home.ensure_home(nested)
-    assert factory_state.build_state("demo", config=config)["record_repo_ok"] is True
+    assert factory_state.build_state("demo", config=config)["records_enabled"] is False  # git walks up
+    git(nested, "init", "-q")
+    assert factory_state.build_state("demo", config=config)["records_enabled"] is True
 
 
-def test_legacy_record_repository_is_always_ok(make_repo):
+def test_legacy_records_are_always_enabled(make_repo):
     repo = make_repo(config=JOB_CONFIG)
     (repo / "argani" / "demo").mkdir(parents=True)
-    assert factory_state.build_state("demo", str(repo))["record_repo_ok"] is True
+    assert factory_state.build_state("demo", str(repo))["records_enabled"] is True
 
 
 def test_a_home_inside_the_repository_neither_dirties_it_nor_counts_as_the_job_folder(make_repo, monkeypatch):
@@ -693,5 +696,5 @@ def test_without_working_tree_skips_status_and_branch_calls(hub_job, monkeypatch
     config = argani_config.load_project_config(hub_job.hub, "demo")
     config["toplevel"] = str(hub_job.root)
     state = factory_state.build_state("demo", str(hub_job.root), config=config, with_working_tree=False)
-    assert state["dirty"] is None and state["current_branch"] is None and state["record_repo_ok"] is True
+    assert state["dirty"] is None and state["current_branch"] is None and state["records_enabled"] is None
     assert not any("status" in command for command in calls)

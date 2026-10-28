@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-28
+
+### Changed
+
+- argani no longer initialises a git repository in the argani home: `argani_home.py --create` and project registration make folders only, and the `git` field of the output is informational. The factory records job folders as commits only when the user has made the home a repository of its own (`records_enabled` in the factory state replaces `record_repo_ok`); otherwise the artifacts stay as files and nothing is committed. A home created by 0.13.0-0.16.0 keeps its `.git`, which the user may delete.
+- Interface: the `git` field of `argani_home.py` now means "a repository of its own" (it used to mean `.git` exists), and `record_repo_ok` is gone from the factory state.
+
 ## [0.16.0] - 2026-10-28
 
 ### Added

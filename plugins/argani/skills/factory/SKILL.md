@@ -38,7 +38,11 @@ use it for jobs with clear acceptance criteria.
    home (or `<toplevel>/.claude/argani.json` for a repository without a project) and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
 3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
-   show its output. Print `stage` and `next`.
+   show its output. Print `stage` and `next`. Read `project`, `job_dir`, `job_dir_in_repo` and
+   `record_dir` from it and use them below.
+
+Commands: run each command on its own. Never chain with `&&` or `;` and never `cd` first (use
+`git -C`), so the allowed-tools patterns match and the human is not prompted.
 
 ## Loop
 
@@ -68,16 +72,35 @@ fix or delete `review-human.md`.
 
 ### Record (the orchestrator commits the job folder)
 
-Only paths under `<job_dir>` are ever added. If `git -C <toplevel> status --porcelain -- <job_dir>` is
+Only paths under `<job_dir>` (and, for a registered project, its `project.json`) are ever added.
+
+**Registered project (`project` is set).** The job folder is recorded in the argani home's own git
+repository, `<record_dir>` (the state's `home`), never in the project repository, so it does not depend
+on the project repository's branch. If `git -C <record_dir> status --porcelain -- <job_dir>` is non-empty:
+`git -C <record_dir> add -- <job_dir> projects/<project>/project.json` then
+`git -C <record_dir> commit -q -m "argani: record <project>/<slug> <what>" -- <job_dir> projects/<project>/project.json`,
+with `<what>` one of `artifacts before build`, `build`, `round <N> reviews`, `decision`, `merge request`. The message is fixed: no trailers, no `commitSkill` (the home has no commit
+rules); `recordCommitMessage`, `commitTrailers` and `commitSkill` govern only the legacy record below
+and the builder's code commits. Record before the push in `needs-mr` too, and right after the builder
+returns (`<what>` = `build`), since the builder does not commit `plan.md` and `build.md` here.
+`<job_dir>` is absolute; the `project.json` pathspec is relative to `<record_dir>`. Unrelated changes
+in the home are left alone: `commit -- <paths>` commits only those paths. If add or commit fails (for
+example no git `user.name`/`user.email` in the home), stop and show the error.
+If `record_repo_ok` is false (the home is not a repository of its own, so git would use a parent
+repository), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_home.py --create` once and re-run
+state; if it is still false, stop and show the state.
+
+**Repository without a project (legacy).** If `git -C <toplevel> status --porcelain -- <job_dir>` is
 non-empty: `git -C <toplevel> add -- <job_dir>` then
 `git -C <toplevel> commit -m "<message>" [--trailer "<trailer>" ...] -- <job_dir>`, with one `--trailer`
 per entry of `commitTrailers`, `{model}` replaced by your own model name (for example
 `Claude Opus 5.5`), and no other trailer or footer. `<message>` is `recordCommitMessage` with
 `{slug}` replaced by the slug and `{what}` by `artifacts before build`, `round <N> reviews`,
 `decision` or `merge request` (default `chore(argani): record <slug> <what>`). Also record before the
-push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, `plan.md`, `build.md`.
+push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, and `plan.md` and
+`build.md` too when `job_dir_in_repo` is true; otherwise the Record step above covers them.
 
-When the config sets `commitSkill`, record through that repository skill instead (Skill tool):
+When the config sets `commitSkill`, record a legacy job through that repository skill instead (Skill tool):
 the unit is exactly the changed paths under `<job_dir>` and the intended subject is `<message>`;
 follow the skill for staging, scope and trailers, and add no `commitTrailers` yourself. If the skill
 refuses the unit or the subject, stop and show why; never fall back to a plain `git commit`.
@@ -109,11 +132,12 @@ Language: <language of the repository's CLAUDE.md, else of the intent>
 2. If `on_job_branch` is false: `git switch <branch>` if `git rev-parse --verify <branch>` succeeds,
    else `git switch -c <branch> <base_branch>`. If the switch fails, **stop** and show the error.
 3. Re-run state; if `on_job_branch` is still false, **stop**. Only then Record (`artifacts before build`;
-   never commit on any other branch), and spawn `argani:builder`:
+   a legacy job is never committed on any other branch), and spawn `argani:builder`:
 
 ```
 Plugin root: <plugin root>
 Slug folder: <job_dir>
+Job folder in repository: <yes when job_dir_in_repo is true, else no>
 Branch: <branch>
 Verify command: <verifyCommand>
 Commit skill: <commitSkill, or "none">
@@ -124,7 +148,7 @@ Findings to address: <job_dir>/review/round-<rework_from>/       (only when rewo
 ```
 
 4. If its reply starts with `STOPPED wrong branch` or `STOPPED commit skill`, **stop** and show it. After it returns, re-run state:
-   if `dirty` is true, **stop** ("builder left uncommitted changes"). Otherwise continue the loop.
+   if `dirty` is true, **stop** ("builder left uncommitted changes"). Otherwise, for a registered project, Record (`build`), then continue the loop.
 
 ### Review round
 
@@ -145,7 +169,7 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 
 ### Merge request (`needs-mr`)
 
-Record first (only with `on_job_branch` true). Then:
+Record first (for a legacy job only with `on_job_branch` true). Then:
 - `mrCommand` configured: `git push -u origin <branch>`, then `mrCommand` with `{branch}` replaced by
   `<branch>` and `{base}` by `<base_branch>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
   (output or URL, branch, today's date), commit it (Record with `{what}` = `merge request`, local only),

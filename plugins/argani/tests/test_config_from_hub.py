@@ -253,11 +253,13 @@ def test_skill_steps_for_a_legacy_repository_write_into_it(make_repo, hub):
 
 
 def test_intent_spec_plan_skills_use_tasks_dir_not_the_repository_path():
-    # review is still on the old path until the factory/review scope changes it
-    allowed_for_now = {"review", "factory"}
     for skill in (SCRIPTS.parent / "skills").glob("*/SKILL.md"):
-        if skill.parent.name not in allowed_for_now:
-            assert "<toplevel>/<artifactRoot>/" not in skill.read_text(), skill
+        assert "<toplevel>/<artifactRoot>/" not in skill.read_text(), skill
+
+
+@pytest.mark.parametrize("skill, required", [("review", "job_dir"), ("factory", "job_dir"), ("factory", "record_dir")])
+def test_review_and_factory_skills_use_the_state_paths(skill, required):
+    assert required in (SCRIPTS.parent / "skills" / skill / "SKILL.md").read_text()
 
 
 @pytest.mark.parametrize("skill", ["intent", "spec", "plan"])

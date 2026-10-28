@@ -1,0 +1,148 @@
+# Roadmap: argani as a local project board
+
+Status: plan, agreed on 2026-10-28. Nothing here is implemented yet.
+
+## Why
+
+The pilot in a real repository showed that the per-repository model costs too much: every project
+needs `.claude/argani.json`, a job folder under `artifactRoot`, record commits that pass the
+repository's commitlint, and a `commitSkill`. argani kept growing options to fit each repository.
+
+The new model turns this around:
+
+- argani is installed at **user scope** and acts as a **local board** (like Trello or ClickUp) for
+  every project, with markdown files as the material, following the `factory/` layout of the
+  zazencodes Software Factory (`backlog`, `jobs/<id>/...`).
+- Board data lives in **`~/.argani`** (override with `ARGANI_HOME`), apart from the plugin code,
+  and can be a private git repository. The installed plugin is a cached copy per version, so it
+  never stores data.
+- Project repositories are left alone: no `.claude/argani.json`, no job folder, no record commits.
+  Only code reaches a project, through a branch and a merge request.
+- The audit trail moves to the git history of `~/.argani`. The project's merge request carries
+  the acceptance criteria and a reference to the task folder.
+- The per-repository mode keeps working during the migration and is removed in **1.0.0**. An
+  import skill moves existing jobs to the board.
+- A **virtual office** to monitor agents and subagents comes later, as a separate application
+  that only reads board data.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph plugin["argani@argani (user scope, code only)"]
+        skills["skills: init, board, intent, spec, plan, review, factory, import"]
+        agents["agents: spec-writer, builder, reviewer, approver"]
+        hooks["hooks: guard_git, guard_artifacts, record_events"]
+    end
+
+    subgraph hub["~/.argani (data, private git)"]
+        registry["projects/&lt;project&gt;/project.md"]
+        tasks["projects/&lt;project&gt;/tasks/&lt;slug&gt;/<br/>intent, spec, plan, build, review/, decision, mr"]
+        board["board.md, board.json"]
+        events["events/&lt;date&gt;.jsonl"]
+    end
+
+    subgraph repos["project repositories"]
+        code["code, job branch, merge request"]
+    end
+
+    office["virtual office<br/>(separate repository)"]
+
+    skills -->|read and write| hub
+    agents -->|write task files| tasks
+    agents -->|commit code| code
+    hooks -->|append| events
+    registry -.->|remote URL or path| code
+    office -->|read only| board
+    office -->|read only| events
+```
+
+## Task flow and board columns
+
+```mermaid
+flowchart TD
+    new(["/argani:intent"]) --> backlog["Backlog<br/>intent draft"]
+    backlog -->|human approves intent| design["Design<br/>spec written, waiting for approval"]
+    design -->|human approves spec| progress["In progress<br/>build, review rounds 1-2, decision"]
+    progress -->|CHANGES, round 2| progress
+    progress -->|APPROVE| ready["Ready for MR"]
+    progress -->|ESCALATE or round 3| human["Needs human"]
+    human -->|rework note or decision| progress
+    ready -->|factory opens MR| review["In review<br/>MR open"]
+    review -->|human merges| done(["Done"])
+```
+
+Columns are derived from the `stage` that `factory_state.py` already computes; the board stores no
+separate status:
+
+| `factory_state.py` stage                                        | Column       |
+|-----------------------------------------------------------------|--------------|
+| `needs-intent-approval`                                         | Backlog      |
+| `needs-spec`, `needs-spec-approval`                             | Design       |
+| `needs-build`, `needs-rework`, `needs-review`, `needs-decision` | In progress  |
+| `needs-mr`                                                      | Ready for MR |
+| `done` (`mr.md` exists)                                         | In review    |
+| `done` and the job branch is merged into its base               | Done         |
+| `escalate`                                                      | Needs human  |
+
+## Scopes
+
+One scope is one pull request that can be reviewed and tested on its own.
+
+```mermaid
+flowchart LR
+    A1 --> A2
+    A2 --> A3
+    A2 --> A4
+    A4 --> A5
+    A2 --> B1
+    B1 --> B2
+    B1 --> B3
+    B2 --> B4
+    B3 --> B4
+    B4 --> B5
+    B5 --> C1
+    C1 --> C2
+    A4 --> D1
+    D1 --> D2
+    D2 --> D3
+```
+
+### Epic A: board foundation
+
+| ID | Scope                                                                                                                                                                                                                                             | Main files                                                            | Done when                                                                                                                            |
+|----|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| A1 | Hub location: `ARGANI_HOME` (default `~/.argani`), folder layout, idempotent first creation                                                                                                                                                       | `scripts/argani_home.py` (new), tests                                 | tests: the env var is honoured, folders are created once, relative paths and `..` are refused                                        |
+| A2 | Project registry: `projects/<project>/project.md` (front matter: remotes, paths, `verifyCommand`, `baseBranch`, `branchPattern`, `reviewers`, `mrCommand`, ...); the current directory resolves to a project by remote URL, then by toplevel path | `scripts/project_registry.py` (new), reuses `argani_config.py` checks | tests: a worktree and a second clone with the same remote resolve to the same project; an unregistered project gives a clear message |
+| A3 | `/argani:init` registers the project in the hub instead of writing `.claude/argani.json`; reuses the detection in `init_config.py`                                                                                                                | `skills/init/SKILL.md`, `scripts/init_config.py`                      | init in a scratch repository writes `project.md`; the repository stays unchanged (`git status` clean)                                |
+| A4 | Board model: the column comes from the stage (table above); `board.md` per project and an all-projects summary are generated from the task folders                                                                                                | `scripts/board.py` (new), uses `factory_state.py`                     | one test per column; `board.md` is deterministic (stable order)                                                                      |
+| A5 | `/argani:board [--all]`: shows the current project's board or every project; read only                                                                                                                                                            | `skills/board/SKILL.md` (new)                                         | in a registered repository it prints the columns; in an unregistered one it suggests `/argani:init`                                  |
+
+### Epic B: the argani loop runs on the board
+
+| ID | Scope                                                                                                                                                                                                               | Main files                                                                    | Done when                                                                                             |
+|----|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| B1 | Config source: `argani_config.py` loads the project's `project.md` from the hub; `.claude/argani.json` stays as a fallback until C2                                                                                 | `scripts/argani_config.py`                                                    | tests: the hub wins over the repository file; with neither, the defaults apply                        |
+| B2 | `intent`, `spec` and `plan` write to `~/.argani/projects/<project>/tasks/<slug>/`; slugs are unique per project                                                                                                     | `skills/{intent,spec,plan}/SKILL.md`, `scripts/artifact_check.py`             | the manual intent, spec, plan flow in a scratch repository leaves that repository untouched           |
+| B3 | Factory and review: `job_dir` is in the hub; the builder still works in the project checkout; record commits go to the hub's git (free message, no project commitlint); reviewers get the project path for the diff | `scripts/factory_state.py`, `skills/{factory,review}/SKILL.md`, `agents/*.md` | a sample factory run reaches `needs-mr`; the project repository holds only the builder's code commits |
+| B4 | `guard_artifacts.py` enforces its rules on hub paths: one writer per file, verdict on line 1, two rounds at most; `protectedPaths` stay relative to the project repository                                          | `hooks/guard_artifacts.py`, tests                                             | the existing deny and allow tests pass with hub paths                                                 |
+| B5 | Merge request: `mr.md` lives in the hub; the project's merge request description lists the acceptance criteria and refers to the task folder                                                                        | `skills/factory/SKILL.md`                                                     | a sample merge request lists the criteria; its diff has no argani files                               |
+
+### Epic C: migration and the 1.0.0 release
+
+| ID | Scope                                                                                                                                                                             | Main files                                               | Done when                                                                     |
+|----|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------|-------------------------------------------------------------------------------|
+| C1 | `/argani:import`: copies `<artifactRoot>/<slug>/` from a repository into the hub, verifies the copy, then offers to remove the folder from the repository through a normal branch | `skills/import/SKILL.md`, `scripts/import_jobs.py` (new) | existing jobs from the pilot repository show on the board with the same stage |
+| C2 | Remove the per-repository mode: `.claude/argani.json`, `artifactRoot`, `recordCommitMessage`, `commitSkill` for records; update the docs; release 1.0.0; tell the pilot session   | `scripts/argani_config.py`, `docs/*`, `CHANGELOG.md`     | `scripts/check.sh` passes; nothing in the plugin refers to `argani.json`      |
+
+### Epic D: agent monitoring and the virtual office
+
+| ID | Scope                                                                                                                                                                                                            | Main files                                         | Done when                                         |
+|----|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|---------------------------------------------------|
+| D1 | Event log: a hook records each argani subagent's start and end (agent, model, project, slug, time, result) in `~/.argani/events/<date>.jsonl`; a small spike first confirms which hook events carry these fields | `hooks/record_events.py` (new), `hooks/hooks.json` | one factory run produces complete event lines     |
+| D2 | Read snapshot for user interfaces: `board.json` (projects, tasks, columns, active agents) generated from the task folders and the event log                                                                      | `scripts/board.py`                                 | the schema is documented; snapshot tests          |
+| D3 | Virtual office: an application in a separate repository that only reads `board.json` and `events/`; its technology and shape are decided when this scope starts                                                  | new repository                                     | lives outside this repository; planned on its own |
+
+Items from the old queue that still matter after the migration: worktree mode
+(`worktreeCommand`) and a sequence number `{n}` in branch names, both built on top of B3. Most of
+the planned `/argani:init` detection work is no longer needed.

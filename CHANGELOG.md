@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-28
+
+### Added
+
+- `scripts/register_project.py <name> [dir] < config.json` creates or extends
+  `projects/<name>/project.json` in the argani home from the repository and the validated config on
+  stdin. It refuses a name or remote that another project holds and never writes into the repository.
+- `init_config.py` reports the hub target: `project`, `remotes`, `realPath`, `home`, `projectFile`,
+  `registered`, `homeError`, and the carried-over `legacyKeys` of an existing `.claude/argani.json`.
+
+### Changed
+
+- `argani_config.validate_overrides` holds the cross-key and remote-prefix checks shared by
+  `load_config` and `register_project.py`; `LEGACY_ONLY_KEYS` names `artifactRoot`.
+- `/argani:init` registers the repository as a project in the argani home instead of writing
+  `.claude/argani.json`. The proposal always contains `defaultBranch`.
+- `init_config.py` renames `configPath` and `exists` to `legacyConfig` and `legacyExists`.
+
+### Removed
+
+- `/argani:init` no longer asks for `artifactRoot` (a board project keeps its jobs in `tasks/`) nor
+  for `recordCommitMessage`, and no longer detects commitlint scopes.
+
 ## [0.9.0] - 2026-10-28
 
 ### Added

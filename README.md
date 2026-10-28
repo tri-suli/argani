@@ -35,8 +35,9 @@ Enable the plugin per repository, in `.claude/settings.json`:
 }
 ```
 
-Per-repository options live in `.claude/argani.json`; `/argani:init` creates it from what the
-repository already uses. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
+The first step in a repository is `/argani:init`: it registers the repository as a project on the
+board in `~/.argani` (or `$ARGANI_HOME`), from what the repository already uses, and writes nothing
+into the repository. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
 ## Local development
 
@@ -62,7 +63,7 @@ Installed copies then update with `claude plugin marketplace update argani` and
 ## Factory mode
 
 Prerequisites: an approved `intent.md` (the factory writes the spec and stops for your approval), and
-`verifyCommand` plus `reviewers` in `.claude/argani.json`.
+`verifyCommand` plus `reviewers` in the project's `project.json` (set by `/argani:init`).
 
 ```
 /argani:factory <slug>                 # advances until the next human gate, then stops
@@ -96,7 +97,7 @@ scripts/check.sh                  validate and test
 
 | Component | Status |
 |---|---|
-| Skill `/argani:init` (creates `.claude/argani.json`) | available |
+| Skill `/argani:init` (registers the project in the argani home) | available |
 | Skills `/argani:intent`, `/argani:spec`, `/argani:plan` | available |
 | Hooks (default-branch guard, verdict and path guards) | available |
 | Agents (spec-writer, builder, reviewer, approver) | available |

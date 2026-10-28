@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 import argani_home
-from argani_config import _git, toplevel
+from git_cli import git_output, toplevel
 
 PROJECT_FILE = "project.json"
 PROJECT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -65,7 +65,7 @@ def normalize_remote(url):
 
 def repository_remotes(start_dir):
     """Normalized, deduplicated remote URLs (fetch and push) of the repository around start_dir."""
-    listing = _git(start_dir, "remote", "-v")
+    listing = git_output(start_dir, "remote", "-v")
     remotes = []
     for line in (listing or "").splitlines():
         fields = line.split()
@@ -82,6 +82,19 @@ def project_dir(home, name):
 
 def project_file(home, name):
     return project_dir(home, name) / PROJECT_FILE
+
+
+def project_of_path(path, home):
+    """(project name, path relative to the project's folder) when path is inside a project's
+    folder in the home, e.g. (name, Path("tasks/login/intent.md")); else None."""
+    projects = Path(os.path.realpath(home)) / argani_home.PROJECTS_DIR
+    try:
+        parts = Path(os.path.realpath(path)).relative_to(projects).parts
+    except ValueError:
+        return None
+    if len(parts) < 2 or not PROJECT_NAME.match(parts[0]):
+        return None
+    return parts[0], Path(*parts[1:])
 
 
 def _string_list(path, data, key):
@@ -130,12 +143,15 @@ def _only_match(projects, label, value, key):
     return names[0] if names else None
 
 
-def resolve(start_dir, home):
-    """The project entry that start_dir belongs to, or None. The home itself is never a project."""
+def resolve(start_dir, home, top=None):
+    """The project entry that start_dir belongs to, or None. The home itself is never a project.
+    top is the repository toplevel when the caller already knows it."""
+    if not (home / argani_home.PROJECTS_DIR).is_dir():
+        return None
     real_home = os.path.realpath(home)
     if os.path.commonpath([os.path.realpath(start_dir), real_home]) == real_home:
         return None
-    top = toplevel(start_dir)
+    top = top or toplevel(start_dir)
     if top is None:
         return None
     real_top = os.path.realpath(top)

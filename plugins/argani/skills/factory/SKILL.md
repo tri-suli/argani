@@ -34,8 +34,8 @@ use it for jobs with clear acceptance criteria.
      then `/argani:intent approve <slug>`, then `/argani:factory <slug>`.
    If step 3 reports no job folder for a one-word argument, give the same advice with that word.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it exits non-zero, **stop** and show its
-   error. If `verifyCommand` is empty or `reviewers` is empty, **stop**, name `<toplevel>/.claude/argani.json`
-   and suggest `/argani:init` when the file does not exist yet.
+   error. If `verifyCommand` is empty or `reviewers` is empty, **stop**, name the project's `project.json` in the argani
+   home (or `<toplevel>/.claude/argani.json` for a repository without a project) and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
 3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
    show its output. Print `stage` and `next`.

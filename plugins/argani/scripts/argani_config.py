@@ -65,9 +65,9 @@ def _git(start_dir, *args):
     try:
         result = subprocess.run(
             ["git", "-C", str(start_dir), *args],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, check=True, timeout=10,
         )
-    except (OSError, subprocess.CalledProcessError):
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
     return result.stdout.strip() or None
 

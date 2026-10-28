@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-28
+
+### Changed
+
+- `/argani:intent`, `/argani:spec` and `/argani:plan` write the artifacts to `tasksDir` from `argani_config.py`: the task folder in the argani home for a registered project (nothing is written into the repository), `<artifactRoot>/<slug>/` in the repository otherwise. Outside a git repository they stop and point to `/argani:init`.
+- `/argani:review` and `/argani:factory` still look for the job folder in the repository; they follow in the next release.
+
 ## [0.11.0] - 2026-10-28
 
 ### Added

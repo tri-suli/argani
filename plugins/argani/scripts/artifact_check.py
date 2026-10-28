@@ -172,7 +172,7 @@ def check_type(header, branch_types):
         value = TYPE_VALUE_PATTERN.match(lines[0]).group(1) if lines else None
         if value not in branch_types:
             return [f"need 'Type: <type>' in the header with one of {', '.join(branch_types)} "
-                    f"(branchTypes in .claude/argani.json), got {value!r}"]
+                    f"(branchTypes in the project's configuration), got {value!r}"]
     return []
 
 

@@ -13,8 +13,16 @@ This skill never writes code.
 ## Setup
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it fails, show its error and stop.
-   Read `toplevel`, `artifactRoot` and `branchTypes` from the JSON. Artifacts live in
-   `<toplevel>/<artifactRoot>/<slug>/`; use the current directory when `toplevel` is null.
+   Read `tasksDir`, `project` and `branchTypes` from the JSON. Then:
+   - `tasksDir` set: `<artifact dir>` is `tasksDir`, the folder that holds the job folders; a job
+     folder is `<artifact dir>/<slug>/`. For a registered project (`project` is set) it is the task
+     folder in the argani home: the job folder is outside the repository and nothing is written
+     into it. For a repository without a project, `tasksDir` is `<toplevel>/<artifactRoot>`, inside
+     the repository, until 1.0.0.
+   - `tasksDir` null (not in a git repository): stop. argani works from inside a project
+     repository; say to open the repository and run `/argani:init` if it is not registered yet.
+   Always pass the full path under `<artifact dir>` to `artifact_check.py`: it reads `branchTypes`
+   from the file's location.
 2. Artifact language: the language of this repository's CLAUDE.md, else the user's. Only the
    prose is in that language. The `# Intent:` title prefix, the `##` section headings, file names,
    `Status:` lines, `AC-n`, `verify:` and verdict words always stay English.
@@ -51,7 +59,7 @@ This skill never writes code.
 
 ## Approve mode
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py status <intent.md>`.
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py status <artifact dir>/<slug>/intent.md`.
    - Non-zero exit: refuse, show the violations verbatim, never set the approved status.
    - Prints `approved`: say it is already approved and stop.
 2. Run `git config user.name`. If it is empty, stop and ask the user to set it.

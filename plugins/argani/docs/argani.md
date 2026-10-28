@@ -9,7 +9,7 @@ Writing the work is no longer the bottleneck. The bottleneck moved to the stages
 deciding what is wanted, designing, reviewing, testing, releasing. Those stages run at human
 speed and mostly inside conversations, which leave no audit trail. The plugin turns each stage
 into a committed artifact, so that who asked for what, what an agent produced, and who approved
-it are all readable from the repository.
+it are all readable from the repository (legacy repositories; for a registered project the artifacts live in the argani home and the factory records them there from 0.13.0).
 
 The loop is one and the same in every mode:
 
@@ -35,7 +35,7 @@ Operate is recorded as a stage but not yet automated.
 
 ## Artifact location
 
-Per job, in `<artifactRoot>/<slug>/` (default `argani/<slug>/`, see `config.md`). When the repository
+Per job, in the task folder `<home>/projects/<project>/tasks/<slug>/` of the argani home for a registered project (nothing is written into the repository). Legacy, until 1.0.0: `<artifactRoot>/<slug>/` in the repository (default `argani/<slug>/`, see `config.md`). When the repository
 sets `branchTypes`, `intent.md` carries a `Type:` header line with one of them; it fills `{type}` in
 `branchPattern` and picks the base branch from `baseBranchByType`. An optional `Risk:` line
 (`low`, `medium` or `high`, default `medium`) picks the models of the agents through `agentModels`.
@@ -106,7 +106,7 @@ The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time f
 
 Who commits what on the job branch: the builder commits code, `plan.md` and `build.md`; the
 orchestrator commits the rest of the job folder (`intent.md`, `spec.md`, `review/**`, `decision.md`,
-`mr.md`), adding only paths under `<artifactRoot>/<slug>/`: before the build, after each review round,
+`mr.md`), adding only paths under `<artifactRoot>/<slug>/` (legacy repositories; for a registered project the factory records them in the argani home from 0.13.0): before the build, after each review round,
 after the decision and before the push. Nothing is ever pushed or merged without a human.
 Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that
 requires a separate instruction for every commit uses the manual loop instead. Commit subjects and

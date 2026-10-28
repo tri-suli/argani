@@ -36,7 +36,7 @@ session) or denies (subagent) for every write inside the repository until the fi
 | `verifyCommand`       | none                                                  | Command that proves the work (tests, linters, link check). Required by factory mode.                                                                                                                                                                                                                                                                                                                                              |
 | `reviewers`           | `["code"]`                                            | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                                                                                                                        |
 | `protectedPaths`      | `[]`                                                  | Globs relative to the toplevel that agents must not write.                                                                                                                                                                                                                                                                                                                                                                        |
-| `mrCommand`           | none                                                  | Command that opens the merge request; `{branch}` is replaced by the job branch and `{base}` by its base branch (see `baseBranchByType`). Without it, nothing is pushed.                                                                                                                                                                                                                                                           |
+| `mrCommand`           | none                                                  | Command that opens the merge request. `{branch}` is the job branch, `{base}` its base branch (see `baseBranchByType`), `{title}` the title and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, nothing is pushed.                                                                                                                                                                                                                                                           |
 | `branchPattern`       | `"feature/{slug}"`                                    | Name of the job branch; `{slug}` is replaced by the job's slug and must appear exactly once. The result must be a valid git branch name and must not be a protected branch. Set the prefix or structure your repository uses, for example `"feat/{slug}"` or `"{slug}"`. It may also contain `{type}` once, filled from the intent's `Type:` line; that needs `branchTypes`.                                                      |
 | `recordCommitMessage` | `"chore(argani): record {slug} {what}"`               | Legacy only¹: subject of the commits the factory orchestrator makes to record the job folder in the repository. `{what}` must appear exactly once and becomes `artifacts before build`, `round <N> reviews`, `decision` or `merge request`; `{slug}` is optional. Set it to a type and scope your commit rules accept, for example `"chore(repo): record {slug} {what}"`.                                                                                         |
 | `commitTrailers`   | `["Co-Authored-By: {model} <noreply@anthropic.com>"]` | Git trailers added to the builder's code commits and to legacy record commits in the repository; record commits in the argani home carry none. `{model}` is replaced by the name of the model that makes the commit (for example `Claude Sonnet 5.5`), so the trailer stays right when sessions or agents use different models; it is the only placeholder. Each entry must look like `Key: value`. `[]` means no trailer at all.                                                                      |
@@ -108,7 +108,7 @@ covered.
   "verifyCommand": "npm test",
   "reviewers": ["code", "security", "compliance"],
   "protectedPaths": ["raw/**", "archive/**"],
-  "mrCommand": "gh pr create --fill --base main --head {branch}",
+  "mrCommand": "gh pr create --base main --head {branch} --title {title} --body-file {bodyFile}",
   "branchPattern": "feature/{slug}",
   "recordCommitMessage": "chore(argani): record {slug} {what}",
   "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"]
@@ -127,7 +127,7 @@ Git Flow: features branch from `develop` and merge into `develop`, while `main` 
   "defaultBranch": "main",
   "baseBranch": "develop",
   "branchPattern": "feature/{slug}",
-  "mrCommand": "gh pr create --fill --base develop --head {branch}"
+  "mrCommand": "gh pr create --base develop --head {branch} --title {title} --body-file {bodyFile}"
 }
 ```
 
@@ -144,7 +144,7 @@ that starts somewhere else names its base in `baseBranchByType`:
   "branchPattern": "{type}/{slug}",
   "branchTypes": ["feature", "bugfix", "hotfix"],
   "baseBranchByType": { "hotfix": "main" },
-  "mrCommand": "gh pr create --fill --base {base} --head {branch}"
+  "mrCommand": "gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"
 }
 ```
 

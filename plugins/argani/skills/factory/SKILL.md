@@ -11,7 +11,7 @@ allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUG
 This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/docs/argani.md` and
 `${CLAUDE_PLUGIN_ROOT}/docs/review-protocol.md`. It never edits code and never writes `intent.md`,
 `spec.md`, `plan.md`, `build.md`, `review-<checklist>.md` or `decision.md`; agents do. Its own files:
-`mr.md` and, for `rework`, `review-human.md`. Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
+`mr-body.md` (written by `mr_description.py`), `mr.md` and, for `rework`, `review-human.md`. Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
 
 Commits: invoking `/argani:factory` is the human's explicit instruction to make the commits this skill
 describes on the job branch (the orchestrator's record commits and the builder's commits), and no
@@ -169,14 +169,21 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 
 ### Merge request (`needs-mr`)
 
-Record first (for a legacy job only with `on_job_branch` true). Then:
-- `mrCommand` configured: `git push -u origin <branch>`, then `mrCommand` with `{branch}` replaced by
-  `<branch>` and `{base}` by `<base_branch>`. If either fails, stop and show the error (no `mr.md`). On success write `<job_dir>/mr.md`
-  (output or URL, branch, today's date), commit it (Record with `{what}` = `merge request`, local only),
-  and stop: "MR ready for human review".
-- Not configured: do **not** push. Stop and print `git push -u origin <branch>` and "open a merge
-  request from <branch> into <base_branch>"; the human writes `mr.md` (URL and branch) or
-  configures `mrCommand` and re-runs.
+1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> --write`. If it exits non-zero, stop and
+   show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
+   verification checklist of `decision.md`, where the task folder is) and prints JSON with `title`,
+   `bodyFile` and, when `mrCommand` is configured, `command`. `mr-body.md` is an artifact of the job
+   folder and is recorded with it.
+2. Record (for a legacy job only with `on_job_branch` true), so `mr-body.md` is committed before the push.
+- `mrCommand` configured:
+  3. `git push -u origin <branch>`.
+  4. Run the printed `command` verbatim; never rebuild or re-quote it.
+  If 3 or 4 fails, stop and show the error (no `mr.md`).
+  5. Write `<job_dir>/mr.md` (output or URL, branch, base, today's date).
+  6. Record again (`{what}` = `merge request`, local only) and stop: "MR ready for human review".
+- Not configured: do **not** push. Print `title`, `bodyFile` and tell the human to push `<branch>`,
+  open a merge request from `<branch>` into `<base_branch>` with that description, then write `mr.md`
+  (URL and branch) or configure `mrCommand` and re-run.
 
 In both cases, when `decision.md` has `## Human verification before merge`, copy that checklist into
 `mr.md` and into the final message: the human does those steps and ticks them before merging.

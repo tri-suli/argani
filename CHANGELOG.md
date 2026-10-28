@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-28
+
+### Removed
+
+- `bootstrap/` and its tests: it installed one person's global `CLAUDE.md` and is not part of the
+  plugin. Install argani with `claude plugin marketplace add` and `claude plugin install` as the
+  README describes.
+
 ## [0.6.0] - 2026-10-28
 
 ### Added

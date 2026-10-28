@@ -124,7 +124,7 @@ chooses the active checklists through `reviewers` in `.claude/argani.json`.
 2. Review protocol and enforcing hooks.
 3. Generic agents and the checklist catalog.
 4. Factory orchestrator ending in a merge request.
-5. Eval suite, then bootstrap of global configuration.
+5. Eval suite.
 
 ## Verified behaviour
 

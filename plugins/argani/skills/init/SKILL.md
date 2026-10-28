@@ -30,6 +30,9 @@ Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill write
      repository's commit rules accept; `{what}` exactly once.
    - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
      key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.
+   - `commitSkill`: the repository skill every argani commit must go through (the builder and the
+     record commits use it instead of `git commit`; it then decides trailers). Omit it to commit
+     with `git commit` and `commitTrailers`.
    - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
      job branch and its base branch. Leave it out when the human wants to push and open merge
      requests themselves.

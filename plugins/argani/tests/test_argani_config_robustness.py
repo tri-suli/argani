@@ -257,3 +257,18 @@ def test_invalid_agent_models_are_rejected(tmp_path, value, reason):
     repo = make_repo(tmp_path / "repo", f'{{"agentModels": {value}}}')
     with pytest.raises(ValueError, match=reason):
         argani_config.load_config(repo, strict=True)
+
+
+@pytest.mark.parametrize("value, expected", [('"git-commit"', "git-commit"), ('"/git-commit"', "git-commit"),
+                                             ('"tools:commit"', "tools:commit")])
+def test_commit_skill_is_kept(tmp_path, value, expected):
+    repo = make_repo(tmp_path / "repo", f'{{"commitSkill": {value}}}')
+    assert argani_config.load_config(repo, strict=True)["commitSkill"] == expected
+    assert argani_config.load_config(make_repo(tmp_path / "none"), strict=True)["commitSkill"] is None
+
+
+@pytest.mark.parametrize("value", ['""', '"git commit"', '"-x"', "3"])
+def test_invalid_commit_skill_is_rejected(tmp_path, value):
+    repo = make_repo(tmp_path / "repo", f'{{"commitSkill": {value}}}')
+    with pytest.raises(ValueError):
+        argani_config.load_config(repo, strict=True)

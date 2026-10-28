@@ -191,6 +191,11 @@ def propose(start_dir="."):
                       "candidates": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
                       "ask": "Which trailers should commits carry? {model} becomes the committing agent's "
                              "model name; the default is the candidate, [] means none."})
+    commit_skills = sorted(path.parent.name for path in (top / ".claude" / "skills").glob("*commit*/SKILL.md"))
+    if commit_skills:
+        questions.append({"key": "commitSkill", "candidates": commit_skills,
+                          "ask": "The repository has its own commit skill. Should every argani commit (builder "
+                                 "and record commits) go through it instead of a plain git commit?"})
     host = remote_host(top)
     mr_candidates = {
         "github": ["gh pr create --fill --base {base} --head {branch}"],

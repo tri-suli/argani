@@ -3,7 +3,7 @@ name: factory
 description: Run an argani job end to end with fresh subagents (spec, build, review rounds, decision) and stop at a human gate or at the merge request. Also takes a human rework note. Slash form /argani:factory <slug> or /argani:factory rework <slug> <note>.
 argument-hint: "<slug> | rework <slug> <note>"
 disable-model-invocation: true
-allowed-tools: Read, Glob, Grep, Write, Agent, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git *)
+allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git *)
 ---
 
 # /argani:factory
@@ -77,6 +77,11 @@ per entry of `commitTrailers`, `{model}` replaced by your own model name (for ex
 `decision` or `merge request` (default `chore(argani): record <slug> <what>`). Also record before the
 push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, `plan.md`, `build.md`.
 
+When the config sets `commitSkill`, record through that repository skill instead (Skill tool):
+the unit is exactly the changed paths under `<job_dir>` and the intended subject is `<message>`;
+follow the skill for staging, scope and trailers, and add no `commitTrailers` yourself. If the skill
+refuses the unit or the subject, stop and show why; never fall back to a plain `git commit`.
+
 ### Models
 
 Spawn every agent with `model` set to its entry in the config's `agentModels` (`spec-writer`,
@@ -106,13 +111,14 @@ Plugin root: <plugin root>
 Slug folder: <job_dir>
 Branch: <branch>
 Verify command: <verifyCommand>
+Commit skill: <commitSkill, or "none">
 Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <review_round>
 Findings to address: <job_dir>/review/round-<rework_from>/       (only when rework_from is not null;
                                                                 for a human rework this is the round folder holding review-human.md)
 ```
 
-4. If its reply starts with `STOPPED wrong branch`, **stop** and show it. After it returns, re-run state:
+4. If its reply starts with `STOPPED wrong branch` or `STOPPED commit skill`, **stop** and show it. After it returns, re-run state:
    if `dirty` is true, **stop** ("builder left uncommitted changes"). Otherwise continue the loop.
 
 ### Review round

@@ -28,9 +28,11 @@ DEFAULTS = {
     "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
     "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
     "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
+    "commitSkill": None,  # a repository skill that makes every argani commit, instead of git commit
     "agentModels": {"spec-writer": "sonnet", "builder": "opus", "reviewer": "opus", "approver": "opus"},
 }
 AGENT_MODELS = {"sonnet", "opus", "haiku", "fable", "inherit"}
+SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]*$")
 SLUG_PLACEHOLDER = "{slug}"
 TYPE_PLACEHOLDER = "{type}"
 TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -192,6 +194,13 @@ def _base_branch_by_type(value):
     return {name: _branch(branch) for name, branch in value.items()}
 
 
+def _commit_skill(value):
+    name = _optional_string(value).strip().lstrip("/")
+    if not SKILL_NAME.match(name):
+        raise ValueError(f"'{value}' is not a skill name such as 'git-commit'")
+    return name
+
+
 def _agent_models(value):
     """Overrides for some agents; the rest keep their default model."""
     if not isinstance(value, dict):
@@ -301,6 +310,7 @@ COERCERS = {
     "commitTrailers": _commit_trailers,
     "branchTypes": _branch_types,
     "baseBranchByType": _base_branch_by_type,
+    "commitSkill": _commit_skill,
     "agentModels": _agent_models,
 }
 

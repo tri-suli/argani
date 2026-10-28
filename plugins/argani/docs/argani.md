@@ -76,6 +76,32 @@ Status lines, `AC-n`, `verify:` and verdict words stay in English. So do the `# 
 `# Spec:` and `# Plan:` title prefixes and the `##` section headings; only the prose is in the
 project language.
 
+## Board
+
+`scripts/board.py` lists every task of the registered projects by column. The column derives from the stage; nothing is stored separately.
+
+| Stage | Column |
+|---|---|
+| `needs-intent-approval` | Backlog |
+| `needs-spec`, `needs-spec-approval` | Design |
+| `needs-build`, `needs-rework`, `needs-review`, `needs-decision` | In progress |
+| `needs-mr` | Ready for MR |
+| `done`, job branch not merged into its base (or unknown) | In review |
+| `done`, job branch merged into its base | Done |
+| `escalate` | Needs human |
+| `error` (the task cannot be read: broken config, unreadable file) | Needs human |
+
+```
+python3 board.py [dir]                    # the project of dir (default: the current directory)
+python3 board.py --all [--write] [--json] # every project; --write saves <home>/board.md
+```
+
+`board.md` is generated and never edited by hand; it is untracked in the home repository and regenerated on every `--write`.
+
+A project's checkout is the first path in its `project.json` `paths` that is a git repository toplevel; without one, branches are unknown and finished jobs show In review. A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
+
+Done means the job branch (or `origin/<branch>`) is an ancestor of the base branch (or `origin/<base>`). A branch deleted after the merge, a squash or rebase merge, or a merge not yet pulled therefore shows In review until `mr.md` is updated by hand (a later release records the merge).
+
 ## Always-on rules
 
 1. Skills advise, hooks enforce. Anything that must always hold is a hook reading the repo config.

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
+### Added
+
+- `board.py` lists the tasks of the registered projects in the columns Backlog, Design, In progress, Ready for MR, In review, Done and Needs human, derived from the stage and from whether the job branch is merged. `--all` covers every project, `--write` saves `<home>/board.md`, `--json` prints the board as JSON. `build_state` takes `with_working_tree=False` to skip the working-tree git calls.
+
 ## [0.13.0] - 2026-10-28
 
 ### Added

@@ -21,7 +21,7 @@ CLOSING_BUILD = "=== END OF BUILD ==="
 CLOSING_REVIEW = "=== END OF REVIEW ==="
 CLOSING_DECISION = "=== END OF DECISION ==="
 MAX_ROUNDS = 2
-SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")
+SLUG_PATTERN = argani_config.SLUG_PATTERN
 
 
 def read_text(path):

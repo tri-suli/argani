@@ -17,7 +17,7 @@ from pathlib import Path
 
 import artifact_check
 import argani_config
-import git_cli
+import argani_home
 
 CLOSING_BUILD = "=== END OF BUILD ==="
 CLOSING_REVIEW = "=== END OF REVIEW ==="
@@ -208,14 +208,13 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
             "/argani:factory rework is refused at round 3.", None, None)
 
 
-def record_repo_ok(config):
-    """True when the job folder is recorded in the right repository: legacy always; a registered
-    project needs the argani home to be a repository of its own, not a folder inside another one."""
+def records_enabled(config):
+    """True when the orchestrator records the job folder with git: legacy always (the repository
+    itself); a registered project only when the user keeps the argani home under git as a
+    repository of its own (argani never runs git init there), not as a folder inside another one."""
     if not config["project"]:
         return True
-    home = Path(config["home"]).resolve()
-    top = git_cli.toplevel(home)
-    return top is not None and Path(top).resolve() == home
+    return argani_home.is_own_repository(Path(config["home"]))
 
 
 def build_state(slug, start_dir=".", config=None, with_working_tree=True):
@@ -223,8 +222,8 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     (see argani_config.load_project_config); otherwise it is loaded for start_dir. Without a
     checkout the changed paths are unknown, so every reviewerPaths reviewer counts as active, and a
     branchPattern that gives a protected branch still raises ValueError. with_working_tree=False
-    skips the git calls about the working tree (current branch, dirty, record repository): those
-    fields are None (record_repo_ok True)."""
+    skips the git calls about the working tree (current branch, dirty, records_enabled): those
+    fields are None."""
     if config is None:
         config = argani_config.load_config(start_dir, strict=True)
     if "human" in config["reviewers"]:
@@ -276,7 +275,7 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
         "home": config["home"] if config["project"] else None,
         "job_dir": str(job_dir),
         "job_dir_in_repo": config["project"] is None and bool(toplevel) and is_inside(job_dir, toplevel),
-        "record_repo_ok": record_repo_ok(config) if with_working_tree else True,
+        "records_enabled": records_enabled(config) if with_working_tree else None,
         "record_dir": config["home"] if config["project"] else (str(toplevel) if toplevel else None),
         "type": job_type,
         "branch": branch,

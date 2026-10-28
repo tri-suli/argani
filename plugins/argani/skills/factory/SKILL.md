@@ -14,8 +14,9 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 `mr-body.md` (written by `mr_description.py`), `mr.md` and, for `rework`, `review-human.md`. Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
 
 Commits: invoking `/argani:factory` is the human's explicit instruction to make the commits this skill
-describes on the job branch (the orchestrator's record commits and the builder's commits), and no
-others. It never pushes without `mrCommand` and never merges. Repositories whose rules forbid commits
+describes (the builder's commits on the job branch, and the orchestrator's record commits: in the
+argani home for a registered project whose home is under git, on the job branch for a legacy job),
+and no others. It never pushes without `mrCommand` and never merges. Repositories whose rules forbid commits
 without a separate instruction per commit should use the manual loop (`/argani:spec`, `/argani:plan`,
 `/argani:review`) instead.
 
@@ -38,8 +39,8 @@ use it for jobs with clear acceptance criteria.
    home (or `<toplevel>/.claude/argani.json` for a repository without a project) and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
 3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
-   show its output. Print `stage` and `next`. Read `project`, `job_dir`, `job_dir_in_repo` and
-   `record_dir` from it and use them below.
+   show its output. Print `stage` and `next`. Read `project`, `job_dir`, `job_dir_in_repo`,
+   `record_dir` and `records_enabled` from it and use them below.
 
 Commands: run each command on its own. Never chain with `&&` or `;` and never `cd` first (use
 `git -C`), so the allowed-tools patterns match and the human is not prompted.
@@ -74,8 +75,9 @@ fix or delete `review-human.md`.
 
 Only paths under `<job_dir>` (and, for a registered project, its `project.json`) are ever added.
 
-**Registered project (`project` is set).** The job folder is recorded in the argani home's own git
-repository, `<record_dir>` (the state's `home`), never in the project repository, so it does not depend
+**Registered project (`project` is set).** Only when `records_enabled` is true (the user keeps the argani
+home under git; argani never runs `git init` there): the job folder is recorded in the argani home's own
+git repository, `<record_dir>` (the state's `home`), never in the project repository, so it does not depend
 on the project repository's branch. If `git -C <record_dir> status --porcelain -- <job_dir>` is non-empty:
 `git -C <record_dir> add -- <job_dir> projects/<project>/project.json` then
 `git -C <record_dir> commit -q -m "argani: record <project>/<slug> <what>" -- <job_dir> projects/<project>/project.json`,
@@ -86,9 +88,9 @@ returns (`<what>` = `build`), since the builder does not commit `plan.md` and `b
 `<job_dir>` is absolute; the `project.json` pathspec is relative to `<record_dir>`. Unrelated changes
 in the home are left alone: `commit -- <paths>` commits only those paths. If add or commit fails (for
 example no git `user.name`/`user.email` in the home), stop and show the error.
-If `record_repo_ok` is false (the home is not a repository of its own, so git would use a parent
-repository), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_home.py --create` once and re-run
-state; if it is still false, stop and show the state.
+When `records_enabled` is false, do nothing: the artifacts stay as files in the job folder and nothing is committed.
+Every "Record" step below, the builder record after build and the merge request records included, means
+this conditional step for a registered project; a legacy job always records, as described next.
 
 **Repository without a project (legacy).** If `git -C <toplevel> status --porcelain -- <job_dir>` is
 non-empty: `git -C <toplevel> add -- <job_dir>` then

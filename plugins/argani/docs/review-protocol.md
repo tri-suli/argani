@@ -124,7 +124,8 @@ after round 2, and the hook denies `round-3`.
 The builder commits code, and `plan.md` and `build.md` when the slug folder is inside the repository.
 The factory orchestrator commits the slug folder (only paths under it) after each step: for a
 registered project into the argani home's git repository, so the audit trail is in the home's
-history; for a legacy repository onto the job branch.
+history, but only when the user has made the home a git repository of its own (otherwise nothing is
+committed and the artifacts stay as files); for a legacy repository onto the job branch.
 
 ## Agents
 

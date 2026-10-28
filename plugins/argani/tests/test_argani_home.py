@@ -54,7 +54,8 @@ def test_home_with_parent_segment_is_refused(tmp_path):
 
 def test_first_creation_makes_the_home_and_projects_folders(tmp_path):
     home = tmp_path / "board"
-    assert argani_home.ensure_home(home) == [home, home / "projects", home / ".git"]
+    assert argani_home.ensure_home(home) == [home, home / "projects"]
+    assert not (home / ".git").exists()
     assert (home / "projects").is_dir()
 
 
@@ -68,12 +69,20 @@ def test_second_creation_makes_nothing_and_keeps_existing_files(tmp_path):
     assert entry.read_text() == "kept\n"
 
 
-def test_the_home_becomes_a_git_repository_once(tmp_path):
+def test_the_git_flag_is_true_only_for_a_repository_of_the_homes_own(tmp_path):
     home = tmp_path / "board"
     argani_home.ensure_home(home)
-    assert (home / ".git").is_dir()
+    assert argani_home.report(home)["git"] is False
+    subprocess.run(["git", "-C", str(home), "init", "-q"], check=True, capture_output=True)
     assert argani_home.report(home)["git"] is True
     assert argani_home.ensure_home(home) == []
+
+
+def test_a_home_nested_in_another_repository_is_not_a_repository_of_its_own(tmp_path):
+    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True, capture_output=True)
+    home = tmp_path / "board"
+    argani_home.ensure_home(home)
+    assert argani_home.report(home)["git"] is False
 
 
 def test_an_existing_repository_in_the_home_is_kept(tmp_path):
@@ -87,16 +96,10 @@ def test_an_existing_repository_in_the_home_is_kept(tmp_path):
     assert log.stdout.split() == ["kept"]
 
 
-def test_a_failing_git_init_is_a_home_error(tmp_path, monkeypatch):
-    monkeypatch.setenv("PATH", str(tmp_path))
-    with pytest.raises(argani_home.HomeError, match="git init"):
-        argani_home.ensure_home(tmp_path / "board")
-
-
 def test_missing_projects_folder_is_added_to_an_existing_home(tmp_path):
     home = tmp_path / "board"
     home.mkdir()
-    assert argani_home.ensure_home(home) == [home / "projects", home / ".git"]
+    assert argani_home.ensure_home(home) == [home / "projects"]
 
 
 @pytest.mark.parametrize("blocked", ["home", "projects"])
@@ -127,7 +130,7 @@ def test_script_create_reports_the_folders_it_made(tmp_path):
     home = tmp_path / "board"
     first = json.loads(run_script("--create", env_home=home).stdout)
     second = json.loads(run_script("--create", env_home=home).stdout)
-    assert first["exists"] and first["created"] == [str(home), str(home / "projects"), str(home / ".git")]
+    assert first["exists"] and first["created"] == [str(home), str(home / "projects")]
     assert second["exists"] and second["created"] == []
 
 

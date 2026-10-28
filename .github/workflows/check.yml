@@ -22,6 +22,6 @@ jobs:
       - name: Install the Claude Code CLI (plugin validation only; no login needed)
         run: npm install -g @anthropic-ai/claude-code@2.1.312
       - name: Install test dependencies
-        run: python3 -m pip install pytest
+        run: python3 -m pip install pytest pyyaml
       - name: Run every repository check
         run: bash scripts/check.sh

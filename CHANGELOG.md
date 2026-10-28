@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-28
+
+### Added
+
+- Job number in the branch name: `branchPattern` may contain `{n}` once (`feat/common-{n}-{slug}`). The number is assigned once by `/argani:intent` and stored in the intent as a `Number: 56` header line; `artifact_check.py` requires it when the pattern has `{n}`, and the factory state reports it as `number`. `scripts/next_number.py` prints the next number: from the new `branchNumberCommand` (a shell command that prints it, for a project with its own registry) or one more than the highest `Number:` of the project's intents. `/argani:init` offers an `{n}` candidate when existing branches carry a number, and asks for `branchNumberCommand`. The `tasks` source counts only intents that exist (a registered project: its task folders; a legacy repository: the working tree and every local and remote branch), so two intents written at the same time can get the same number and a registry command is the safe choice for teams; deleting an intent frees its number. Migration: adding `{n}` to an existing project makes running jobs invalid until their intent gets a `Number:` line, and their branch name changes. The last non-empty line of `branchNumberCommand` output must be a positive integer.
+
 ## [0.17.0] - 2026-10-28
 
 ### Changed

@@ -44,11 +44,12 @@ def first_word(path):
     return lines[0].split(None, 1)[0] if lines and lines[0].strip() else ""
 
 
-def document_state(path, kind, branch_types=()):
+def document_state(path, kind, branch_types=(), number_required=False):
     """{exists, status}: status is draft | approved | invalid | missing."""
     if not path.is_file():
         return {"exists": False, "status": "missing"}
-    violations, status = artifact_check.run_check(kind, artifact_check.normalize(read_text(path)), branch_types)
+    violations, status = artifact_check.run_check(kind, artifact_check.normalize(read_text(path)),
+                                           branch_types, number_required)
     return {"exists": True, "status": "invalid" if violations else status}
 
 
@@ -233,17 +234,19 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
         return None
     toplevel = Path(config["toplevel"]).resolve() if config["toplevel"] else None
     current = argani_config.current_branch(start_dir) if toplevel and with_working_tree else None
-    intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"])
+    intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"],
+                           argani_config.NUMBER_PLACEHOLDER in config["branchPattern"])
     intent_path = job_dir / "intent.md"
     intent_text = artifact_check.normalize(read_text(intent_path)) if intent_path.is_file() else ""
     job_type = artifact_check.intent_type(intent_text)
+    number = artifact_check.intent_number(intent_text)
     risk = artifact_check.intent_risk(intent_text) or argani_config.DEFAULT_RISK
     try:
-        branch = argani_config.job_branch(config, slug, job_type)
+        branch = argani_config.job_branch(config, slug, job_type, number)
     except ValueError:
-        if intent["status"] != "invalid":  # a protected branch, not a missing type
+        if intent["status"] != "invalid":  # a protected branch, not a missing type or number
             raise
-        branch = None  # the intent names no valid Type yet; the stage stops at intent approval
+        branch = None  # the intent names no valid Type or Number yet; the stage stops at intent approval
     spec = document_state(job_dir / "spec.md", "Spec")
     build_path = job_dir / "build.md"
     build = {
@@ -278,6 +281,7 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
         "records_enabled": records_enabled(config) if with_working_tree else None,
         "record_dir": config["home"] if config["project"] else (str(toplevel) if toplevel else None),
         "type": job_type,
+        "number": number,
         "branch": branch,
         "current_branch": current,
         "on_job_branch": branch is not None and current == branch,
@@ -312,7 +316,7 @@ def missing_job_branch_hint(config, slug):
     try:
         return argani_config.job_branch(config, slug)
     except ValueError:
-        return config["branchPattern"].replace("{slug}", slug).replace("{type}", "<type>")
+        return config["branchPattern"].replace("{slug}", slug).replace("{type}", "<type>").replace("{n}", "<n>")
 
 
 def main(argv):

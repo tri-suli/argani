@@ -59,6 +59,7 @@ RISK_LEVELS = ("low", "medium", "high")
 DEFAULT_RISK = "medium"
 CHECKLIST_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]*$")
+SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")  # a job slug; match with fullmatch
 SLUG_PLACEHOLDER = "{slug}"
 TYPE_PLACEHOLDER = "{type}"
 TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")

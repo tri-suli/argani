@@ -94,6 +94,36 @@ def is_inside(folder, parent):
     return folder == parent or parent in folder.parents
 
 
+def worktree_entries(start_dir):
+    """The worktrees of the repository around start_dir, the main checkout first, each as
+    {"path", "branch" (None when detached), "stale"} where stale means git marks it prunable or its
+    folder is gone. Empty when git fails."""
+    result = subprocess.run(["git", "--no-optional-locks", "-C", str(start_dir), "worktree", "list", "--porcelain"],
+                            capture_output=True, text=True)
+    entries = []
+    for line in result.stdout.splitlines() if result.returncode == 0 else []:
+        if line.startswith("worktree "):
+            entries.append({"path": line[len("worktree "):], "branch": None, "stale": False})
+        elif entries and line.startswith("branch refs/heads/"):
+            entries[-1]["branch"] = line[len("branch refs/heads/"):]
+        elif entries and line.split(" ", 1)[0] == "prunable":
+            entries[-1]["stale"] = True
+    for entry in entries:
+        entry["path"] = str(Path(entry["path"]).resolve())
+        entry["stale"] = entry["stale"] or not Path(entry["path"]).is_dir()
+    return entries
+
+
+def job_checkout(entries, branch):
+    """The live worktree (the main checkout included) that has branch checked out, else None."""
+    return next((entry["path"] for entry in entries if entry["branch"] == branch and not entry["stale"]), None)
+
+
+def stale_worktree(entries, branch):
+    """The path of a stale worktree that still holds branch, else None."""
+    return next((entry["path"] for entry in entries if entry["branch"] == branch and entry["stale"]), None)
+
+
 def is_dirty(toplevel, excluded_folders):
     """Uncommitted changes outside the excluded folders (the job folder and, for a registered
     project, the argani home: their files are expected to be untracked); folders outside the
@@ -119,9 +149,12 @@ def changed_paths(toplevel, base_branch, branch, config):
     return result.stdout.split("\n")[:-1] if result.returncode == 0 else None
 
 
-def excluded_folders(config, job_dir):
-    """Folders whose files never make the repository dirty."""
-    return [job_dir, *([Path(config["home"]).resolve()] if config["project"] else [])]
+def excluded_folders(config, job_dir, main_checkout=None):
+    """Folders whose files never make the repository dirty: the job folder, the argani home of a
+    registered project and the folder holding the worktrees (an unignored worktree folder)."""
+    folder = argani_config.worktree_folder(config)
+    worktrees = [Path(main_checkout) / folder] if folder and main_checkout else []
+    return [job_dir, *([Path(config["home"]).resolve()] if config["project"] else []), *worktrees]
 
 
 def review_plan(rounds, reviewers, build_text):
@@ -156,8 +189,11 @@ def review_plan(rounds, reviewers, build_text):
     return "rework", n + 1, n, None
 
 
-def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_text):
-    """Returns (stage, next sentence, review_round, rework_from)."""
+def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_text, create_worktree=None,
+                 stale=None):
+    """Returns (stage, next sentence, review_round, rework_from). create_worktree, when set, is the
+    worktree to create before a builder can run; stale, when set, is (stale worktree path, main
+    checkout) of the job branch, which blocks the builder until it is pruned."""
     reviewers = config["reviewers"]
     approve_spec = f"/argani:spec approve {slug} then /argani:factory {slug}"
     if mr["exists"]:
@@ -188,15 +224,19 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
             rework_from = rounds[-1]["n"]
             human_only = all(name == "human" for name in rounds[-1]["present"])
             review_round = rework_from if human_only else rework_from + 1
+        if stale:
+            return "needs-build", stale_message(*stale), review_round, rework_from
         cut_off = "; the existing build.md is cut off (partial)" if build["exists"] else ""
         address = f" to address review/round-{rework_from}/" if rework_from else ""
-        return ("needs-build", f"Spawn argani:builder{address}{cut_off}, then run a review round.",
+        return ("needs-build", f"{spawn_builder(create_worktree)}{address}{cut_off}, then run a review round.",
                 review_round, rework_from)
     if action == "review":
         return ("needs-review", f"Run review round {review_round} with all reviewers "
                 f"({', '.join(reviewers)}) in one message and wait for all.", review_round, None)
     if action == "rework":
-        return ("needs-rework", f"Spawn a NEW argani:builder to address review/round-{rework_from}/, "
+        if stale:
+            return "needs-rework", stale_message(*stale), review_round, rework_from
+        return ("needs-rework", f"{spawn_builder(create_worktree, new=True)} to address review/round-{rework_from}/, "
                 f"then run review round {review_round}.", review_round, rework_from)
     if action == "decide":
         ignored = [n for n, v in rounds[-1]["verdicts"].items()
@@ -207,6 +247,15 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
                 review_round, None)
     return ("escalate", f"Stop: {reason}. A human must decide (needs-human); "
             "/argani:factory rework is refused at round 3.", None, None)
+
+
+def stale_message(path, main_checkout):
+    return f"Stop: the worktree {path} is stale; run `git worktree prune` in {main_checkout}, then re-run."
+
+
+def spawn_builder(create_worktree, new=False):
+    spawn = "Spawn a NEW argani:builder" if new else "Spawn argani:builder"
+    return f"Create the worktree {create_worktree}, then {spawn[0].lower()}{spawn[1:]}" if create_worktree else spawn
 
 
 def records_enabled(config):
@@ -233,7 +282,9 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     if job_dir is None or not job_dir.is_dir():
         return None
     toplevel = Path(config["toplevel"]).resolve() if config["toplevel"] else None
-    current = argani_config.current_branch(start_dir) if toplevel and with_working_tree else None
+    if config["worktreePath"] and config["project"] is None:
+        raise ValueError("worktreePath is only supported for a registered project "
+                         "(legacy jobs keep their artifacts on the branch)")
     intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"],
                            argani_config.NUMBER_PLACEHOLDER in config["branchPattern"])
     intent_path = job_dir / "intent.md"
@@ -255,6 +306,21 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     }
     build_text = read_text(build_path) if build["exists"] else ""
     base_branch = argani_config.base_branch_for(config, job_type)
+    worktree_mode = bool(config["worktreePath"])
+    entries = worktree_entries(toplevel) if worktree_mode and toplevel else []
+    main_checkout = entries[0]["path"] if entries else None
+    worktree = argani_config.worktree_path(config, branch, main_checkout) if branch else None
+    stale = stale_worktree(entries, branch) if branch else None
+    current = checkout = dirty = None
+    if toplevel and with_working_tree:
+        if worktree_mode:
+            checkout = job_checkout(entries, branch)
+            current = argani_config.current_branch(checkout) if checkout else None
+            dirty = is_dirty(Path(checkout), excluded_folders(config, job_dir, main_checkout)) if checkout else None
+        else:
+            current = argani_config.current_branch(start_dir)
+            checkout = str(toplevel) if branch is not None and current == branch else None
+            dirty = is_dirty(toplevel, excluded_folders(config, job_dir))
     paths = changed_paths(toplevel, base_branch, branch, config) if toplevel else None
     reviewers = argani_config.active_reviewers(config, paths)
     config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
@@ -271,7 +337,10 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
         partial.append("decision")
 
     stage, next_step, review_round, rework_from = decide_stage(
-        slug, config, intent, spec, build, rounds, decision, mr, build_text)
+        slug, config, intent, spec, build, rounds, decision, mr, build_text,
+        create_worktree=(f"{worktree} for {branch}"
+                         if worktree and with_working_tree and checkout is None and not stale else None),
+        stale=(stale, main_checkout) if stale and with_working_tree else None)
     return {
         "slug": slug,
         "project": config["project"],
@@ -283,9 +352,13 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
         "type": job_type,
         "number": number,
         "branch": branch,
+        "worktree_mode": worktree_mode,
+        "main_checkout": main_checkout,
+        "worktree_path": str(worktree) if worktree else None,
+        "checkout": checkout,
         "current_branch": current,
         "on_job_branch": branch is not None and current == branch,
-        "dirty": is_dirty(toplevel, excluded_folders(config, job_dir)) if toplevel and with_working_tree else None,
+        "dirty": dirty,
         "base_branch": base_branch,
         "risk": risk,
         "reviewers": reviewers,

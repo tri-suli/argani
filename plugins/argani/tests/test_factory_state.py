@@ -698,3 +698,101 @@ def test_without_working_tree_skips_status_and_branch_calls(hub_job, monkeypatch
     state = factory_state.build_state("demo", str(hub_job.root), config=config, with_working_tree=False)
     assert state["dirty"] is None and state["current_branch"] is None and state["records_enabled"] is None
     assert not any("status" in command for command in calls)
+
+
+WORKTREE_CONFIG = {"worktreePath": ".worktrees/{branch}"}
+
+
+def add_worktree(repo, branch="feature/demo", folder="feature-demo"):
+    git(repo, "worktree", "add", "-q", "-b", branch, str(repo / ".worktrees" / folder), "main")
+    return (repo / ".worktrees" / folder).resolve()
+
+
+def test_worktree_mode_without_a_worktree_asks_to_create_it(hub_job):
+    hub_job.set_config(**WORKTREE_CONFIG)
+    hub_job.intent()
+    hub_job.spec()
+    state = hub_job.state()
+    assert state["worktree_mode"] is True
+    assert state["worktree_path"] == str(hub_job.root.resolve() / ".worktrees" / "feature-demo")
+    assert (state["checkout"], state["on_job_branch"], state["current_branch"], state["dirty"]) == (None, False, None, None)
+    assert state["next"].startswith(f"Create the worktree {state['worktree_path']} for feature/demo, then spawn argani:builder")
+
+
+def test_worktree_mode_evaluates_the_worktree_not_the_main_checkout(hub_job):
+    hub_job.set_config(**WORKTREE_CONFIG)
+    hub_job.intent()
+    hub_job.spec()
+    worktree = add_worktree(hub_job.root)
+    state = hub_job.state()
+    assert state["checkout"] == str(worktree)
+    assert (state["on_job_branch"], state["current_branch"], state["dirty"]) == (True, "feature/demo", False)
+    assert state["next"].startswith("Spawn argani:builder")
+    (hub_job.root / "stray.txt").write_text("x")
+    assert hub_job.state()["dirty"] is False
+    (worktree / "stray.txt").write_text("x")
+    assert hub_job.state()["dirty"] is True
+
+
+def test_the_main_checkout_holding_the_branch_is_the_checkout(hub_job):
+    hub_job.set_config(**WORKTREE_CONFIG)
+    hub_job.intent()
+    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
+    (hub_job.root / ".worktrees").mkdir()
+    (hub_job.root / ".worktrees" / "note.txt").write_text("x")
+    state = hub_job.state()
+    assert state["checkout"] == str(hub_job.root.resolve())
+    assert state["dirty"] is False  # the unignored worktree folder does not count
+
+
+def test_without_worktree_mode_the_checkout_is_the_toplevel_on_the_job_branch(hub_job):
+    hub_job.intent()
+    assert hub_job.state()["checkout"] is None
+    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
+    state = hub_job.state()
+    assert (state["worktree_mode"], state["worktree_path"], state["checkout"]) == (False, None, str(hub_job.root.resolve()))
+
+
+def test_worktree_mode_needs_a_registered_project(make_repo):
+    repo = make_repo(config={**JOB_CONFIG, **WORKTREE_CONFIG})
+    (repo / "argani" / "demo").mkdir(parents=True)
+    with pytest.raises(ValueError, match="only supported for a registered project"):
+        factory_state.build_state("demo", str(repo))
+
+
+def test_the_state_is_the_same_from_any_worktree(hub_job):
+    hub_job.set_config(**WORKTREE_CONFIG)
+    hub_job.intent()
+    add_worktree(hub_job.root)
+    other = add_worktree(hub_job.root, "other", "other")
+    from_main = hub_job.state()
+    from_other = json.loads(subprocess.run([sys.executable, str(SCRIPT), "demo", str(other)],
+                                           capture_output=True, text=True).stdout)
+    keys = ("worktree_path", "checkout", "main_checkout", "on_job_branch", "dirty")
+    assert {key: from_other[key] for key in keys} == {key: from_main[key] for key in keys}
+    assert from_main["main_checkout"] == str(hub_job.root.resolve())
+
+
+def test_a_stale_worktree_is_reported_not_used(hub_job):
+    hub_job.set_config(**WORKTREE_CONFIG)
+    hub_job.intent()
+    hub_job.spec()
+    worktree = add_worktree(hub_job.root)
+    shutil.rmtree(worktree)
+    state = hub_job.state()
+    assert (state["checkout"], state["on_job_branch"]) == (None, False)
+    assert state["next"] == (f"Stop: the worktree {worktree} is stale; run `git worktree prune` in "
+                             f"{hub_job.root.resolve()}, then re-run.")
+
+
+@pytest.mark.parametrize("pattern, folder", [(".worktrees/{branch}", ".worktrees"),
+                                             (".claude/worktrees/{branch}", ".claude/worktrees")])
+def test_the_folder_before_the_branch_never_makes_the_main_checkout_dirty(hub_job, pattern, folder):
+    hub_job.set_config(worktreePath=pattern)
+    hub_job.intent()
+    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
+    (hub_job.root / folder).mkdir(parents=True)
+    (hub_job.root / folder / "note.txt").write_text("x")
+    assert hub_job.state()["dirty"] is False
+    (hub_job.root / "stray.txt").write_text("x")
+    assert hub_job.state()["dirty"] is True

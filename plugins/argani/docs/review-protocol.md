@@ -161,6 +161,7 @@ Verify command: <verifyCommand>
 Commit skill: <commitSkill, or "none">
 Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <N>
+Checkout: <state checkout; the toplevel without worktree mode>
 Findings to address: <abs round folders>            # only when N > 1: round N-1 with CHANGES,
                                                      # and round N when it holds review-human.md
 
@@ -171,12 +172,14 @@ Checklist file: <plugin root>/checklists/<name>.md
 Slug folder: <abs slug folder>
 Round: <N>
 Base branch: <baseBranch>
+Checkout: <state checkout; the toplevel without worktree mode>
 
 # argani:approver
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
 Round folder: <abs review/round-N>
 Base branch: <baseBranch>
+Checkout: <state checkout; the toplevel without worktree mode>
 Reviewers: <comma-separated checklist names>
 Protected paths: <comma-separated globs, or "none">
 ```

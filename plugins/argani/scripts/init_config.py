@@ -114,6 +114,17 @@ def numbered_branch_patterns(names):
     return [f"{prefix}{argani_config.NUMBER_PLACEHOLDER}-{argani_config.SLUG_PLACEHOLDER}" for prefix, _ in shared]
 
 
+def worktree_path_candidates(top):
+    """worktreePath candidates when the repository already uses worktrees (another worktree or a
+    .worktrees/ or .claude/worktrees/ folder), else an empty list."""
+    listing = git_cli.git_output(top, "worktree", "list", "--porcelain") or ""
+    has_other_worktree = sum(line.startswith("worktree ") for line in listing.splitlines()) > 1
+    existing_claude_folder = (top / ".claude" / "worktrees").is_dir()
+    if not (has_other_worktree or existing_claude_folder or (top / ".worktrees").is_dir()):
+        return []
+    return [".worktrees/{branch}", *([".claude/worktrees/{branch}"] if existing_claude_folder else [])]
+
+
 def remote_host(top):
     urls = _git_lines(top, "remote", "get-url", "origin")
     url = urls[0] if urls else ""
@@ -234,6 +245,15 @@ def propose(start_dir="."):
     if "develop" in names:
         questions.append({"key": "baseBranch", "candidates": ["develop", default_branch],
                           "ask": "A develop branch exists. Do jobs branch from and merge into develop (Git Flow)?"})
+
+    worktree_candidates = worktree_path_candidates(top)
+    if worktree_candidates:
+        questions.append({"key": "worktreePath", "candidates": worktree_candidates,
+                          "ask": "Jobs run in their own worktree? The factory then creates <pattern> per job "
+                                 "branch and never switches branches in the main checkout. Add the folder to "
+                                 ".gitignore. "
+                                 "A worktreeCommand must not depend on the working directory; it can use {toplevel} "
+                                 "and {path}."})
 
     questions.append({"key": "commitTrailers",
                       "candidates": ["Co-Authored-By: {model} <noreply@anthropic.com>"],

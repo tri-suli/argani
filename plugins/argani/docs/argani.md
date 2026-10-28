@@ -135,7 +135,8 @@ reviews and merges). `plan.md` is written by the builder before it changes any c
 reviewed together with the diff in the merge request. Factory mode is expensive (several agents
 per job, up to two rounds), so use it only for jobs with clear acceptance criteria.
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
-`scripts/factory_state.py <slug>`, which only reports and never writes.
+`scripts/factory_state.py <slug>`, which only reports and never writes. With `worktreePath` in the
+config the factory runs every job in its own git worktree and never switches branches in the main checkout.
 
 Who commits what: the builder commits code to the job branch (and `plan.md` and `build.md` when the
 job folder is inside the repository). The orchestrator records the job folder (`intent.md`, `spec.md`,

@@ -33,6 +33,8 @@ DEFAULTS = {
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
+    "worktreePath": None,  # folder with {branch} for each job's own git worktree; None = work in the main checkout
+    "worktreeCommand": None,  # creates the worktree; else argani runs git worktree add
     "branchPattern": "feature/{slug}",
     "branchNumberCommand": None,  # prints the next job number for {n} in branchPattern; else argani counts the intents
     "recordCommitMessage": "chore(argani): record {slug} {what}",
@@ -131,7 +133,11 @@ QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
 MR_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{title}", "{bodyFile}")
 
 
-def _mr_command(value):
+WORKTREE_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{path}", "{toplevel}")
+BRANCH_PLACEHOLDER = "{branch}"
+
+
+def _command_with_placeholders(value, allowed):
     command = _optional_string(value)
     if not command.strip():
         raise ValueError("must not be empty")
@@ -139,10 +145,18 @@ def _mr_command(value):
         raise ValueError("must be a single line")
     if QUOTED_PLACEHOLDER.search(command):
         raise ValueError("placeholders are quoted by argani; write {title} without quotes")
-    unknown = [name for name in PLACEHOLDER.findall(command) if name not in MR_COMMAND_PLACEHOLDERS]
+    unknown = [name for name in PLACEHOLDER.findall(command) if name not in allowed]
     if unknown:
-        raise ValueError(f"uses {', '.join(unknown)}; the placeholders are {', '.join(MR_COMMAND_PLACEHOLDERS)}")
+        raise ValueError(f"uses {', '.join(unknown)}; the placeholders are {', '.join(allowed)}")
     return command
+
+
+def _mr_command(value):
+    return _command_with_placeholders(value, MR_COMMAND_PLACEHOLDERS)
+
+
+def _worktree_command(value):
+    return _command_with_placeholders(value, WORKTREE_COMMAND_PLACEHOLDERS)
 
 
 def _optional_string(value):
@@ -164,6 +178,16 @@ def _artifact_root(value):
     if parts[0] == ".git":
         raise ValueError(f"'{root}' is inside .git")
     return "/".join(parts)
+
+
+def _worktree_path(value):
+    """A folder relative to the toplevel with {branch} exactly once, inside the repository and outside .git."""
+    path = _artifact_root(value)
+    if path.count(BRANCH_PLACEHOLDER) != 1:
+        raise ValueError(f"must contain {BRANCH_PLACEHOLDER} exactly once, for example '.worktrees/{{branch}}'")
+    if BRANCH_PLACEHOLDER in path.split("/", 1)[0]:
+        raise ValueError("put the worktrees in a folder, for example '.worktrees/{branch}'")
+    return path
 
 
 def _check_branch_name(name):
@@ -429,6 +453,8 @@ COERCERS = {
     "protectedBranches": _protected_branches,
     "verifyCommand": _optional_string,
     "mrCommand": _mr_command,
+    "worktreePath": _worktree_path,
+    "worktreeCommand": _worktree_command,
     "branchPattern": _branch_pattern,
     "branchNumberCommand": _branch_number_command,
     "recordCommitMessage": _record_commit_message,
@@ -589,12 +615,30 @@ if __name__ == "__main__":
     sys.exit(main(sys.argv))
 
 
-def mr_command_for(config, values):
-    """The configured mrCommand with every placeholder replaced by the shell-quoted value, or None
-    when there is no mrCommand. values maps the placeholder names (without braces) to strings."""
-    command = config["mrCommand"]
-    if not command:
-        return None
+def fill_command(template, values):
+    """template with every {name} replaced by the shell-quoted value; values maps names (without braces) to strings."""
     for name, value in values.items():
-        command = command.replace("{" + name + "}", shlex.quote(value))
-    return command
+        template = template.replace("{" + name + "}", shlex.quote(value))
+    return template
+
+
+def mr_command_for(config, values):
+    """The configured mrCommand filled by fill_command, or None when there is no mrCommand."""
+    return fill_command(config["mrCommand"], values) if config["mrCommand"] else None
+
+
+def worktree_folder(config):
+    """The folders of worktreePath before the one holding {branch}, relative to the main checkout
+    ('.claude/worktrees' for '.claude/worktrees/{branch}'), or None when worktree mode is off."""
+    if not config["worktreePath"]:
+        return None
+    parts = config["worktreePath"].split("/")
+    return "/".join(parts[:next(index for index, part in enumerate(parts) if BRANCH_PLACEHOLDER in part)])
+
+
+def worktree_path(config, branch, main_checkout):
+    """Absolute folder of the branch's worktree under the main checkout, or None when worktree mode is off."""
+    pattern = config["worktreePath"]
+    if not pattern or not main_checkout:
+        return None
+    return Path(main_checkout).resolve() / pattern.replace(BRANCH_PLACEHOLDER, branch.replace("/", "-"))

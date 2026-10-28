@@ -7,13 +7,17 @@ color: green
 ---
 
 You implement the work for one job. You have no memory of earlier work; everything you need is in
-files named in your prompt. Your prompt gives `Plugin root`, `Slug folder`, `Job folder in repository` (`yes` or `no`), `Branch`, `Verify command`,
+files named in your prompt. Your prompt gives `Plugin root`, `Slug folder`, `Job folder in repository` (`yes` or `no`), `Branch`, `Checkout`, `Verify command`,
 `Round` and, for round 2 or later, `Findings to address` (one or more round folders); "the plugin root" below means that value.
 
 ## Branch check
 
-Run `git rev-parse --abbrev-ref HEAD`. If it is not the `Branch` from your prompt, **stop** without
+`Checkout` is the folder where the code lives: the repository, or the job's own git worktree. Run
+`git -C <Checkout> rev-parse --abbrev-ref HEAD`. If it is not the `Branch` from your prompt, **stop** without
 changing anything and reply exactly `STOPPED wrong branch <current branch name>`. Do not switch branches.
+
+From here on, run the verify command and every git command inside the `Checkout` (`cd <Checkout>`
+first in your Bash command, or `git -C <Checkout>`), and edit code only with absolute paths under it.
 
 ## Read first
 
@@ -42,7 +46,7 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
    trailers from the prompt and no others. Commit `plan.md` and `build.md` too only when `Job folder in
    repository` is `yes`; when it is `no` the slug folder is outside the repository, leave them uncommitted
    (the orchestrator records them in the argani home). At the end the
-   working tree must be clean (`git status --porcelain` prints nothing).
+   working tree must be clean (`git -C <Checkout> status --porcelain` prints nothing).
 
 ## Rules
 

@@ -11,6 +11,7 @@ Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
 import fnmatch
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -65,7 +66,7 @@ TYPE_PLACEHOLDER = "{type}"
 TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 WHAT_PLACEHOLDER = "{what}"
 MODEL_PLACEHOLDER = "{model}"
-PLACEHOLDER = re.compile(r"\{[^{}]*\}")
+PLACEHOLDER = re.compile(r"(?<!\$)\{[A-Za-z]\w*\}")
 TRAILER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*: \S.*$")
 GLOB_CHARS = "*?["
 
@@ -122,6 +123,24 @@ def _reviewer_names(value):
     if "human" in names:
         raise ValueError("'human' is reserved and cannot be a reviewer")
     return names
+
+
+QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
+MR_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{title}", "{bodyFile}")
+
+
+def _mr_command(value):
+    command = _optional_string(value)
+    if not command.strip():
+        raise ValueError("must not be empty")
+    if "\n" in command or "\r" in command:
+        raise ValueError("must be a single line")
+    if QUOTED_PLACEHOLDER.search(command):
+        raise ValueError("placeholders are quoted by argani; write {title} without quotes")
+    unknown = [name for name in PLACEHOLDER.findall(command) if name not in MR_COMMAND_PLACEHOLDERS]
+    if unknown:
+        raise ValueError(f"uses {', '.join(unknown)}; the placeholders are {', '.join(MR_COMMAND_PLACEHOLDERS)}")
+    return command
 
 
 def _optional_string(value):
@@ -390,7 +409,7 @@ COERCERS = {
     "baseBranch": _branch,
     "protectedBranches": _protected_branches,
     "verifyCommand": _optional_string,
-    "mrCommand": _optional_string,
+    "mrCommand": _mr_command,
     "branchPattern": _branch_pattern,
     "recordCommitMessage": _record_commit_message,
     "commitTrailers": _commit_trailers,
@@ -548,3 +567,14 @@ def main(argv):
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
+
+
+def mr_command_for(config, values):
+    """The configured mrCommand with every placeholder replaced by the shell-quoted value, or None
+    when there is no mrCommand. values maps the placeholder names (without braces) to strings."""
+    command = config["mrCommand"]
+    if not command:
+        return None
+    for name, value in values.items():
+        command = command.replace("{" + name + "}", shlex.quote(value))
+    return command

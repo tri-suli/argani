@@ -1,4 +1,5 @@
 import json
+import pytest
 import subprocess
 import sys
 from pathlib import Path
@@ -88,3 +89,43 @@ def test_default_branch_uses_init_default_branch_from_global_config(tmp_path, mo
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
     repo = make_repo(tmp_path / "repo")  # created on branch trunk: no main or master
     assert argani_config.load_config(repo)["defaultBranch"] == "develop"
+
+
+@pytest.mark.parametrize("command", [
+    "gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}",
+    "gh pr create --fill --head {branch}",
+    "my-tool --head hardcoded",
+])
+def test_mr_command_accepts_its_placeholders(command):
+    assert argani_config._mr_command(command) == command
+
+
+@pytest.mark.parametrize("command, message", [
+    ("gh pr create --head {slug}", "{slug}"),
+    ("gh pr create --head {branch} --label {unknown}", "{unknown}"),
+    ("", "empty"),
+    ("   ", "empty"),
+    ("gh pr create\ngh pr view", "single line"),
+])
+def test_mr_command_rejects_unknown_placeholders_and_empty_or_multiline_values(command, message):
+    with pytest.raises(ValueError, match=message):
+        argani_config._mr_command(command)
+
+
+@pytest.mark.parametrize("command", ['gh --title "{title}"', "gh --body-file '{bodyFile}'", 'gh --title="{title}"'])
+def test_mr_command_rejects_quoted_placeholders(command):
+    with pytest.raises(ValueError, match="quoted by argani"):
+        argani_config._mr_command(command)
+
+
+def test_mr_command_ignores_shell_variables_and_braces():
+    command = "gh pr create --repo ${GH_REPO} --label {a,b} --head {branch}"
+    assert argani_config._mr_command(command) == command
+
+
+def test_mr_command_for_keeps_a_path_with_a_space_as_one_argument():
+    import shlex
+    config = {"mrCommand": "tool --body-file {bodyFile} --head {branch}"}
+    command = argani_config.mr_command_for(config, {"bodyFile": "/my home/mr-body.md", "branch": "feat/x"})
+    assert shlex.split(command) == ["tool", "--body-file", "/my home/mr-body.md", "--head", "feat/x"]
+    assert argani_config.mr_command_for({"mrCommand": None}, {"branch": "x"}) is None

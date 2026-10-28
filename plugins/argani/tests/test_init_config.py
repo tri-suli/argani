@@ -81,9 +81,9 @@ def test_a_develop_branch_asks_about_git_flow(make_repo):
 
 
 @pytest.mark.parametrize("url, expected", [
-    ("git@github.com:o/r.git", "gh pr create --fill --base {base} --head {branch}"),
+    ("git@github.com:o/r.git", "gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"),
     ("https://gitlab.example.com/o/r.git",
-     "glab mr create --fill --target-branch {base} --source-branch {branch}"),
+     "glab mr create --target-branch {base} --source-branch {branch} --title {title} --description-file {bodyFile}"),
 ])
 def test_merge_request_command_follows_the_remote_host(make_repo, url, expected):
     repo = make_repo()

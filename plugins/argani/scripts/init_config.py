@@ -233,13 +233,14 @@ def propose(start_dir="."):
                                  "and record commits) go through it instead of a plain git commit?"})
     host = remote_host(top)
     mr_candidates = {
-        "github": ["gh pr create --fill --base {base} --head {branch}"],
-        "gitlab": ["glab mr create --fill --target-branch {base} --source-branch {branch}"],
+        "github": ["gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"],
+        "gitlab": ["glab mr create --target-branch {base} --source-branch {branch} --title {title} --description-file {bodyFile}"],
     }.get(host, [])
     questions.append({"key": "mrCommand", "candidates": mr_candidates,
                       "ask": "Should the factory push and open the merge request itself? Without mrCommand "
-                             "nothing is pushed. The factory fills {branch} with the job branch and {base} "
-                             "with its base branch."})
+                             "nothing is pushed. The factory fills {branch} with the job branch, {base} with "
+                             "its base branch, {title} with the shell-quoted merge request title and "
+                             "{bodyFile} with the path of the generated description."})
 
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)

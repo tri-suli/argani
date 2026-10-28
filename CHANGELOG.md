@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- `commitSkill`: a repository skill through which every argani commit is made. The builder gets
+  the Skill tool and commits only through it (and stops with `STOPPED commit skill <name>
+  unavailable` if it cannot), and the orchestrator's record commits use it with the job folder as
+  the unit. The skill decides staging, scope and trailers, so `commitTrailers` is not added on
+  top. Without it, commits work as before. `/argani:init` offers a `.claude/skills/*commit*` skill.
 - `agentModels`: the model each argani agent runs on, passed by the skills when they spawn the
   agent (`inherit` leaves it to the session). Only the agents to change need to be given.
 

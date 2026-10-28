@@ -130,3 +130,12 @@ def test_cli_prints_json_and_fails_outside_a_repository(make_repo, tmp_path_fact
 def test_artifact_root_is_always_asked_with_the_default(make_repo):
     item = question(propose(make_repo()), "artifactRoot")
     assert item["candidates"] == ["argani"]
+
+
+def test_a_repository_commit_skill_is_offered(make_repo):
+    repo = make_repo()
+    assert question(propose(repo), "commitSkill") is None
+    skill = repo / ".claude" / "skills" / "git-commit"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: git-commit\n---\n")
+    assert question(propose(repo), "commitSkill")["candidates"] == ["git-commit"]

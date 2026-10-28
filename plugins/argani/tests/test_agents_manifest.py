@@ -48,6 +48,11 @@ def test_every_agent_writes_one_artifact_so_it_lists_write(path):
     assert "Write" in tool_names(parse_frontmatter(path))
 
 
+def test_only_the_builder_may_invoke_skills():
+    for path in AGENT_FILES:
+        assert ("Skill" in tool_names(parse_frontmatter(path))) == (path.stem == "builder"), path.stem
+
+
 @pytest.mark.parametrize("name", ["reviewer", "approver"])
 def test_reviewer_and_approver_have_exact_tool_set(name):
     tools = tool_names(parse_frontmatter(AGENTS_DIR / f"{name}.md"))

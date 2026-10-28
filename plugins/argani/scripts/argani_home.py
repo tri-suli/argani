@@ -28,7 +28,10 @@ def home_path(environ=None):
     """The argani home as an absolute path, from ARGANI_HOME or the default."""
     environ = os.environ if environ is None else environ
     raw = environ.get(ENV_VAR) or DEFAULT_HOME
-    path = Path(raw).expanduser()
+    try:
+        path = Path(raw).expanduser()
+    except RuntimeError as error:  # unknown ~user or no determinable home
+        raise HomeError(f"{ENV_VAR} cannot be expanded: {raw!r}") from error
     if not path.is_absolute():
         raise HomeError(f"{ENV_VAR} must be an absolute path (or start with ~), got {raw!r}")
     if ".." in path.parts:

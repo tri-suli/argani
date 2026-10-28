@@ -1,0 +1,10 @@
+flowchart TD
+    new(["/argani:intent"]) --> backlog["Backlog<br/>intent draft"]
+    backlog -->|human approves intent| design["Design<br/>spec written, waiting for approval"]
+    design -->|human approves spec| progress["In progress<br/>build, review rounds 1-2, decision"]
+    progress -->|CHANGES, round 2| progress
+    progress -->|APPROVE| ready["Ready for MR"]
+    progress -->|ESCALATE or round 3| human["Needs human"]
+    human -->|rework note or decision| progress
+    ready -->|factory opens MR| review["In review<br/>MR open"]
+    review -->|human merges| done(["Done"])

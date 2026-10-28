@@ -27,50 +27,11 @@ The new model turns this around:
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    subgraph plugin["argani@argani (user scope, code only)"]
-        skills["skills: init, board, intent, spec, plan, review, factory, import"]
-        agents["agents: spec-writer, builder, reviewer, approver"]
-        hooks["hooks: guard_git, guard_artifacts, record_events"]
-    end
-
-    subgraph hub["~/.argani (data, private git)"]
-        registry["projects/&lt;project&gt;/project.md"]
-        tasks["projects/&lt;project&gt;/tasks/&lt;slug&gt;/<br/>intent, spec, plan, build, review/, decision, mr"]
-        board["board.md, board.json"]
-        events["events/&lt;date&gt;.jsonl"]
-    end
-
-    subgraph repos["project repositories"]
-        code["code, job branch, merge request"]
-    end
-
-    office["virtual office<br/>(separate repository)"]
-
-    skills -->|read and write| hub
-    agents -->|write task files| tasks
-    agents -->|commit code| code
-    hooks -->|append| events
-    registry -.->|remote URL or path| code
-    office -->|read only| board
-    office -->|read only| events
-```
+Architecture diagram: [`diagrams/architecture.mmd`](diagrams/architecture.mmd)
 
 ## Task flow and board columns
 
-```mermaid
-flowchart TD
-    new(["/argani:intent"]) --> backlog["Backlog<br/>intent draft"]
-    backlog -->|human approves intent| design["Design<br/>spec written, waiting for approval"]
-    design -->|human approves spec| progress["In progress<br/>build, review rounds 1-2, decision"]
-    progress -->|CHANGES, round 2| progress
-    progress -->|APPROVE| ready["Ready for MR"]
-    progress -->|ESCALATE or round 3| human["Needs human"]
-    human -->|rework note or decision| progress
-    ready -->|factory opens MR| review["In review<br/>MR open"]
-    review -->|human merges| done(["Done"])
-```
+Task flow diagram: [`diagrams/task-flow.mmd`](diagrams/task-flow.mmd)
 
 Columns are derived from the `stage` that `factory_state.py` already computes; the board stores no
 separate status:
@@ -89,24 +50,7 @@ separate status:
 
 One scope is one pull request that can be reviewed and tested on its own.
 
-```mermaid
-flowchart LR
-    A1 --> A2
-    A2 --> A3
-    A2 --> A4
-    A4 --> A5
-    A2 --> B1
-    B1 --> B2
-    B1 --> B3
-    B2 --> B4
-    B3 --> B4
-    B4 --> B5
-    B5 --> C1
-    C1 --> C2
-    A4 --> D1
-    D1 --> D2
-    D2 --> D3
-```
+Scope dependency diagram: [`diagrams/scope-dependencies.mmd`](diagrams/scope-dependencies.mmd)
 
 ### Epic A: board foundation
 

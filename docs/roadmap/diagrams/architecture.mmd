@@ -1,0 +1,27 @@
+flowchart LR
+    subgraph plugin["argani@argani (user scope, code only)"]
+        skills["skills: init, board, intent, spec, plan, review, factory, import"]
+        agents["agents: spec-writer, builder, reviewer, approver"]
+        hooks["hooks: guard_git, guard_artifacts, record_events"]
+    end
+
+    subgraph hub["~/.argani (data, private git)"]
+        registry["projects/&lt;project&gt;/project.md"]
+        tasks["projects/&lt;project&gt;/tasks/&lt;slug&gt;/<br/>intent, spec, plan, build, review/, decision, mr"]
+        board["board.md, board.json"]
+        events["events/&lt;date&gt;.jsonl"]
+    end
+
+    subgraph repos["project repositories"]
+        code["code, job branch, merge request"]
+    end
+
+    office["virtual office<br/>(separate repository)"]
+
+    skills -->|read and write| hub
+    agents -->|write task files| tasks
+    agents -->|commit code| code
+    hooks -->|append| events
+    registry -.->|remote URL or path| code
+    office -->|read only| board
+    office -->|read only| events

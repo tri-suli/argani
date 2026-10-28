@@ -97,6 +97,18 @@ def is_dirty(toplevel, job_dir):
     return result.returncode != 0 or bool(result.stdout.strip())  # fail closed
 
 
+def changed_paths(toplevel, base_branch, branch, config):
+    """Paths the job branch changes against its base, or None when unknown (no reviewerPaths, no
+    branch yet, or git failed); None keeps every reviewer."""
+    if not config["reviewerPaths"] or not branch:
+        return None
+    result = subprocess.run(
+        ["git", "--no-optional-locks", "-C", str(toplevel), "diff", "--name-only", f"{base_branch}...{branch}"],
+        capture_output=True, text=True,
+    )
+    return result.stdout.split("\n")[:-1] if result.returncode == 0 else None
+
+
 def review_plan(rounds, reviewers, build_text):
     """Position in the review/rework cycle, derived from the rounds and build.md.
 
@@ -195,8 +207,9 @@ def build_state(slug, start_dir="."):
     current = argani_config.current_branch(start_dir)
     intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"])
     intent_path = job_dir / "intent.md"
-    job_type = (artifact_check.intent_type(artifact_check.normalize(read_text(intent_path)))
-                if intent_path.is_file() else None)
+    intent_text = artifact_check.normalize(read_text(intent_path)) if intent_path.is_file() else ""
+    job_type = artifact_check.intent_type(intent_text)
+    risk = artifact_check.intent_risk(intent_text) or argani_config.DEFAULT_RISK
     try:
         branch = argani_config.job_branch(config, slug, job_type)
     except ValueError:
@@ -210,7 +223,10 @@ def build_state(slug, start_dir="."):
         "complete": build_path.is_file() and has_closing_line(build_path, CLOSING_BUILD),
     }
     build_text = read_text(build_path) if build["exists"] else ""
-    rounds = collect_rounds(job_dir, config["reviewers"])
+    base_branch = argani_config.base_branch_for(config, job_type)
+    reviewers = argani_config.active_reviewers(config, changed_paths(toplevel, base_branch, branch, config))
+    config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
+    rounds = collect_rounds(job_dir, reviewers)
     decision = decision_state(job_dir / "decision.md")
     mr = {"exists": (job_dir / "mr.md").is_file()}
 
@@ -232,7 +248,15 @@ def build_state(slug, start_dir="."):
         "current_branch": current,
         "on_job_branch": branch is not None and current == branch,
         "dirty": is_dirty(toplevel, job_dir),
-        "base_branch": argani_config.base_branch_for(config, job_type),
+        "base_branch": base_branch,
+        "risk": risk,
+        "reviewers": reviewers,
+        "models": {
+            "spec-writer": argani_config.agent_model(config, "spec-writer", risk),
+            "builder": argani_config.agent_model(config, "builder", risk),
+            "approver": argani_config.agent_model(config, "approver", risk),
+            "reviewers": {name: argani_config.agent_model(config, "reviewer", risk, name) for name in reviewers},
+        },
         "protected_branches": config["protectedBranches"],
         "intent": intent,
         "spec": spec,

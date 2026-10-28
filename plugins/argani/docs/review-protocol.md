@@ -53,8 +53,10 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 
 ## Rounds and "wait for all"
 
-- A round is **complete** only when every checklist listed in `reviewers` has a file in
-  `review/round-N/` that ends with the closing line. Do not summarise, decide, or start rework
+- A round is **complete** only when every checklist the job needs has a file in
+  `review/round-N/` that ends with the closing line. The job needs every checklist in `reviewers`,
+  except one scoped by `reviewerPaths` whose paths the job's diff does not touch;
+  `factory_state.py` reports the list as `reviewers`. Do not summarise, decide, or start rework
   on a partial round.
 - `review-human.md` is extra: it does not count toward completeness and does not replace a seat.
 - If any file in a complete round says `CHANGES`, the builder reworks and a new round `N+1` starts.

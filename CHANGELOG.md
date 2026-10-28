@@ -17,13 +17,23 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   the unit. The skill decides staging, scope and trailers, so `commitTrailers` is not added on
   top. Without it, commits work as before. `/argani:init` offers a `.claude/skills/*commit*` skill.
 - `agentModels`: the model each argani agent runs on, passed by the skills when they spawn the
-  agent (`inherit` leaves it to the session). Only the agents to change need to be given.
+  agent (`inherit` leaves it to the session). Only the agents to change need to be given. A value
+  may choose by the job's risk (`{"default": ..., "low"|"medium"|"high": ...}`), and a
+  `reviewer:<checklist>` key overrides `reviewer` for one checklist.
+- Job risk: an optional `Risk: low|medium|high` header line in `intent.md` (default `medium`),
+  checked by `artifact_check.py` and asked by `/argani:intent`.
+- `reviewerPaths`: path globs per checklist; that reviewer runs only when the job's diff touches one
+  of them. `factory_state.py` reports the job's `risk`, its `reviewers`, and the `models` resolved
+  for each agent and reviewer seat. The factory and review skills use them, and a round is
+  complete without a skipped reviewer.
 
 ### Changed
 
-- Default models: spec-writer `sonnet`, builder `opus`, reviewer `opus`, approver `opus`. It used
-  to be reviewer `sonnet` and the others `inherit`. Every agent's frontmatter is now `inherit`,
-  and the factory and review skills pass the model from `agentModels`.
+- Default models follow the weight of each task: spec-writer and approver `opus`; builder `sonnet`,
+  `opus` when risk is high; reviewers `sonnet`, `haiku` when risk is low, with `security` on `opus`,
+  `ux` on `sonnet`, and `ui-design`, `citation` and `format` on `haiku`. It used to be reviewer
+  `sonnet` and the others `inherit`. Every agent's frontmatter is now `inherit`.
+- `glob_to_regex` moved from the artifact guard to `argani_config.py`, shared with `reviewerPaths`.
 
 ## [0.5.0] - 2026-10-28
 

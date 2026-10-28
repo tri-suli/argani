@@ -240,12 +240,11 @@ def test_unknown_trailer_placeholders_are_rejected(tmp_path, trailer):
         argani_config.load_config(repo, strict=True)
 
 
-def test_agent_models_default_and_partial_override(tmp_path):
-    defaults = argani_config.load_config(make_repo(tmp_path / "a"), strict=True)["agentModels"]
-    assert defaults == {"spec-writer": "sonnet", "builder": "opus", "reviewer": "opus", "approver": "opus"}
+def test_agent_models_partial_override_keeps_other_defaults(tmp_path):
     repo = make_repo(tmp_path / "b", '{"agentModels": {"builder": "sonnet", "reviewer": "inherit"}}')
-    assert argani_config.load_config(repo, strict=True)["agentModels"] == {
-        "spec-writer": "sonnet", "builder": "sonnet", "reviewer": "inherit", "approver": "opus"}
+    models = argani_config.load_config(repo, strict=True)["agentModels"]
+    assert models["builder"] == "sonnet" and models["reviewer"] == "inherit"
+    assert models["spec-writer"] == "opus" and models["reviewer:security"] == "opus"
 
 
 @pytest.mark.parametrize("value, reason", [

@@ -24,26 +24,7 @@ SOLE_FILE_WRITERS = {
 }
 
 
-def glob_to_regex(pattern):
-    """`**` crosses directories, `*` and `?` stay inside one path segment."""
-    parts, index = [], 0
-    while index < len(pattern):
-        if pattern.startswith("**/", index):
-            parts.append("(?:.*/)?")
-            index += 3
-        elif pattern.startswith("**", index):
-            parts.append(".*")
-            index += 2
-        elif pattern[index] == "*":
-            parts.append("[^/]*")
-            index += 1
-        elif pattern[index] == "?":
-            parts.append("[^/]")
-            index += 1
-        else:
-            parts.append(re.escape(pattern[index]))
-            index += 1
-    return re.compile("".join(parts) + r"\Z")
+glob_to_regex = argani_config.glob_to_regex
 
 
 def final_content(tool_name, tool_input, path):

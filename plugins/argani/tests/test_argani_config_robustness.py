@@ -238,3 +238,22 @@ def test_unknown_trailer_placeholders_are_rejected(tmp_path, trailer):
     repo = make_repo(tmp_path / "repo", json.dumps({"commitTrailers": [trailer]}))
     with pytest.raises(ValueError, match="the only placeholder is"):
         argani_config.load_config(repo, strict=True)
+
+
+def test_agent_models_default_and_partial_override(tmp_path):
+    defaults = argani_config.load_config(make_repo(tmp_path / "a"), strict=True)["agentModels"]
+    assert defaults == {"spec-writer": "sonnet", "builder": "opus", "reviewer": "opus", "approver": "opus"}
+    repo = make_repo(tmp_path / "b", '{"agentModels": {"builder": "sonnet", "reviewer": "inherit"}}')
+    assert argani_config.load_config(repo, strict=True)["agentModels"] == {
+        "spec-writer": "sonnet", "builder": "sonnet", "reviewer": "inherit", "approver": "opus"}
+
+
+@pytest.mark.parametrize("value, reason", [
+    ('{"tester": "opus"}', "unknown agent tester"),
+    ('{"builder": "gpt"}', "a model is one of"),
+    ('["opus"]', "expected an object"),
+])
+def test_invalid_agent_models_are_rejected(tmp_path, value, reason):
+    repo = make_repo(tmp_path / "repo", f'{{"agentModels": {value}}}')
+    with pytest.raises(ValueError, match=reason):
+        argani_config.load_config(repo, strict=True)

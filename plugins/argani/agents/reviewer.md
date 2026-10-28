@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Reviews the branch diff against one checklist and writes review/round-N/review-<checklist>.md. Spawn with plugin root, checklist, slug folder, round and base branch in the prompt. Writes only its own review file.
-model: sonnet
+model: inherit
 tools: Read, Glob, Grep, Write, Bash(git diff *), Bash(git log *)
 color: yellow
 ---

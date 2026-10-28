@@ -77,6 +77,11 @@ per entry of `commitTrailers`, `{model}` replaced by your own model name (for ex
 `decision` or `merge request` (default `chore(argani): record <slug> <what>`). Also record before the
 push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, `plan.md`, `build.md`.
 
+### Models
+
+Spawn every agent with `model` set to its entry in the config's `agentModels` (`spec-writer`,
+`builder`, `reviewer`, `approver`); when the entry is `inherit`, leave `model` out.
+
 ### Spec-writer prompt
 
 ```

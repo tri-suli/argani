@@ -12,7 +12,7 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
 
 ## Steps
 
-1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`,
+1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` and read `reviewers`, `agentModels`,
    `protectedBranches`, `artifactRoot` and `toplevel`. If `reviewers` contains `human` (a reserved name), **stop**.
    Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py $ARGUMENTS` and take `base_branch` (the
    job's base: `baseBranchByType` for its type, else `baseBranch`); call it `<baseBranch>` below.
@@ -29,7 +29,8 @@ This skill orchestrates only: it writes no files and never edits code. Reviewers
    - Otherwise `N = H + 1`. If `N >= 3`, **stop**: "two rounds maximum, escalate to a human".
 5. The round folder needs no separate step: the Write tool creates it when the first reviewer writes.
    In **a single message**, spawn one Agent call per seat to run, each with
-   `subagent_type: "argani:reviewer"` and this prompt:
+   `subagent_type: "argani:reviewer"`, `model` set to `agentModels.reviewer` (left out when it is
+   `inherit`), and this prompt:
 
    ```
    Plugin root: ${CLAUDE_PLUGIN_ROOT}

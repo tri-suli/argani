@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-28
+
+### Added
+
+- `agentModels`: the model each argani agent runs on, passed by the skills when they spawn the
+  agent (`inherit` leaves it to the session). Only the agents to change need to be given.
+
+### Changed
+
+- Default models: spec-writer `sonnet`, builder `opus`, reviewer `opus`, approver `opus`. It used
+  to be reviewer `sonnet` and the others `inherit`. Every agent's frontmatter is now `inherit`,
+  and the factory and review skills pass the model from `agentModels`.
+
 ## [0.5.0] - 2026-10-28
 
 ### Changed

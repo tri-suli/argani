@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Propose a .claude/argani.json for the repository containing a directory.
+"""Propose the project.json config for the repository containing a directory.
 
 Usage: python3 init_config.py [dir]
 
-Prints JSON: toplevel, configPath, exists, proposal (keys to write), and questions (what a human
-must decide before writing). Reads files and git only, never writes. Exit 0 when inside a git
-repository, exit 1 otherwise. The /argani:init skill asks the questions and writes the file.
+Prints JSON: toplevel, project (proposed name), remotes, realPath, home, projectFile, registered
+(the project this repository already belongs to, or null), nameTaken, homeError or registryError,
+legacyConfig, legacyExists (and
+legacyKeys when it exists), defaultBranch, proposal (config keys to register), and questions (what
+a human must decide first). Reads files and git only, never writes. Exit 0 when inside a git
+repository, exit 1 otherwise. The /argani:init skill asks the questions and runs register_project.py.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -15,16 +19,11 @@ from collections import Counter
 from pathlib import Path
 
 import argani_config
+import argani_home
+import git_cli
+import project_registry
 
 NPM_DEFAULT_TEST = 'echo "Error: no test specified"'
-COMMITLINT_FILES = (
-    "commitlint.config.js", "commitlint.config.cjs", "commitlint.config.mjs", "commitlint.config.ts",
-    ".commitlintrc", ".commitlintrc.json", ".commitlintrc.js", ".commitlintrc.cjs", ".commitlintrc.yml",
-    ".commitlintrc.yaml",
-)
-SCOPE_ENUM = re.compile(r"""['"]?scope-enum['"]?\s*:\s*\[[^\[]*\[([^\]]*)\]""")
-QUOTED = re.compile(r"""['"]([^'"]+)['"]""")
-COMMITLINT_TIMEOUT = 20  # seconds for `commitlint --print-config`
 BRANCH_PREFIX_MINIMUM = 2  # branches sharing a prefix before it becomes the proposed pattern
 
 
@@ -105,35 +104,6 @@ def branch_prefixes(names):
     return [prefix for prefix, count in prefixes.most_common() if count >= BRANCH_PREFIX_MINIMUM]
 
 
-def _resolved_scopes(top):
-    """scope-enum from the repository's own commitlint (it may compute scopes), else None."""
-    binary = top / "node_modules" / ".bin" / "commitlint"
-    if not binary.exists():
-        return None
-    try:
-        result = subprocess.run([str(binary), "--print-config", "json"], cwd=top,
-                                capture_output=True, text=True, timeout=COMMITLINT_TIMEOUT)
-        rule = json.loads(result.stdout)["rules"]["scope-enum"]
-    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError):
-        return None
-    return rule[2] if isinstance(rule, list) and len(rule) > 2 and isinstance(rule[2], list) else None
-
-
-def commitlint_scopes(top):
-    """(config file name, allowed scopes or None when unknown) when a commitlint config exists."""
-    for name in COMMITLINT_FILES:
-        try:
-            text = (top / name).read_text(encoding="utf-8")
-        except OSError:
-            continue
-        scopes = _resolved_scopes(top)
-        if scopes is None:
-            match = SCOPE_ENUM.search(text)
-            scopes = QUOTED.findall(match.group(1)) if match else None
-        return name, (scopes or None)
-    return None
-
-
 def remote_host(top):
     urls = _git_lines(top, "remote", "get-url", "origin")
     url = urls[0] if urls else ""
@@ -144,14 +114,92 @@ def remote_host(top):
     return None
 
 
+def sanitize_project_name(text):
+    """Lowercase text with every run of other characters replaced by one dash; None if empty."""
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or None
+
+
+def proposed_project_name(top, remotes):
+    """Last path segment of the origin remote (else the first), else the folder name."""
+    origin = git_cli.git_output(top, "remote", "get-url", "origin")
+    origin = project_registry.normalize_remote(origin) if origin else None
+    source = origin if origin in remotes else (remotes[0] if remotes else None)
+    from_remote = sanitize_project_name(source.rsplit("/", 1)[-1]) if source else None
+    return from_remote or sanitize_project_name(top.name) or "project"
+
+
+def _hub_target(top, name):
+    """home, projectFile, registered, nameTaken, plus homeError or registryError; never raises."""
+    try:
+        home = argani_home.home_path()
+    except argani_home.HomeError as error:
+        return {"home": None, "projectFile": None, "registered": None, "nameTaken": False,
+                "homeError": str(error)}
+    file = project_registry.project_file(home, name)
+    target = {"home": str(home), "projectFile": str(file), "registered": None, "nameTaken": False}
+    try:
+        entry = project_registry.resolve(top, home, str(top))
+    except project_registry.ProjectError as error:
+        return {**target, "registryError": str(error)}
+    if entry:
+        return {**target, "registered": entry["name"],
+                "projectFile": str(project_registry.project_file(home, entry["name"]))}
+    return {**target, "nameTaken": file.exists()}
+
+
+def _legacy_report(config_path):
+    if not config_path.exists():
+        return {"legacyExists": False}
+    try:
+        overrides = argani_config.read_config_file(config_path)
+    except ValueError as error:
+        return {"legacyExists": True, "legacyKeys": None, "legacyError": str(error)}
+    carried = {key: value for key, value in overrides.items()
+               if key in argani_config.DEFAULTS and key not in argani_config.LEGACY_ONLY_KEYS}
+    return {"legacyExists": True, "legacyKeys": carried,
+            "legacyUnknownKeys": [key for key in overrides if key not in argani_config.DEFAULTS]}
+
+
+def _ambiguous_default_branch(top):
+    """Candidates for the default branch when git cannot tell it, else None."""
+    if git_cli.git_output(top, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"):
+        return None
+    local = [name for name in ("main", "master") if argani_config.branch_exists(top, name)]
+    if len(local) == 2:
+        return local
+    if not local and "origin" in argani_config.remote_names(top):
+        return [argani_config.detect_default_branch(top)]
+    return None
+
+
 def propose(start_dir="."):
     toplevel = argani_config.toplevel(start_dir)
     if not toplevel:
         return None
     top = Path(toplevel)
-    config_path = top / ".claude" / "argani.json"
     default_branch = argani_config.detect_default_branch(top)
+    remotes = project_registry.repository_remotes(top)
+    name = proposed_project_name(top, remotes)
+    hub = _hub_target(top, name)
+    legacy_path = top / ".claude" / "argani.json"
+    legacy = _legacy_report(legacy_path)
     proposal, questions = {"reviewers": ["code"]}, []
+
+    if hub["nameTaken"]:
+        questions.append({"key": "project", "candidates": [name],
+                          "ask": "projects/<name> already belongs to another repository; choose another name."})
+    elif not remotes:
+        questions.append({"key": "project", "candidates": [name],
+                          "ask": "Name of the project on the board (folder projects/<name> in the argani home). "
+                                 "It was guessed from the folder name; lowercase letters, digits and dashes."})
+
+    uncertain_branches = _ambiguous_default_branch(top)
+    if uncertain_branches:
+        questions.append({"key": "defaultBranch", "candidates": uncertain_branches,
+                          "ask": "Git cannot tell which branch is the default one (there is no origin/HEAD). "
+                                 "Which branch do jobs merge into by default? The board reads it without a checkout."})
+    else:
+        proposal["defaultBranch"] = default_branch
 
     candidates = verify_candidates(top)
     if len(candidates) == 1:
@@ -159,10 +207,6 @@ def propose(start_dir="."):
     else:
         questions.append({"key": "verifyCommand", "candidates": candidates,
                           "ask": "Which command proves a job's work (tests, linters)? Required by factory mode."})
-
-    questions.append({"key": "artifactRoot", "candidates": ["argani"],
-                      "ask": "Which folder, relative to the repository toplevel, holds the job folders "
-                             "(<folder>/<slug>/intent.md, spec.md, reviews)? The default is argani."})
 
     names = branch_names(top)
     prefixes = branch_prefixes(names)
@@ -177,15 +221,6 @@ def propose(start_dir="."):
     if "develop" in names:
         questions.append({"key": "baseBranch", "candidates": ["develop", default_branch],
                           "ask": "A develop branch exists. Do jobs branch from and merge into develop (Git Flow)?"})
-
-    commitlint = commitlint_scopes(top)
-    if commitlint:
-        name, scopes = commitlint
-        if scopes is None or "argani" not in scopes:
-            allowed = "limits scopes to these" if scopes else "may limit commit types or scopes"
-            questions.append({"key": "recordCommitMessage", "candidates": scopes or [],
-                              "ask": f"{name} {allowed}; which type and scope should the factory's record "
-                                     "commits use, as '<type>(<scope>): record {slug} {what}'?"})
 
     questions.append({"key": "commitTrailers",
                       "candidates": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
@@ -206,10 +241,18 @@ def propose(start_dir="."):
                              "nothing is pushed. The factory fills {branch} with the job branch and {base} "
                              "with its base branch."})
 
+    carried = legacy.get("legacyKeys") or {}
+    proposal.update(carried)
+    questions = [item for item in questions if item["key"] == "project" or item["key"] not in carried]
+
     return {
         "toplevel": str(top),
-        "configPath": str(config_path),
-        "exists": config_path.exists(),
+        "project": name,
+        "remotes": remotes,
+        "realPath": os.path.realpath(top),
+        **hub,
+        "legacyConfig": str(legacy_path),
+        **legacy,
         "defaultBranch": default_branch,
         "proposal": proposal,
         "questions": questions,

@@ -1,50 +1,69 @@
 ---
 name: init
-description: Create .claude/argani.json for this repository from what it already uses (test command, branch prefixes, commitlint scopes, remote host), asking only what cannot be detected. Use when a repository has no argani config yet, or when the factory stops because verifyCommand is missing. Slash form /argani:init.
-allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read, Write
+description: Register this repository as a project on the argani board (in the argani home, ~/.argani by default) from what it already uses (test command, branch prefixes, remote host), asking only what cannot be detected. Never writes into the repository. Use when a repository is not registered yet, or when the factory stops because verifyCommand is missing. Slash form /argani:init.
+allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read
 ---
 
 # /argani:init
 
 Keys and their meaning: `${CLAUDE_PLUGIN_ROOT}/docs/config.md`. This skill writes one file,
-`<toplevel>/.claude/argani.json`, and never commits it.
+`projects/<name>/project.json` in the argani home, through `register_project.py`. It never writes
+into the repository.
 
 ## Steps
 
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/init_config.py`. If it exits non-zero, show its output
    and stop. Keep the JSON.
-2. If `exists` is true, **stop**: show the current file and say to edit it by hand (keys in
-   `docs/config.md`). Never overwrite it.
-3. Show `proposal` as the starting point. Then ask the human about each entry in `questions`, a few
-   at a time, offering its `candidates` (none means an open question). Rules for the answers:
-   - `artifactRoot`: the folder for job folders, relative to the toplevel (for example
-     `docs/tasks`); no absolute path, no `..`, not under `.git`. Omit it to keep `argani`.
+2. If `homeError` is set, explain it (`ARGANI_HOME` must be an absolute path without `..`) and stop.
+   If `registryError` is set, the registry in the home is inconsistent (for example two projects
+   claim one remote): show the message, tell the human to fix the entries under `projects/` by
+   hand, and stop.
+3. If `registered` is set, say the repository already belongs to the project `registered`, show
+   `projectFile`, and tell the human to edit that file by hand to change keys such as
+   `verifyCommand` (keys in `docs/config.md`), then run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` to validate it. Then stop.
+4. Show `proposal` as the starting point, with the project name (`project`) and the file that will
+   be written (`projectFile`). Then ask the human about each entry in `questions`, a few at a time,
+   offering its `candidates` (none means an open question). Rules for the answers:
+   - `project`: asked when the repository has no remote, or when `nameTaken` is true (the name
+     belongs to another repository, so pick another); lowercase letters, digits and dashes,
+     starting with a letter or digit. It becomes the folder `projects/<name>` in the home.
    - `verifyCommand`: required; the factory refuses to run without it. A command that fails until
      the first job adds tests is fine.
    - `branchPattern`: must contain `{slug}` exactly once; keep the default `feature/{slug}` unless
      the human picks another. With `{type}` (one prefix per kind of job), also set `branchTypes`
      (start from the question's `types`) and, for types that start from another branch (a hotfix
      from `main` in Git Flow), `baseBranchByType`; `mrCommand` can then use `{base}`.
-   - `baseBranch`: set it only when jobs should not branch from `defaultBranch`.
-   - `recordCommitMessage`: `<type>(<scope>): record {slug} {what}` with a type and scope the
-     repository's commit rules accept; `{what}` exactly once.
+   - `defaultBranch`: asked when git cannot tell it; the board reads it without a checkout.
    - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
      key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.
    - `commitSkill`: the repository skill every argani commit must go through (the builder and the
      record commits use it instead of `git commit`; it then decides trailers). Omit it to commit
      with `git commit` and `commitTrailers`.
+   - `baseBranch`: set it only when jobs should not branch from `defaultBranch`.
    - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
      job branch and its base branch. Leave it out when the human wants to push and open merge
      requests themselves.
    Ask also whether to add checklists to `reviewers` (catalog in `docs/config.md`) and whether some
    paths must never be written by agents (`protectedPaths`). Omit keys the human leaves at their
-   default.
-4. Show the final JSON and ask for confirmation. On yes, write it to `configPath` (two-space
-   indent, trailing newline). Claude Code asks the human before writing under `.claude/`; if the
-   write is refused, never write it another way (no Bash): give the human the JSON and the
-   validation command of step 5, and stop.
-5. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it exits non-zero, show the error,
-   fix the file with the human, and run it again.
-6. Tell the human the file is not committed. It belongs on the base branch before the first job:
-   commit it there through the repository's usual process, so job branches and worktrees created
-   from the base branch already have it. Next step: `/argani:intent <description>`.
+   default, but keep `defaultBranch` from the proposal.
+5. If `legacyExists` is true, explain that the repository's `.claude/argani.json` is ignored once
+   the project is registered, and that its keys (`legacyKeys`) are already part of the proposal and
+   win over the detected values. Only `artifactRoot` is not carried over: a board project keeps its
+   jobs in `tasks/`. Keys listed in `legacyUnknownKeys` are not argani keys and are left behind. If `legacyKeys` is null, show `legacyError` and continue without them. Suggest
+   removing the file from the repository later, through its usual process; never delete it.
+6. Show the final config JSON and the project name, and ask for confirmation. On yes, run it with
+   the config on stdin:
+
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/register_project.py <name> <toplevel> <<'EOF'
+   { ...config keys... }
+   EOF
+   ```
+
+   If it exits non-zero, show the message, fix the config with the human, and run it again. If it
+   fails twice in a row, stop and show the message.
+7. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` in the repository and show `project`
+   and `tasksDir`. If it exits non-zero, show the error, tell the human to fix `projectFile` by
+   hand, and stop.
+8. End with: nothing was written into the repository. Next step: `/argani:intent <description>`.

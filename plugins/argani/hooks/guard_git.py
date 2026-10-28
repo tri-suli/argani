@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""PreToolUse(Bash) guard: no push/merge/pull on a protected branch, no PR/MR merge.
+"""PreToolUse(Bash) guard: merging stays a human step.
 
-Protected branches are `protectedBranches` from the config, which always include `defaultBranch`
-and `baseBranch`.
-
-Subagent (agent_type present): every push, pull, merge and send-pack is denied, whatever the
-branch, because in argani the main session pushes and a human merges. A command that names a
-git tool is checked on its de-quoted words, so quoting, `bash -c`, wrappers and `-c alias.*`
-cannot hide the word; generated code (a shell reading a pipe, `eval` of a substitution, a
-substitution inside a git command) is denied too. Main session: a push, merge or pull on a protected branch is asked about.
-Anything else is allowed silently.
+Held: a push that lands on a protected branch, a `git merge` while on a protected branch, and a
+PR/MR merge (`gh pr merge`, `glab mr merge`, a merge through `gh api` / `glab api`). Protected
+branches are `protectedBranches` from the config, which always include `defaultBranch`, `baseBranch`
+and the `baseBranchByType` branches. Main session -> ask; subagent (agent_type present) -> deny.
+Everything else, including pushing and pulling job branches and merging into them, is left to the
+repository's own rules.
 
 The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so this guard does:
 reviewer and approver may only run read-only git; spec-writer may also run the plugin's scripts.
 
-Scope and known limits of the main-session check (also in docs/review-protocol.md):
+Scope and known limits (also in docs/review-protocol.md):
 - `push --delete` matches only when the deleted branch is protected.
 - `cd ~` / `cd -` are not resolved; `--git-dir` / `--work-tree` are ignored for repo detection.
 - The current branch is simulated through a command chain (`checkout`, `switch`; `-b`/`-B`/`-c`/
@@ -22,9 +19,9 @@ Scope and known limits of the main-session check (also in docs/review-protocol.m
   `--orphan`; `--track
   <remote>/<branch>`; a branch that exists only on one remote). `checkout <tree-ish> -- <paths>`
   does not move HEAD. A switch whose result cannot be determined (`-`, a commit) makes any later
-  push, merge or pull in the chain held.
-- An invalid `.claude/argani.json` holds every push, merge and pull, since the protected
-  branches are unknown.
+  push or merge in the chain held.
+- An invalid `.claude/argani.json` holds every push and merge, since the protected branches are
+  unknown.
 - `bash|sh|zsh -c "<cmd>"` is analysed recursively. `xargs`, `eval`, `git branch -f`,
   `git update-ref` and heredoc writes are not caught.
 """
@@ -34,7 +31,9 @@ import shlex
 
 from hook_common import emit, run_guard, argani_config
 
-KEYWORDS = ("push", "merge", "pull", "gh ", "glab ")
+KEYWORDS = ("push", "merge", "gh ", "glab ")
+# `gh api repos/o/r/pulls/1/merge`, `glab api projects/1/merge_requests/2/merge`
+API_MERGE_PATH = re.compile(r"/(pulls|merge_requests)/[^/\s]+/merge/?$")
 SEPARATOR_CHARS = set("();|&<>")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 PUSH_OPTIONS_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
@@ -54,21 +53,6 @@ DETACHED = "HEAD"
 UNKNOWN_BRANCH = object()  # HEAD moved, but to a branch the guard cannot determine
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 READ_ONLY_GIT = {"diff", "log", "show", "rev-parse"}
-# A word that pushes, pulls or merges. `merge-base` and `--no-merges` are not; `git-push` is.
-REMOTE_WRITE_WORD = re.compile(r"(?<!\w)(push|pull|merge|send-pack)(?![\w-])")
-SUBCOMMAND_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-COMMIT_MESSAGE_OPTION = re.compile(r"^(--message|-[a-zA-Z]*m)$")  # -m, -qm, -am take the next token
-# Only a command that names a git tool is scanned for those words, so `docker pull` is allowed.
-GIT_TOOL_WORD = re.compile(r"(?<!\w)(git|gh|glab|github|gitlab)(?!\w)")
-SUBSTITUTION_MARKS = ("$(", "`")
-STDIN_SHELLS = SHELLS | {"dash", "ksh"}
-CODE_RUNNERS = STDIN_SHELLS | {"eval", "source", "."}
-SHELL_LAUNCHERS = {"busybox", "toybox", "xargs"}  # run a shell named in their arguments
-STDIN_SCRIPT = re.compile(r"^(-|/dev/stdin|/dev/fd/\d+|/proc/self/fd/\d+)$")
-STDIN_FLAG = re.compile(r"^-[a-zA-Z]*s[a-zA-Z]*$")  # bash -s, sh -xs
-DYNAMIC_PROGRAM_MARKS = ("$", "`", "*", "?", "[")  # `$x$y`, `/usr/bin/g[i]t`
-COMMIT_FROM_STDIN = re.compile(r"\bgit\b.*\bcommit\b.*(\s-[a-zA-Z]*F\s*-|\s--file[= ]-)(?=\s|$|[;&|])")
-HEREDOC_START = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 PLUGIN_ROOT = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 AGENT_SCRIPT_RUNNERS = {"argani:spec-writer"}
@@ -256,7 +240,8 @@ class ChainAnalyzer:
             return None
         if program in ("gh", "glab"):
             pair = ["pr", "merge"] if program == "gh" else ["mr", "merge"]
-            if any(tokens[i:i + 2] == pair for i in range(len(tokens) - 1)):
+            api_merge = "api" in tokens and any(API_MERGE_PATH.search(token) for token in tokens)
+            if api_merge or any(tokens[i:i + 2] == pair for i in range(len(tokens) - 1)):
                 return _protected_names(argani_config.load_config(self.directory)), text
             return None
         if program == "git":
@@ -265,7 +250,7 @@ class ChainAnalyzer:
 
     def _check_git(self, tokens, text):
         change_dir, subcommand, args = _parse_git(tokens)
-        if subcommand not in ("push", "merge", "pull", "checkout", "switch"):
+        if subcommand not in ("push", "merge", "checkout", "switch"):
             return None
         repo_dir = os.path.normpath(os.path.join(self.directory, change_dir or "."))
         try:
@@ -284,8 +269,8 @@ class ChainAnalyzer:
                 self.simulated = (config["toplevel"], branch)
             return None
         if config_error:
-            # Without a valid config the protected branches are unknown, so every push, merge
-            # and pull is held, as the artifact guard does for writes.
+            # Without a valid config the protected branches are unknown, so every push and merge
+            # is held, as the artifact guard does for writes.
             return (f"a branch that cannot be checked because .claude/argani.json is invalid "
                     f"({config_error})"), text
         if subcommand == "push":
@@ -340,177 +325,11 @@ def agent_bash_violation(agent_type, command):
     return None
 
 
-def _risky_aliases(directory):
-    """Names of git aliases in this repository that push, pull or merge, or run a shell."""
-    return {name for name, definition in argani_config.git_aliases(directory).items()
-            if definition.startswith("!") or REMOTE_WRITE_WORD.search(definition)}
-
-
-def _message_indexes(tokens):
-    """Indexes of the message tokens of `git commit -m <message>` / `--message=<message>`."""
-    start = _command_start(tokens)
-    if not (start and os.path.basename(start[0]) == "git" and "commit" in start):
-        return set()
-    indexes = set()
-    for index, token in enumerate(tokens):
-        if token.startswith("--message="):
-            indexes.add(index)
-        elif COMMIT_MESSAGE_OPTION.match(token) and index + 1 < len(tokens):
-            indexes.add(index + 1)
-    return indexes
-
-
-def _names_existing_path(directory, token):
-    """A file argument such as `src/push.ts`, but not `git-push` or a bare word."""
-    if os.path.basename(token).startswith("git-") or not ("/" in token or "." in token):
-        return False
-    return os.path.exists(os.path.join(directory, token))
-
-
-def _live_backtick(command):
-    """True when a backtick outside single quotes runs a command substitution."""
-    quote, escaped = None, False
-    for char in command:
-        if escaped:
-            escaped = False
-        elif char == "\\" and quote != "'":
-            escaped = True
-        elif quote == "'":
-            quote = None if char == "'" else quote
-        elif char == "`":
-            return True
-        elif char == '"':
-            quote = None if quote == '"' else '"'
-        elif char == "'" and quote is None:
-            quote = "'"
-    return False
-
-
-def _without_commit_heredocs(command):
-    """Drop the body of a heredoc fed to `git commit -F -`: it is the commit message. A body the
-    shell expands (unquoted delimiter with `$(` or a backtick) is kept and scanned."""
-    lines, result, index = command.split("\n"), [], 0
-    while index < len(lines):
-        line = lines[index]
-        result.append(line)
-        index += 1
-        start = HEREDOC_START.search(line)
-        if not (start and COMMIT_FROM_STDIN.search(line)):
-            continue
-        quoted, delimiter = start.groups()
-        end = next((i for i in range(index, len(lines)) if lines[i].strip() == delimiter), None)
-        body = "\n".join(lines[index:end])
-        if end is not None and (quoted or not any(mark in body for mark in SUBSTITUTION_MARKS)):
-            index = end
-    return "\n".join(result)
-
-
-def _reads_stdin(arguments):
-    """Whether a shell with these arguments takes its commands from stdin."""
-    if any(SHELL_COMMAND_FLAG.match(arg) for arg in arguments):
-        return False
-    if any(STDIN_FLAG.match(arg) for arg in arguments):
-        return True
-    scripts = [arg for arg in arguments if arg == "-" or not arg.startswith("-")]
-    return not scripts or bool(STDIN_SCRIPT.match(scripts[0]))
-
-
-def _local_stash_push(tokens):
-    """Index of `push` in `git [options] stash push`, which only stashes local changes."""
-    start = _command_start(tokens)
-    if not start or os.path.basename(start[0]) != "git":
-        return None
-    _, subcommand, args = _parse_git(start[1:])
-    if subcommand == "stash" and args[:1] == ["push"]:
-        return len(tokens) - len(args)
-    return None
-
-
-def _hidden_code(segments):
-    """What in the command builds or reads code the guard cannot see, else None: a shell reading
-    stdin, `eval`/`source` of generated text, or a substitution inside code or a git command."""
-    for tokens in segments:
-        start = _command_start(tokens)
-        program = os.path.basename(start[0]) if start else ""
-        arguments = start[1:]
-        runs_code = program in CODE_RUNNERS
-        if program in STDIN_SHELLS and _reads_stdin(arguments):
-            return f"{program} reading commands from a pipe or heredoc"
-        if program in SHELL_LAUNCHERS and any(
-                os.path.basename(arg) in CODE_RUNNERS for arg in arguments):
-            return f"{program} running a shell"
-        if program in CODE_RUNNERS - STDIN_SHELLS and not arguments:
-            return f"{program} reading generated code"
-        messages = _message_indexes(tokens)
-        for index, token in enumerate(tokens):
-            # A backtick in a message is usually markdown; a live one is caught by _live_backtick.
-            marks = ("$(",) if index in messages else SUBSTITUTION_MARKS
-            if not any(mark in token for mark in marks):
-                continue
-            mentions_git = GIT_TOOL_WORD.search(token)
-            if mentions_git or (index not in messages and (runs_code or program == "git")):
-                return f"a command substitution in `{token}`"
-    return None
-
-
-def subagent_remote_write(directory, command):
-    """Reason string when a subagent's command could push, pull or merge, else None."""
-    reason = ("argani guard: agents never push, pull or merge (`{}`). Commit on the job branch "
-              "and stop; the main session pushes and a human merges. Reword a commit message "
-              "or a test filter that only mentions the word, and run substitutions as their own "
-              "command.")
-    try:
-        segments = split_segments(_without_commit_heredocs(command))
-    except ValueError:
-        unquoted = re.sub(r"['\"\\]", "", command)
-        return reason.format("unparsable command") if REMOTE_WRITE_WORD.search(unquoted) else None
-    hidden = _hidden_code(segments)
-    if hidden:
-        return reason.format(hidden)
-    words, mentions_git = [], False
-    for tokens in segments:
-        start = _command_start(tokens)
-        if start and any(mark in start[0] for mark in DYNAMIC_PROGRAM_MARKS):
-            mentions_git = True  # the program is an expansion or a glob, such as `$x$y push`
-        skipped = _message_indexes(tokens) | {_local_stash_push(tokens)}
-        for index, token in enumerate(tokens):
-            if index in skipped or _names_existing_path(directory, token):
-                continue
-            words.append(token)
-            mentions_git = mentions_git or bool(GIT_TOOL_WORD.search(token))
-    if mentions_git and _live_backtick(command):
-        return reason.format("a backtick substitution in a git command")
-    if mentions_git:
-        for word in words:
-            if REMOTE_WRITE_WORD.search(word):
-                return reason.format(word)
-    aliases = None
-    for tokens in segments:
-        start = _command_start(tokens)
-        if not start or os.path.basename(start[0]) != "git":
-            continue
-        _, subcommand, _ = _parse_git(start[1:])
-        if subcommand is None:
-            continue
-        if not SUBCOMMAND_WORD.match(subcommand):
-            return reason.format(f"git {subcommand}: a subcommand the guard cannot read")
-        if aliases is None:
-            aliases = _risky_aliases(directory)
-        if subcommand in aliases:
-            return reason.format(f"git {subcommand}: an alias that pushes, pulls, merges or runs a shell")
-    return None
-
-
 def guard(payload):
     command = (payload.get("tool_input") or {}).get("command") or ""
     violation = agent_bash_violation(payload.get("agent_type"), command)
     if violation:
         emit(payload, "deny", violation)
-        return
-    if payload.get("agent_type"):
-        violation = subagent_remote_write(payload.get("cwd") or os.getcwd(), command)
-        if violation:
-            emit(payload, "deny", violation)
         return
     if not any(keyword in command for keyword in KEYWORDS):
         return
@@ -522,9 +341,8 @@ def guard(payload):
         return
     if match:
         target, segment = match
-        emit(payload, "ask", f"argani guard: `{segment}` would push, merge or pull on {target}. "
-             "Agents never do that. Push a feature branch and open a merge "
-             "request instead; the approver never merges and a human merges.")
+        emit(payload, "ask", f"argani guard: `{segment}` would merge into {target}. Merging is a human "
+             "step: push the job branch and open a merge request; a human merges it.")
 
 
 if __name__ == "__main__":

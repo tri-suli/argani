@@ -44,11 +44,10 @@ changing anything and reply exactly `STOPPED wrong branch <current branch name>`
 
 ## Rules
 
-- Never run `git push`, `git merge`, `git pull`, `git branch -f`, or `git update-ref`.
-  A hook denies a git command that contains the words push, pull or merge (except in a
-  `git commit -m` message, a `git commit -F - <<'EOF'` heredoc, a path that exists, or
-  `git stash push`), and command substitutions
-  inside git commands; reword the argument, or run the substitution as its own command.
+- Merging is a human step. Never push to a protected branch, never `git merge` while on one,
+  never merge a PR/MR (`gh pr merge`, `glab mr merge`), and never run `git branch -f` or
+  `git update-ref`; a hook denies the first three. Pushing and pulling the job branch follow the
+  repository's own rules (its `CLAUDE.md`); the orchestrator pushes for the merge request.
 - Never write `intent.md`, `spec.md`, anything under `review/`, `decision.md` or `mr.md` (a hook
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on
   with the closest faithful reading.

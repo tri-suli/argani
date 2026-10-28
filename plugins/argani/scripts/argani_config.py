@@ -20,6 +20,7 @@ import git_cli
 import project_registry
 
 IDENTITY_KEYS = ("name", "remotes", "paths")  # project.json keys that identify a project, not config
+LEGACY_ONLY_KEYS = ("artifactRoot",)  # per-repository keys with no meaning for a project in the argani home
 TASKS_DIR = "tasks"  # folder of a project's job folders inside its hub entry
 
 DEFAULTS = {
@@ -373,6 +374,13 @@ def _reject_remote_prefixes(overrides, start_dir):
             raise ValueError(f"'{name}' names a remote-tracking branch; drop the '{remote}/' prefix")
 
 
+def validate_overrides(overrides, start_dir):
+    """Raise ValueError when config keys break a rule of the repository around start_dir or a
+    rule between keys, as the keys of a project.json or .claude/argani.json would."""
+    _reject_remote_prefixes(overrides, start_dir)
+    _check_cross_keys({**DEFAULTS, **overrides})
+
+
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
@@ -500,8 +508,7 @@ def load_config(start_dir=".", strict=False):
         else:
             overrides = None
         if overrides is not None:
-            _reject_remote_prefixes(overrides, start_dir)
-            _check_cross_keys({**config, **overrides})
+            validate_overrides(overrides, start_dir)
             config.update(overrides)
     except ValueError as error:
         if strict:

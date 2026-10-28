@@ -28,7 +28,9 @@ DEFAULTS = {
     "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
     "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
     "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
+    "agentModels": {"spec-writer": "sonnet", "builder": "opus", "reviewer": "opus", "approver": "opus"},
 }
+AGENT_MODELS = {"sonnet", "opus", "haiku", "fable", "inherit"}
 SLUG_PLACEHOLDER = "{slug}"
 TYPE_PLACEHOLDER = "{type}"
 TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -190,6 +192,20 @@ def _base_branch_by_type(value):
     return {name: _branch(branch) for name, branch in value.items()}
 
 
+def _agent_models(value):
+    """Overrides for some agents; the rest keep their default model."""
+    if not isinstance(value, dict):
+        raise ValueError("expected an object mapping an agent to a model, like {\"builder\": \"opus\"}")
+    unknown = [name for name in value if name not in DEFAULTS["agentModels"]]
+    if unknown:
+        raise ValueError(f"unknown agent {', '.join(unknown)}; agents are "
+                         f"{', '.join(DEFAULTS['agentModels'])}")
+    bad = [f"{name}: {model!r}" for name, model in value.items() if model not in AGENT_MODELS]
+    if bad:
+        raise ValueError(f"{', '.join(bad)}; a model is one of {', '.join(sorted(AGENT_MODELS))}")
+    return {**DEFAULTS["agentModels"], **value}
+
+
 def _check_job_types(config):
     """Cross-key rules for {type}: raises ValueError when they do not fit together."""
     types = config["branchTypes"]
@@ -285,6 +301,7 @@ COERCERS = {
     "commitTrailers": _commit_trailers,
     "branchTypes": _branch_types,
     "baseBranchByType": _base_branch_by_type,
+    "agentModels": _agent_models,
 }
 
 

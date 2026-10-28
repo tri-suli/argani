@@ -39,19 +39,13 @@ def test_frontmatter_is_complete(path):
     fields = parse_frontmatter(path)
     assert fields["name"] == path.stem
     assert fields["description"]
-    assert fields["model"] in {"inherit", "sonnet"}
+    assert fields["model"] == "inherit"  # skills pass the model from agentModels
     assert tool_names(fields)
 
 
 @pytest.mark.parametrize("path", AGENT_FILES, ids=lambda p: p.stem)
 def test_every_agent_writes_one_artifact_so_it_lists_write(path):
     assert "Write" in tool_names(parse_frontmatter(path))
-
-
-def test_reviewer_runs_on_sonnet_and_other_agents_inherit():
-    for path in AGENT_FILES:
-        expected = "sonnet" if path.stem == "reviewer" else "inherit"
-        assert parse_frontmatter(path)["model"] == expected
 
 
 @pytest.mark.parametrize("name", ["reviewer", "approver"])

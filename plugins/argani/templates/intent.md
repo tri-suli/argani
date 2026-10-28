@@ -3,10 +3,13 @@
 Author: {{name}}
 Status: draft
 Type: {{job type}}
+Risk: {{low | medium | high}}
 Date: {{YYYY-MM-DD}}
 
 <!-- Type is one of branchTypes in .claude/argani.json (it fills {type} in the job branch and picks
      the base branch). Delete the Type line when the repository sets no branchTypes.
+     Risk is low, medium or high (medium when the line is missing). It picks the models of the
+     builder and the reviewers through agentModels; a human sets it when approving the intent.
      Status is "draft" until a human approves it with /argani:intent approve {{slug}}.
      The approved form is: Status: approved by {{name}} on {{YYYY-MM-DD}} -->
 

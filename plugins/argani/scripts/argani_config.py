@@ -29,9 +29,26 @@ DEFAULTS = {
     "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
     "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
     "commitSkill": None,  # a repository skill that makes every argani commit, instead of git commit
-    "agentModels": {"spec-writer": "sonnet", "builder": "opus", "reviewer": "opus", "approver": "opus"},
+    # Model per agent, or per job risk ({"default": ..., "low"|"medium"|"high": ...}). A key
+    # "reviewer:<checklist>" overrides "reviewer" for that checklist.
+    "agentModels": {
+        "spec-writer": "opus",
+        "builder": {"default": "sonnet", "high": "opus"},
+        "approver": "opus",
+        "reviewer": {"default": "sonnet", "low": "haiku"},
+        "reviewer:security": "opus",
+        "reviewer:ux": "sonnet",
+        "reviewer:ui-design": "haiku",
+        "reviewer:citation": "haiku",
+        "reviewer:format": "haiku",
+    },
+    "reviewerPaths": {},  # checklist -> globs; that reviewer runs only when the diff touches one
 }
 AGENT_MODELS = {"sonnet", "opus", "haiku", "fable", "inherit"}
+AGENTS = ("spec-writer", "builder", "approver", "reviewer")
+RISK_LEVELS = ("low", "medium", "high")
+DEFAULT_RISK = "medium"
+CHECKLIST_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]*$")
 SLUG_PLACEHOLDER = "{slug}"
 TYPE_PLACEHOLDER = "{type}"
@@ -201,28 +218,92 @@ def _commit_skill(value):
     return name
 
 
+def _model_choice(name, value):
+    """A model, or {"default": model, "low"|"medium"|"high": model} chosen by the job's risk."""
+    if isinstance(value, str):
+        if value not in AGENT_MODELS:
+            raise ValueError(f"{name}: {value!r}; a model is one of {', '.join(sorted(AGENT_MODELS))}")
+        return value
+    if not isinstance(value, dict) or "default" not in value:
+        raise ValueError(f"{name}: expected a model or an object with 'default' and optional "
+                         f"{', '.join(RISK_LEVELS)}")
+    for level, model in value.items():
+        if level != "default" and level not in RISK_LEVELS:
+            raise ValueError(f"{name}: unknown risk '{level}'; use default, {', '.join(RISK_LEVELS)}")
+        _model_choice(f"{name}.{level}", model)
+    return dict(value)
+
+
 def _agent_models(value):
-    """Overrides for some agents; the rest keep their default model."""
+    """Overrides for some agents or reviewer:<checklist> keys; the other defaults stay."""
     if not isinstance(value, dict):
         raise ValueError("expected an object mapping an agent to a model, like {\"builder\": \"opus\"}")
-    unknown = [name for name in value if name not in DEFAULTS["agentModels"]]
-    if unknown:
-        raise ValueError(f"unknown agent {', '.join(unknown)}; agents are "
-                         f"{', '.join(DEFAULTS['agentModels'])}")
-    bad = [f"{name}: {model!r}" for name, model in value.items() if model not in AGENT_MODELS]
-    if bad:
-        raise ValueError(f"{', '.join(bad)}; a model is one of {', '.join(sorted(AGENT_MODELS))}")
+    for name, choice in value.items():
+        agent, _, checklist = name.partition(":")
+        if agent not in AGENTS or (checklist and (agent != "reviewer" or not CHECKLIST_NAME.match(checklist))):
+            raise ValueError(f"unknown agent {name}; use {', '.join(AGENTS)} or reviewer:<checklist>")
+        _model_choice(name, choice)
     return {**DEFAULTS["agentModels"], **value}
 
 
-def _check_job_types(config):
-    """Cross-key rules for {type}: raises ValueError when they do not fit together."""
+def _reviewer_paths(value):
+    if not isinstance(value, dict):
+        raise ValueError("expected an object mapping a checklist to path globs, like {\"security\": [\"src/auth/**\"]}")
+    return {name: _string_list(globs) for name, globs in value.items()}
+
+
+def agent_model(config, agent, risk=DEFAULT_RISK, checklist=None):
+    """The model for an agent on a job of this risk; a reviewer:<checklist> key wins over reviewer."""
+    models = config["agentModels"]
+    choice = models.get(f"{agent}:{checklist}") if checklist else None
+    choice = choice if choice is not None else models.get(agent, "inherit")
+    return choice if isinstance(choice, str) else choice.get(risk, choice["default"])
+
+
+def active_reviewers(config, changed_paths):
+    """The reviewers a diff needs: a checklist in reviewerPaths runs only when a changed path matches
+    one of its globs. changed_paths None (diff unknown) keeps every reviewer."""
+    if changed_paths is None:
+        return list(config["reviewers"])
+    scoped = config["reviewerPaths"]
+    return [name for name in config["reviewers"]
+            if name not in scoped
+            or any(glob_to_regex(glob).match(path) for glob in scoped[name] for path in changed_paths)]
+
+
+def glob_to_regex(pattern):
+    """`**` crosses directories, `*` and `?` stay inside one path segment."""
+    parts, index = [], 0
+    while index < len(pattern):
+        if pattern.startswith("**/", index):
+            parts.append("(?:.*/)?")
+            index += 3
+        elif pattern.startswith("**", index):
+            parts.append(".*")
+            index += 2
+        elif pattern[index] == "*":
+            parts.append("[^/]*")
+            index += 1
+        elif pattern[index] == "?":
+            parts.append("[^/]")
+            index += 1
+        else:
+            parts.append(re.escape(pattern[index]))
+            index += 1
+    return re.compile("".join(parts) + r"\Z")
+
+
+def _check_cross_keys(config):
+    """Rules between keys ({type}, baseBranchByType, reviewerPaths); raises ValueError."""
     types = config["branchTypes"]
     if TYPE_PLACEHOLDER in config["branchPattern"] and not types:
         raise ValueError(f"branchPattern uses {TYPE_PLACEHOLDER} but branchTypes is empty")
     unknown = [name for name in config["baseBranchByType"] if name not in types]
     if unknown:
         raise ValueError(f"baseBranchByType names {', '.join(unknown)}, which branchTypes does not list")
+    unscoped = [name for name in config["reviewerPaths"] if name not in config["reviewers"]]
+    if unscoped:
+        raise ValueError(f"reviewerPaths names {', '.join(unscoped)}, which reviewers does not list")
     for name in types:
         _check_branch_name(config["branchPattern"].replace(SLUG_PLACEHOLDER, "example-slug")
                            .replace(TYPE_PLACEHOLDER, name))
@@ -312,6 +393,7 @@ COERCERS = {
     "baseBranchByType": _base_branch_by_type,
     "commitSkill": _commit_skill,
     "agentModels": _agent_models,
+    "reviewerPaths": _reviewer_paths,
 }
 
 
@@ -353,7 +435,7 @@ def load_config(start_dir=".", strict=False):
             if _config_file_exists(path):
                 overrides = read_config_file(path)
                 _reject_remote_prefixes(overrides, start_dir)
-                _check_job_types({**config, **overrides})
+                _check_cross_keys({**config, **overrides})
                 config.update(overrides)
         except ValueError as error:
             if strict:

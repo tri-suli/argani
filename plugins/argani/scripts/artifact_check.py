@@ -25,6 +25,8 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 STATUS_LINE_PATTERN = re.compile(r"^Status:")
 TYPE_LINE_PATTERN = re.compile(r"^Type:")
 TYPE_VALUE_PATTERN = re.compile(r"^Type: ([A-Za-z0-9][A-Za-z0-9._-]*)$")
+RISK_LINE_PATTERN = re.compile(r"^Risk:")
+RISK_VALUE_PATTERN = re.compile(r"^Risk: (low|medium|high)$")
 STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}-\d{2}-\d{2}))$")
 # `n. [ ] <claim> — verify: <how>`; item n is referred to as AC-n everywhere else.
 AC_ITEM_PATTERN = re.compile(r"^(\d+)\. \[[ xX]\] .+ — verify: (\S.*)$")
@@ -140,6 +142,23 @@ def intent_type(text):
     return match.group(1) if match else None
 
 
+def intent_risk(text):
+    """The job risk from an intent's `Risk:` header line (low, medium, high), else None."""
+    header, _, _ = parse(text)
+    match = next((RISK_VALUE_PATTERN.match(line.rstrip()) for line in header if RISK_LINE_PATTERN.match(line)), None)
+    return match.group(1) if match else None
+
+
+def check_risk(header):
+    """An intent's optional `Risk:` line: at most one, and low, medium or high."""
+    lines = [line.rstrip() for line in header if RISK_LINE_PATTERN.match(line)]
+    if len(lines) > 1:
+        return [f"need at most one 'Risk:' line in the header, found {len(lines)}"]
+    if lines and not RISK_VALUE_PATTERN.match(lines[0]):
+        return [f"Risk must be 'Risk: low', 'Risk: medium' or 'Risk: high', got {lines[0]!r}"]
+    return []
+
+
 def check_type(header, branch_types):
     """An intent's `Type:` line: at most one, one word, and one of branch_types when they are set."""
     lines = [line.rstrip() for line in header if TYPE_LINE_PATTERN.match(line)]
@@ -217,6 +236,7 @@ def run_check(kind, text, branch_types=()):
     violations, sections, status = check_common(text, kind)
     if kind == "Intent":
         violations += check_type(parse(text)[0], branch_types)
+        violations += check_risk(parse(text)[0])
     if kind == "Intent" and "Acceptance criteria" in sections:
         violations += check_acceptance_criteria(sections["Acceptance criteria"])
     if kind == "Spec" and "Acceptance criteria mapping" in sections:

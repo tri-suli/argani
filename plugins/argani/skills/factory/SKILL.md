@@ -84,8 +84,13 @@ refuses the unit or the subject, stop and show why; never fall back to a plain `
 
 ### Models
 
-Spawn every agent with `model` set to its entry in the config's `agentModels` (`spec-writer`,
-`builder`, `reviewer`, `approver`); when the entry is `inherit`, leave `model` out.
+Spawn every agent with `model` from the state's `models`: `models.spec-writer`, `models.builder`,
+`models.approver`, and `models.reviewers.<checklist>` for each reviewer seat. They come from
+`agentModels` for the job's `risk` (the intent's `Risk:` line, `medium` when absent). When a value is
+`inherit`, leave `model` out.
+
+The reviewers of a job are the state's `reviewers`, not the config's: a checklist scoped by
+`reviewerPaths` runs only when the job's diff touches one of its paths.
 
 ### Spec-writer prompt
 
@@ -134,7 +139,7 @@ Plugin root: <plugin root>
 Slug folder: <job_dir>
 Round folder: <job_dir>/review/round-<review_round>/
 Base branch: <base_branch>
-Reviewers: <reviewers, comma-separated>
+Reviewers: <the state's reviewers, comma-separated>
 Protected paths: <protectedPaths, comma-separated, or "none">
 ```
 

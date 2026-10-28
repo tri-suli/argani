@@ -7,4 +7,4 @@ flowchart TD
     progress -->|ESCALATE or round 3| human["Needs human"]
     human -->|rework note or decision| progress
     ready -->|factory opens MR| review["In review<br/>MR open"]
-    review -->|human merges| done(["Done"])
+    review -->|"merged by a human, or by the factory when mergePolicy is agent"| done(["Done"])

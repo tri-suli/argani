@@ -38,13 +38,6 @@ Enable the plugin per repository, in `.claude/settings.json`:
 Per-repository options live in `.claude/argani.json`; `/argani:init` creates it from what the
 repository already uses. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
-## Bootstrap
-
-`bootstrap/install.sh` copies the versioned `bootstrap/claude/CLAUDE.md` to `~/.claude/CLAUDE.md`
-and `$CLAUDE_CONFIG_DIR/CLAUDE.md` and registers the marketplace in `settings.json`. The copies do
-not depend on this checkout. It backs everything up first and supports `--dry-run`. Read [`bootstrap/README.md`](bootstrap/README.md)
-before running it.
-
 ## Local development
 
 ```bash
@@ -97,7 +90,6 @@ plugins/argani/                   the plugin
   evals/                          eval cases run with `claude plugin eval`
   tests/                          pytest suites
 scripts/check.sh                  validate and test
-bootstrap/                        global CLAUDE.md and marketplace registration
 ```
 
 ## Status
@@ -112,7 +104,6 @@ bootstrap/                        global CLAUDE.md and marketplace registration
 | Skill `/argani:review` | available |
 | Factory orchestrator `/argani:factory` | available |
 | Evals (`plugins/argani/evals`, two cases) | available |
-| Bootstrap (`bootstrap/`) | available |
 
 ## License
 

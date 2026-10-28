@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-28
+
+### Added
+
+- `mr_description.py` generates the merge request title and description of a job: the summary, the acceptance criteria of the intent, the human verification checklist of the decision and the location of the task folder. `--write` saves the body as `<job_dir>/mr-body.md` and adds `bodyFile` and, when `mrCommand` is set, `command` (placeholders replaced by shell-quoted values) to the JSON. `artifact_check.acceptance_criteria` returns the criteria of an intent.
+
+### Changed
+
+- `mrCommand` accepts the placeholders `{branch}`, `{base}`, `{title}` and `{bodyFile}` and rejects any other, quoted placeholders, an empty value and a multi-line value; the shell quoting is done by `mr_description.py`, not the agent. `${VAR}` is no longer read as a placeholder. `/argani:init` proposes `gh pr create` / `glab mr create` with `--title` and a description file instead of `--fill`, so the merge request states what to verify. The factory generates the description before pushing; without `mrCommand` it prints the title and the description file.
+
 ## [0.15.0] - 2026-10-28
 
 ### Added

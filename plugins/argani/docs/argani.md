@@ -28,7 +28,7 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 | Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
 | Work     | code or documents on the job branch, `build.md` | Human or builder agent                      | none                                                                            |
 | Review   | `review/round-N/review-<checklist>.md`          | Reviewer agents                             | none                                                                            |
-| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge                                    |
+| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge; the MR description is generated from the intent and the decision |
 | Operate  | follow-up intents                               | Human, from what production shows           | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.
@@ -47,6 +47,7 @@ plan.md       same Status forms; files that change, order, risks, proof
 build.md      work done, literal verification output, deviations; ends with === END OF BUILD ===
 review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === END OF REVIEW ===
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
+mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist, task folder)
 mr.md         merge request URL and branch, written once the MR exists
 ```
 
@@ -134,7 +135,7 @@ The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time f
 
 Who commits what: the builder commits code to the job branch (and `plan.md` and `build.md` when the
 job folder is inside the repository). The orchestrator records the job folder (`intent.md`, `spec.md`,
-`plan.md`, `build.md`, `review/**`, `decision.md`, `mr.md`): before the build, after the builder
+`plan.md`, `build.md`, `review/**`, `decision.md`, `mr-body.md`, `mr.md`): before the build, after the builder
 (for a registered project, whose `plan.md` and `build.md` the builder leaves uncommitted), after each
 review round, after the decision and before the push. For a project registered in the argani home it commits them
 in the home's own git repository with a fixed message `argani: record <project>/<slug> <what>`, so the

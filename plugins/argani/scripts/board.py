@@ -8,23 +8,19 @@ it shows every registered project. Prints markdown (or, with --json, the board a
 --write also writes the markdown to <home>/board.md, which is generated and never edited by hand.
 
 The column of a task derives from its stage (factory_state.py); nothing is stored separately.
-Exit 1 with a message when the home is unusable or the repository is not registered.
+Exit 1 with a message when the home is unusable or the directory is not registered.
 """
 import json
 import os
-import subprocess
 import sys
-from pathlib import Path
 
 import argani_config
 import argani_home
 import factory_state
 import project_registry
-from git_cli import git_output
 
 COLUMNS = ("Backlog", "Design", "In progress", "Ready for MR", "In review", "Done", "Needs human")
 BOARD_FILE = "board.md"
-GIT_TIMEOUT_SECONDS = 10
 
 STAGE_COLUMNS = {
     "needs-intent-approval": "Backlog",
@@ -40,46 +36,10 @@ STAGE_COLUMNS = {
 
 
 def column(stage, merged):
-    """The board column of a stage; merged is whether a finished job's branch is merged (or None)."""
+    """The board column of a stage; merged is whether a finished job's mr.md has a Merged: line."""
     if stage == "done":
         return "Done" if merged else "In review"
     return STAGE_COLUMNS.get(stage, "Needs human")
-
-
-def _is_ancestor(toplevel, ancestor, descendant):
-    """Exit code of `git merge-base --is-ancestor`, or None when git cannot run."""
-    try:
-        return subprocess.run(
-            ["git", "-C", str(toplevel), "merge-base", "--is-ancestor", ancestor, descendant],
-            capture_output=True, timeout=GIT_TIMEOUT_SECONDS,
-        ).returncode
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-
-
-def branch_merged(toplevel, branch, base_branch):
-    """True when the branch (or origin/<branch>) is an ancestor of the base branch (or
-    origin/<base>), False when they exist and it is not, None when unknown (no checkout, a branch
-    that exists nowhere, or a git failure)."""
-    if not toplevel or not branch or not base_branch:
-        return None
-    codes = [_is_ancestor(toplevel, candidate, target)
-             for candidate in (branch, f"origin/{branch}") for target in (base_branch, f"origin/{base_branch}")]
-    if 0 in codes:
-        return True
-    return False if 1 in codes else None
-
-
-def local_checkout(project_entry):
-    """The first of the project's paths that is the toplevel of a git repository, else None."""
-    for raw in project_entry["paths"]:
-        path = Path(raw)
-        if not path.is_dir():
-            continue
-        top = git_output(path, "rev-parse", "--show-toplevel")
-        if top and os.path.realpath(top) == os.path.realpath(path):
-            return str(path)
-    return None
 
 
 def tasks_folder(home, name):
@@ -97,26 +57,21 @@ def intent_title(task_dir, slug):
     return slug
 
 
-def task_row(home, name, slug, checkout, config):
+def task_row(home, name, slug, config):
     base = {"project": name, "slug": slug, "title": intent_title(tasks_folder(home, name) / slug, slug)}
     try:
-        state = factory_state.build_state(
-            slug, start_dir=checkout or ".", config=config, with_working_tree=False)
+        state = factory_state.build_state(slug, config=config)
         if state is None:
             raise ValueError("job folder not found")
     except (ValueError, OSError) as error:
-        return {**base, "stage": "error", "column": "Needs human", "branch": None,
-                "merged": None, "next": str(error)}
-    merged = None
-    if state["stage"] == "done":
-        merged = True if state["mr"]["merged"] else branch_merged(checkout, state["branch"], state["base_branch"])
+        return {**base, "stage": "error", "column": "Needs human", "merged": None, "next": str(error)}
+    merged = state["mr"]["merged"] if state["stage"] == "done" else None
     return {**base, "stage": state["stage"], "column": column(state["stage"], merged),
-            "branch": state["branch"], "merged": merged, "next": state["next"]}
+            "merged": merged, "next": state["next"]}
 
 
-def project_tasks(home, entry, checkout):
-    """The task rows of one project entry, sorted by slug. The project's config is loaded once;
-    with a checkout, branches and changed paths come from it."""
+def project_tasks(home, entry):
+    """The task rows of one project entry, sorted by slug. The project's config is loaded once."""
     name = entry["name"]
     tasks_dir = tasks_folder(home, name)
     try:
@@ -131,21 +86,15 @@ def project_tasks(home, entry, checkout):
         config = argani_config.load_project_config(home, name)
     except (ValueError, OSError) as error:
         return [{"project": name, "slug": slug, "title": slug, "stage": "error", "column": "Needs human",
-                 "branch": None, "merged": None, "next": str(error)} for slug in slugs]
-    if checkout:
-        config["toplevel"] = checkout
-    return [task_row(home, name, slug, checkout, config) for slug in slugs]
+                 "merged": None, "next": str(error)} for slug in slugs]
+    return [task_row(home, name, slug, config) for slug in slugs]
 
 
 def board(home, names=None):
     entries = project_registry.list_projects(home)
     if names is not None:
         entries = [entry for entry in entries if entry["name"] in names]
-    projects = []
-    for entry in entries:
-        checkout = local_checkout(entry)
-        projects.append({"name": entry["name"], "checkout": checkout,
-                         "tasks": project_tasks(home, entry, checkout)})
+    projects = [{"name": entry["name"], "tasks": project_tasks(home, entry)} for entry in entries]
     return {"home": str(home), "projects": projects}
 
 
@@ -204,7 +153,7 @@ def main(argv):
         if "--all" not in flags:
             project = argani_config.load_config(start_dir)["project"]
             if project is None:
-                print(f"This repository is not registered in the argani home {home}; "
+                print(f"This directory is not registered in the argani home {home}; "
                       "run /argani:init (or use --all for every project).")
                 return 1
             names = [project]

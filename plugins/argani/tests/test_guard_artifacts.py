@@ -15,73 +15,79 @@ def write(repo, relative, content, agent_type=None, absolute=True):
 REVIEW = "argani/demo/review/round-1/review-code.md"
 DECISION = "argani/demo/decision.md"
 
-# --- paths inside a repository: only protectedPaths and the one-writer rule apply ---
+# --- paths inside a project directory: only protectedPaths and the one-writer rule apply ---
+
+
+@pytest.fixture
+def project(make_project):
+    """A project directory registered in the argani home with the default config."""
+    return make_project("project", config={})
 
 
 @pytest.mark.parametrize("relative", [
     REVIEW, DECISION, "argani/demo/spec.md", "argani/demo/intent.md", "argani/demo/mr.md",
     "argani/demo/review/round-3/review-code.md", "argani/demo/build.md",
 ])
-def test_the_main_session_and_other_agents_are_not_restricted_in_a_repository(repo, relative):
-    assert write(repo, relative, "oops\n") is None  # no verdict or round rule outside the argani home
-    assert write(repo, relative, "oops\n", "argani:other") is None
+def test_the_main_session_and_other_agents_are_not_restricted_in_a_project(project, relative):
+    assert write(project, relative, "oops\n") is None  # no verdict or round rule outside the argani home
+    assert write(project, relative, "oops\n", "argani:other") is None
 
 
 @pytest.mark.parametrize("relative", [
     "src/x.py", "argani/demo/plan.md", "argani/demo/build.md", "argani/demo/spec.md", REVIEW, DECISION,
 ])
-def test_the_builder_is_not_restricted_in_a_repository(repo, relative):
-    assert write(repo, relative, "x", "argani:builder") is None
+def test_the_builder_is_not_restricted_in_a_project(project, relative):
+    assert write(project, relative, "x", "argani:builder") is None
 
 
 @pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer"])
 @pytest.mark.parametrize("relative", ["src/a.py", "decision.md", "argani/README.md", "docs/spec.md", REVIEW, DECISION,
                                        "argani/demo/spec.md"])
-def test_sole_writer_agents_are_denied_everywhere_else_in_the_repository(repo, agent_type, relative):
-    assert decision_of(write(repo, relative, "x", agent_type)) == "deny"
+def test_sole_writer_agents_are_denied_everywhere_else_in_the_project(project, agent_type, relative):
+    assert decision_of(write(project, relative, "x", agent_type)) == "deny"
 
 
 @pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer"])
-def test_sole_writer_agents_are_denied_outside_any_repository(tmp_path_factory, agent_type):
+def test_sole_writer_agents_are_denied_outside_any_project(tmp_path_factory, agent_type):
     outside = tmp_path_factory.mktemp("outside")
     assert decision_of(write(outside, "src/a.py", "x", agent_type)) == "deny"
 
 
 @pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer"])
-def test_sole_writer_agents_are_denied_outside_the_repository_and_in_dot_git(repo, tmp_path_factory, agent_type):
+def test_sole_writer_agents_are_denied_outside_the_project_and_in_dot_git(project, tmp_path_factory, agent_type):
     elsewhere = tmp_path_factory.mktemp("elsewhere") / "evil.sh"
-    assert decision_of(write(repo, str(elsewhere), "x", agent_type)) == "deny"
-    assert decision_of(write(repo, ".git/config", "x", agent_type)) == "deny"
-    assert decision_of(write(repo, ".git/hooks/pre-commit", "x", agent_type)) == "deny"
+    assert decision_of(write(project, str(elsewhere), "x", agent_type)) == "deny"
+    assert decision_of(write(project, ".git/config", "x", agent_type)) == "deny"
+    assert decision_of(write(project, ".git/hooks/pre-commit", "x", agent_type)) == "deny"
 
 
-def test_builder_and_main_session_are_not_limited_outside_the_repository(repo, tmp_path_factory):
+def test_builder_and_main_session_are_not_limited_outside_the_project(project, tmp_path_factory):
     elsewhere = tmp_path_factory.mktemp("elsewhere") / "x"
-    assert write(repo, str(elsewhere), "x", "argani:builder") is None
-    assert write(repo, ".git/config", "x") is None
+    assert write(project, str(elsewhere), "x", "argani:builder") is None
+    assert write(project, ".git/config", "x") is None
 
 
-def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_repo):
-    repo = make_repo(config={"reviewers": 1})
+def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_project):
+    repo = make_project(config={"reviewers": 1})
     output = write(repo, "raw/a/b.txt", "x")
     assert decision_of(output) == "ask"
     assert "configuration is invalid" in output["permissionDecisionReason"]
     assert decision_of(write(repo, "raw/a/b.txt", "x", "argani:builder")) == "deny"
 
 
-def test_invalid_config_does_not_affect_writes_outside_the_repository(make_repo, tmp_path_factory):
-    make_repo(config={"reviewers": 1})
+def test_invalid_config_does_not_affect_writes_outside_the_repository(make_project, tmp_path_factory):
+    make_project(config={"reviewers": 1})
     outside = tmp_path_factory.mktemp("outside")
     assert write(outside, "raw/a/b.txt", "x") is None
 
 
-def test_a_removed_repository_file_protects_nothing(make_repo):
-    repo = make_repo(legacy_config={"protectedPaths": ["raw/**"]})
+def test_a_removed_legacy_file_protects_nothing(make_project):
+    repo = make_project(legacy_config={"protectedPaths": ["raw/**"]})
     assert write(repo, "raw/a/b.txt", "x") is None
 
 
-def test_protected_paths_are_denied_for_everyone(make_repo):
-    repo = make_repo(config={"protectedPaths": ["raw/**", "*.lock", "docs/**/secret.md"]})
+def test_protected_paths_are_denied_for_everyone(make_project):
+    repo = make_project(config={"protectedPaths": ["raw/**", "*.lock", "docs/**/secret.md"]})
     assert decision_of(write(repo, "raw/a/b.txt", "x")) == "deny"
     assert decision_of(write(repo, "raw/a/b.txt", "x", "argani:builder")) == "deny"
     assert decision_of(write(repo, "poetry.lock", "x")) == "deny"
@@ -92,48 +98,45 @@ def test_protected_paths_are_denied_for_everyone(make_repo):
     assert write(repo, "rawer/a.txt", "x") is None
 
 
-def test_non_artifact_paths_and_non_repos_are_allowed(repo, tmp_path_factory):
+def test_non_artifact_paths_and_unregistered_directories_are_allowed(repo, tmp_path_factory):
     assert write(repo, "src/app.py", "anything") is None
     outside = tmp_path_factory.mktemp("outside")
     assert write(outside, "argani/demo/review/round-1/review-code.md", "junk") is None
 
 
 @pytest.fixture
-def worktree_with_symlinked_raw(make_repo):
-    """A main checkout whose shared/project/raw is protected, and a git worktree where that folder
-    is a symlink back into the main checkout (gitignored sources shared between worktrees)."""
-    import subprocess
-    config = {"protectedPaths": ["shared/*/raw/**"]}
-    main = make_repo("main", config=config)
+def second_directory_with_symlinked_raw(tmp_path, register_project):
+    """A project of two directories: in the first, shared/project/raw is protected; in the second, that
+    folder is a symlink back into the first."""
+    main, second = tmp_path / "main", tmp_path / "second"
     (main / "shared" / "project" / "raw").mkdir(parents=True)
-    worktree = main.parent / "worktree"
-    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", "-b", "feature", str(worktree)],
-                   check=True)
-    (worktree / "shared" / "project").mkdir(parents=True)
-    (worktree / "shared" / "project" / "raw").symlink_to(main / "shared" / "project" / "raw")
-    return main, worktree
+    (second / "shared" / "project").mkdir(parents=True)
+    register_project("demo", paths=[str(main.resolve()), str(second.resolve())],
+                     protectedPaths=["shared/*/raw/**"])
+    (second / "shared" / "project" / "raw").symlink_to(main / "shared" / "project" / "raw")
+    return main, second
 
 
 @pytest.mark.parametrize("agent_type", [None, "argani:builder"])
-def test_protected_paths_are_denied_through_a_symlink_into_another_checkout(
-        worktree_with_symlinked_raw, agent_type):
-    _, worktree = worktree_with_symlinked_raw
-    assert decision_of(write(worktree, "shared/project/raw/file.txt", "x", agent_type)) == "deny"
-    assert write(worktree, "shared/project/notes.md", "x", agent_type) is None
+def test_protected_paths_are_denied_through_a_symlink_into_another_directory(
+        second_directory_with_symlinked_raw, agent_type):
+    _, second = second_directory_with_symlinked_raw
+    assert decision_of(write(second, "shared/project/raw/file.txt", "x", agent_type)) == "deny"
+    assert write(second, "shared/project/notes.md", "x", agent_type) is None
 
 
-def test_symlink_whose_target_is_protected_in_its_own_repository_is_denied(make_repo):
-    main = make_repo("main", config={"protectedPaths": ["raw/**"]})
+def test_symlink_whose_target_is_protected_in_its_own_project_is_denied(make_project):
+    main = make_project("main", config={"protectedPaths": ["raw/**"]})
     (main / "raw").mkdir()
-    other = make_repo("other")
+    other = make_project("other")
     (other / "sources").symlink_to(main / "raw")
     assert decision_of(write(other, "sources/file.txt", "x", "argani:builder")) == "deny"
     assert write(other, "src/a.py", "x", "argani:builder") is None
 
 
-def test_symlink_to_a_folder_outside_any_repository_keeps_the_logical_protection(
-        make_repo, tmp_path_factory):
-    repo = make_repo(config={"protectedPaths": ["shared/*/raw/**"]})
+def test_symlink_to_a_folder_outside_any_project_keeps_the_logical_protection(
+        make_project, tmp_path_factory):
+    repo = make_project(config={"protectedPaths": ["shared/*/raw/**"]})
     data = tmp_path_factory.mktemp("data")
     (repo / "shared" / "project").mkdir(parents=True)
     (repo / "shared" / "project" / "raw").symlink_to(data)
@@ -154,7 +157,7 @@ def hub_write(hub, relative, content="x", agent_type=None, project="demo", cwd=N
 
 @pytest.fixture
 def demo_project(hub, register_project):
-    return register_project("demo", remotes=["git@example.com:o/demo.git"])
+    return register_project("demo")
 
 
 def test_main_session_hub_artifact_write_is_explicitly_allowed(hub, demo_project):
@@ -250,8 +253,8 @@ def test_unverifiable_verdict_edit_in_the_hub_is_denied_but_not_in_a_repository(
             assert output is None
 
 
-def test_symlink_in_the_repository_into_the_hub_keeps_protected_paths(make_repo, hub, demo_project):
-    repo = make_repo(config={"protectedPaths": ["link/**"]})
+def test_symlink_in_the_repository_into_the_hub_keeps_protected_paths(make_project, hub, demo_project):
+    repo = make_project(config={"protectedPaths": ["link/**"]})
     tasks = hub / "projects" / "demo" / "tasks"
     (tasks / "login").mkdir(parents=True)
     (repo / "link").symlink_to(tasks)
@@ -285,13 +288,6 @@ def test_cwd_relative_hub_path_resolves_against_cwd(hub, demo_project):
     folder = hub / "projects" / "demo" / "tasks" / "login"
     folder.mkdir(parents=True)
     assert decision_of(hub_write(hub, "", cwd=folder, file_path="intent.md")) == "allow"
-
-
-def test_a_home_that_is_a_git_repository_is_not_treated_as_a_repository(hub, demo_project):
-    from conftest import git
-    git(hub, "init", "-q", "-b", "main")
-    assert decision_of(hub_write(hub, "tasks/login/intent.md")) == "allow"
-    assert hub_write(hub, "project.json", "{}") is None
 
 
 def test_invalid_home_skips_the_hub_branch(repo, tmp_path, monkeypatch):
@@ -365,3 +361,58 @@ def test_edit_that_does_not_touch_line_one_is_allowed_in_the_hub(hub, demo_proje
 def test_round_limit_applies_to_review_human_in_the_hub(hub, demo_project, round_number, expected):
     relative = f"tasks/login/review/round-{round_number}/review-human.md"
     assert decision_of(hub_write(hub, relative, "CHANGES\n")) == expected
+
+
+@pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer", "argani:builder"])
+def test_no_agent_writes_change_diff_in_the_hub(hub, demo_project, agent_type):
+    output = hub_write(hub, "tasks/login/review/round-1/change.diff", "diff", agent_type)
+    assert decision_of(output) == "deny"
+
+
+def test_even_the_main_session_cannot_write_or_edit_change_diff_in_the_hub(hub, demo_project):
+    path = "tasks/login/review/round-1/change.diff"
+    assert decision_of(hub_write(hub, path, "diff")) == "deny"
+    edit = run_hook("guard_artifacts.py", file_payload(
+        "Edit", hub, hub / "projects" / "demo" / path, old_string="a", new_string="b"))
+    assert decision_of(edit) == "deny"
+
+
+def test_a_subagent_of_another_plugin_cannot_write_change_diff_either(hub, demo_project):
+    output = hub_write(hub, "tasks/login/review/round-2/change.diff", "diff", "other:agent")
+    assert decision_of(output) == "deny"
+    assert "capture_change.py" in output["permissionDecisionReason"]
+
+
+def test_other_files_of_the_round_folder_are_unaffected(hub, demo_project):
+    assert decision_of(hub_write(hub, "tasks/login/review/round-1/review-human.md", "CHANGES x\n")) == "allow"
+    assert decision_of(hub_write(hub, "tasks/login/review/round-1/change.diff.bak", "x")) == "allow"
+
+
+def test_a_project_of_two_directories_checks_protected_paths_against_the_right_root(tmp_path, register_project):
+    first, second = tmp_path / "first", tmp_path / "second"
+    for directory in (first, second):
+        (directory / "raw").mkdir(parents=True)
+    register_project("shop", paths=[str(first.resolve()), str(second.resolve())], protectedPaths=["raw/**"])
+    assert decision_of(write(second, "raw/a.txt", "x")) == "deny"
+    assert decision_of(write(first, "raw/a.txt", "x", "argani:builder")) == "deny"
+    assert write(second, "src/a.txt", "x") is None
+    assert write(second, "nested/raw/a.txt", "x") is None  # relative to the root of second, not to first
+
+
+def test_a_home_inside_a_project_path_is_never_a_project_directory(tmp_path, monkeypatch):
+    import json
+    import os
+    import argani_home
+    project = tmp_path / "project"
+    project.mkdir()
+    inner_home = project / ".argani"
+    monkeypatch.setenv("ARGANI_HOME", str(inner_home))
+    argani_home.ensure_home(inner_home)
+    (inner_home / "projects" / "shop").mkdir()
+    (inner_home / "projects" / "shop" / "project.json").write_text(json.dumps(
+        {"name": "shop", "paths": [str(project.resolve())], "protectedPaths": ["**/*.lock"]}))
+    (inner_home / "projects" / "shop" / "tasks" / "login").mkdir(parents=True)
+    hub_file = inner_home / "projects" / "shop" / "tasks" / "login" / "intent.md"
+    assert decision_of(run_hook("guard_artifacts.py", file_payload("Write", project, hub_file, None, content="x"))) == "allow"
+    assert decision_of(write(project, "poetry.lock", "x")) == "deny"
+    assert os.path.realpath(inner_home).startswith(os.path.realpath(project))

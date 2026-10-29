@@ -17,20 +17,13 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import argani_config
-import argani_home
-import project_registry
 
 MAX_SLUG_LENGTH = 60
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 STATUS_LINE_PATTERN = re.compile(r"^Status:")
-TYPE_LINE_PATTERN = re.compile(r"^Type:")
-TYPE_VALUE_PATTERN = re.compile(r"^Type: ([A-Za-z0-9][A-Za-z0-9._-]*)$")
 RISK_LINE_PATTERN = re.compile(r"^Risk:")
 RISK_VALUE_PATTERN = re.compile(r"^Risk: (low|medium|high)$")
-NUMBER_LINE_PATTERN = re.compile(r"^Number:")
-NUMBER_VALUE_PATTERN = re.compile(r"^Number: ([1-9][0-9]*)$")
 STATUS_VALUE_PATTERN = re.compile(r"^Status: (draft|approved by (\S.*) on (\d{4}-\d{2}-\d{2}))$")
 # `n. [ ] <claim> — verify: <how>`; item n is referred to as AC-n everywhere else.
 AC_ITEM_PATTERN = re.compile(r"^(\d+)\. \[[ xX]\] (.+) — verify: (\S.*)$")
@@ -139,20 +132,6 @@ def check_status(header, outside_fence):
     return [], "draft"
 
 
-def intent_type(text):
-    """The job type from an intent's `Type:` header line, else None."""
-    header, _, _ = parse(text)
-    match = next((TYPE_VALUE_PATTERN.match(line.rstrip()) for line in header if TYPE_LINE_PATTERN.match(line)), None)
-    return match.group(1) if match else None
-
-
-def intent_number(text):
-    """The job number from an intent's `Number:` header line (a positive integer), else None."""
-    header, _, _ = parse(text)
-    match = next((NUMBER_VALUE_PATTERN.match(line.rstrip()) for line in header if NUMBER_LINE_PATTERN.match(line)), None)
-    return int(match.group(1)) if match else None
-
-
 def intent_risk(text):
     """The job risk from an intent's `Risk:` header line (low, medium, high), else None."""
     header, _, _ = parse(text)
@@ -167,33 +146,6 @@ def check_risk(header):
         return [f"need at most one 'Risk:' line in the header, found {len(lines)}"]
     if lines and not RISK_VALUE_PATTERN.match(lines[0]):
         return [f"Risk must be 'Risk: low', 'Risk: medium' or 'Risk: high', got {lines[0]!r}"]
-    return []
-
-
-def check_number(header, number_required=False):
-    """An intent's `Number:` line: at most one, a positive integer, and present when number_required."""
-    lines = [line.rstrip() for line in header if NUMBER_LINE_PATTERN.match(line)]
-    if len(lines) > 1:
-        return [f"need at most one 'Number:' line in the header, found {len(lines)}"]
-    if lines and not NUMBER_VALUE_PATTERN.match(lines[0]):
-        return [f"Number must be a positive integer such as 'Number: 56', got {lines[0]!r}"]
-    if number_required and not lines:
-        return ["need 'Number: <n>' in the header (branchPattern in the project's configuration has {n})"]
-    return []
-
-
-def check_type(header, branch_types):
-    """An intent's `Type:` line: at most one, one word, and one of branch_types when they are set."""
-    lines = [line.rstrip() for line in header if TYPE_LINE_PATTERN.match(line)]
-    if len(lines) > 1:
-        return [f"need at most one 'Type:' line in the header, found {len(lines)}"]
-    if lines and not TYPE_VALUE_PATTERN.match(lines[0]):
-        return [f"Type must be one word such as 'Type: feat', got {lines[0]!r}"]
-    if branch_types:
-        value = TYPE_VALUE_PATTERN.match(lines[0]).group(1) if lines else None
-        if value not in branch_types:
-            return [f"need 'Type: <type>' in the header with one of {', '.join(branch_types)} "
-                    f"(branchTypes in the project's configuration), got {value!r}"]
     return []
 
 
@@ -261,14 +213,11 @@ def check_table_has_rows(lines, section):
     return [] if len(rows) > 2 else [f"{section} table has no rows"]
 
 
-def run_check(kind, text, branch_types=(), number_required=False):
-    """Return (violations, status) for an artifact of the given kind. branch_types are the job types an
-    intent's `Type:` must use (empty: `Type:` is optional); number_required makes `Number:` mandatory."""
+def run_check(kind, text):
+    """Return (violations, status) for an artifact of the given kind."""
     violations, sections, status = check_common(text, kind)
     if kind == "Intent":
-        violations += check_type(parse(text)[0], branch_types)
         violations += check_risk(parse(text)[0])
-        violations += check_number(parse(text)[0], number_required)
     if kind == "Intent" and "Acceptance criteria" in sections:
         violations += check_acceptance_criteria(sections["Acceptance criteria"])
     if kind == "Spec" and "Acceptance criteria mapping" in sections:
@@ -283,26 +232,6 @@ def load(path):
     if not path.is_file():
         return None
     return normalize(path.read_text(encoding="utf-8"))
-
-
-def configured_branch_rules(path):
-    """(branchTypes, number_required) of the project whose hub tasks folder holds the file, else of the
-    repository that holds it (none outside a repository); number_required is True when branchPattern
-    has {n}."""
-    try:
-        home = argani_home.home_path()
-    except Exception:  # an unusable home means no hub paths
-        home = None
-    owner = project_registry.project_of_path(path, home) if home else None
-    if owner and owner[1].parts[0] == argani_config.TASKS_DIR:
-        try:
-            config = argani_config.load_project_config(home, owner[0])
-        except ValueError as error:
-            print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
-            return [], False
-    else:
-        config = argani_config.load_config(Path(path).resolve().parent)
-    return config["branchTypes"], argani_config.NUMBER_PLACEHOLDER in config["branchPattern"]
 
 
 def report(path, violations):
@@ -331,7 +260,7 @@ def main(argv):
                 return report(argv[2], ["title must start with '# Intent:', '# Spec:' or '# Plan:'"])
         else:
             kind = argv[1].capitalize()
-        violations, status = run_check(kind, text, *configured_branch_rules(argv[2]))
+        violations, status = run_check(kind, text)
         if violations:
             return report(argv[2], violations)
         print(status if argv[1] == "status" else f"VALID {argv[2]}")

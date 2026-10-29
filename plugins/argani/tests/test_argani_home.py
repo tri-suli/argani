@@ -55,7 +55,6 @@ def test_home_with_parent_segment_is_refused(tmp_path):
 def test_first_creation_makes_the_home_and_projects_folders(tmp_path):
     home = tmp_path / "board"
     assert argani_home.ensure_home(home) == [home, home / "projects"]
-    assert not (home / ".git").exists()
     assert (home / "projects").is_dir()
 
 
@@ -67,33 +66,6 @@ def test_second_creation_makes_nothing_and_keeps_existing_files(tmp_path):
     entry.write_text("kept\n")
     assert argani_home.ensure_home(home) == []
     assert entry.read_text() == "kept\n"
-
-
-def test_the_git_flag_is_true_only_for_a_repository_of_the_homes_own(tmp_path):
-    home = tmp_path / "board"
-    argani_home.ensure_home(home)
-    assert argani_home.report(home)["git"] is False
-    subprocess.run(["git", "-C", str(home), "init", "-q"], check=True, capture_output=True)
-    assert argani_home.report(home)["git"] is True
-    assert argani_home.ensure_home(home) == []
-
-
-def test_a_home_nested_in_another_repository_is_not_a_repository_of_its_own(tmp_path):
-    subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], check=True, capture_output=True)
-    home = tmp_path / "board"
-    argani_home.ensure_home(home)
-    assert argani_home.report(home)["git"] is False
-
-
-def test_an_existing_repository_in_the_home_is_kept(tmp_path):
-    home = tmp_path / "board"
-    home.mkdir()
-    for args in (["init", "-q", "-b", "main"],
-                 ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "kept"]):
-        subprocess.run(["git", "-C", str(home), *args], check=True, capture_output=True)
-    assert argani_home.ensure_home(home) == [home / "projects"]
-    log = subprocess.run(["git", "-C", str(home), "log", "--format=%s"], capture_output=True, text=True)
-    assert log.stdout.split() == ["kept"]
 
 
 def test_missing_projects_folder_is_added_to_an_existing_home(tmp_path):
@@ -121,8 +93,7 @@ def test_script_reports_without_creating_anything(tmp_path):
     home = tmp_path / "board"
     result = run_script(env_home=home)
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "exists": False,
-                                      "git": False}
+    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "exists": False}
     assert not home.exists()
 
 

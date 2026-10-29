@@ -1,49 +1,32 @@
 #!/usr/bin/env python3
-"""Effective argani configuration for the repository containing a directory.
+"""Effective argani configuration for the project that contains a directory.
 
-Config lives in the project.json of the repository's project in the argani home. A repository
-without a project gets the defaults plus the detected branches; its .claude/argani.json is no
-longer read (removed in 1.0.0). The toplevel is resolved from the given directory, never from CLAUDE_PROJECT_DIR, so the
-result is correct in worktrees and subagents.
+Config lives in the project.json of the project in the argani home; a directory outside every
+registered project gets the defaults. The project is found by the real path of the directory and
+its ancestors (see project_registry.resolve), never from CLAUDE_PROJECT_DIR. argani never runs
+git: the project's own tools handle branches, commits and merges.
 
 Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
 """
-import fnmatch
 import json
 import re
 import shlex
-import subprocess
 import sys
 from pathlib import Path
 
 import argani_home
-import git_cli
 import project_registry
 
-IDENTITY_KEYS = ("name", "remotes", "paths")  # project.json keys that identify a project, not config
-LEGACY_ONLY_KEYS = ("artifactRoot", "recordCommitMessage")  # keys of the removed per-repository file; read only to migrate it
-UNREGISTERED_FILE_NOTE = ("argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init to "
-                          "register this repository (its keys are carried over)")
-TASKS_DIR = "tasks"  # folder of a project's job folders inside its hub entry
+IDENTITY_KEYS = ("name", "paths")  # project.json keys that identify a project, not config
+LEGACY_ONLY_KEYS = ("artifactRoot",)  # key of the removed per-repository file; read only to migrate it
+TASKS_DIR = "tasks"  # folder of a project's job folders inside its home entry
 
 DEFAULTS = {
-    "defaultBranch": None,  # detected when not configured
-    "baseBranch": None,  # defaults to defaultBranch
-    "protectedBranches": [],  # defaultBranch and baseBranch are always added
-    "verifyCommand": None,
+    "verifyCommand": None,  # runs the project's checks in the current directory
+    "diffCommand": None,  # prints the change under review as a unified diff
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
-    "mergePolicy": "human",  # who merges the merge request after APPROVE: human or agent
-    "mergeCommand": None,  # merges the merge request when mergePolicy is agent
-    "worktreePath": None,  # folder with {branch} for each job's own git worktree; None = work in the main checkout
-    "worktreeCommand": None,  # creates the worktree; else argani runs git worktree add
-    "branchPattern": "feature/{slug}",
-    "branchNumberCommand": None,  # prints the next job number for {n} in branchPattern; else argani counts the intents
-    "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
-    "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
-    "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
-    "commitSkill": None,  # a repository skill that makes every argani commit, instead of git commit
     # Model per agent, or per job risk ({"default": ..., "low"|"medium"|"high": ...}). A key
     # "reviewer:<checklist>" overrides "reviewer" for that checklist.
     "agentModels": {
@@ -64,61 +47,8 @@ AGENTS = ("spec-writer", "builder", "approver", "reviewer")
 RISK_LEVELS = ("low", "medium", "high")
 DEFAULT_RISK = "medium"
 CHECKLIST_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-SKILL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._-]*$")
 SLUG_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]*")  # a job slug; match with fullmatch
-SLUG_PLACEHOLDER = "{slug}"
-TYPE_PLACEHOLDER = "{type}"
-NUMBER_PLACEHOLDER = "{n}"
-TYPE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-WHAT_PLACEHOLDER = "{what}"
-MODEL_PLACEHOLDER = "{model}"
 PLACEHOLDER = re.compile(r"(?<!\$)\{[A-Za-z]\w*\}")
-TRAILER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*: \S.*$")
-GLOB_CHARS = "*?["
-
-
-_git = git_cli.git_output  # re-exported: hooks and tests use these names
-
-
-def toplevel(start_dir):
-    return git_cli.toplevel(start_dir)
-
-
-def branch_exists(start_dir, name):
-    return _git(start_dir, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}") is not None
-
-
-def remote_names(start_dir):
-    return set((_git(start_dir, "remote") or "").split())
-
-
-def git_aliases(start_dir):
-    """{alias name: definition} from the git config seen in start_dir."""
-    lines = (_git(start_dir, "config", "--get-regexp", r"^alias\.") or "").splitlines()
-    return dict(line.removeprefix("alias.").partition(" ")[::2] for line in lines)
-
-
-def remotes_with_branch(start_dir, name):
-    """Number of remote-tracking branches <remote>/<name>; git switch <name> uses one if it is unique."""
-    refs = _git(start_dir, "for-each-ref", "--format=%(refname)", f"refs/remotes/*/{name}")
-    return len(refs.splitlines()) if refs else 0
-
-
-def detect_default_branch(start_dir):
-    """origin/HEAD, else a local main, else a local master, else init.defaultBranch, else main."""
-    ref = _git(start_dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
-    if ref and ref.startswith("origin/"):
-        return ref[len("origin/"):]
-    for name in ("main", "master"):
-        if branch_exists(start_dir, name):
-            return name
-    return _git(start_dir, "config", "init.defaultBranch") or "main"
-
-
-def current_branch(start_dir):
-    # symbolic-ref also works in a repository without commits; rev-parse reports detached HEAD.
-    return (_git(start_dir, "symbolic-ref", "--short", "-q", "HEAD")
-            or _git(start_dir, "rev-parse", "--abbrev-ref", "HEAD"))
 
 
 def _string_list(value):
@@ -135,14 +65,7 @@ def _reviewer_names(value):
 
 
 QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
-MR_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{title}", "{bodyFile}")
-
-
-MERGE_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{mr}")
-MERGE_POLICIES = ("human", "agent")
-AGENT_MERGE_POLICY = "agent"
-WORKTREE_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{path}", "{toplevel}")
-BRANCH_PLACEHOLDER = "{branch}"
+MR_COMMAND_PLACEHOLDERS = ("{title}", "{bodyFile}")
 
 
 def _command_with_placeholders(value, allowed):
@@ -163,21 +86,6 @@ def _mr_command(value):
     return _command_with_placeholders(value, MR_COMMAND_PLACEHOLDERS)
 
 
-def _merge_command(value):
-    return _command_with_placeholders(value, MERGE_COMMAND_PLACEHOLDERS)
-
-
-def _merge_policy(value):
-    policy = _optional_string(value)
-    if policy not in MERGE_POLICIES:
-        raise ValueError(f"'{policy}' is not a merge policy; use {' or '.join(MERGE_POLICIES)}")
-    return policy
-
-
-def _worktree_command(value):
-    return _command_with_placeholders(value, WORKTREE_COMMAND_PLACEHOLDERS)
-
-
 def _optional_string(value):
     if isinstance(value, str):
         return value
@@ -185,111 +93,18 @@ def _optional_string(value):
 
 
 def _artifact_root(value):
-    """A folder relative to the toplevel, inside the repository and outside .git."""
+    """A folder relative to the project root, inside the project."""
     root = _optional_string(value).strip()
     if root.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", root):
-        raise ValueError(f"'{root}' is absolute; use a folder relative to the repository toplevel")
+        raise ValueError(f"'{root}' is absolute; use a folder relative to the project root")
     parts = [part for part in root.replace("\\", "/").split("/") if part not in ("", ".")]
     if not parts:
         raise ValueError("must name a folder, for example 'argani' or 'docs/tasks'")
     if ".." in parts:
-        raise ValueError(f"'{root}' leaves the repository; '..' is not allowed")
+        raise ValueError(f"'{root}' leaves the project; '..' is not allowed")
     if parts[0] == ".git":
         raise ValueError(f"'{root}' is inside .git")
     return "/".join(parts)
-
-
-def _worktree_path(value):
-    """A folder relative to the toplevel with {branch} exactly once, inside the repository and outside .git."""
-    path = _artifact_root(value)
-    if path.count(BRANCH_PLACEHOLDER) != 1:
-        raise ValueError(f"must contain {BRANCH_PLACEHOLDER} exactly once, for example '.worktrees/{{branch}}'")
-    if BRANCH_PLACEHOLDER in path.split("/", 1)[0]:
-        raise ValueError("put the worktrees in a folder, for example '.worktrees/{branch}'")
-    return path
-
-
-def _check_branch_name(name):
-    """Raise ValueError unless git accepts name as a branch name."""
-    try:
-        subprocess.run(["git", "check-ref-format", "--branch", name], capture_output=True, check=True)
-    except OSError as error:
-        raise ValueError(f"cannot check the branch name: {error}") from error
-    except subprocess.CalledProcessError as error:
-        raise ValueError(f"'{name}' is not a valid git branch name") from error
-
-
-def _clean_branch(value, allow_glob=False):
-    """A branch name without surrounding spaces or a refs/heads/ prefix; globs only when allowed."""
-    name = _optional_string(value).strip().removeprefix("refs/heads/").removeprefix("heads/")
-    if not name:
-        raise ValueError("branch name is empty")
-    if name.startswith("refs/"):
-        raise ValueError(f"'{name}' is not a branch; use a name under refs/heads/")
-    if name == "@":
-        raise ValueError("'@' is HEAD, not a branch; use the branch name")
-    if "@{" in name:
-        # check-ref-format --branch would expand it against the hook's own repository.
-        raise ValueError(f"'{name}' is a relative reference; use the branch name")
-    has_glob = any(char in name for char in GLOB_CHARS)
-    if has_glob and not allow_glob:
-        raise ValueError(f"'{name}' contains a glob character; only protectedBranches accepts globs")
-    # A glob is checked with its wildcards replaced, so 'release/*' is checked as 'release/x'.
-    _check_branch_name("".join("x" if char in GLOB_CHARS else char for char in name))
-    return name
-
-
-def _branch(value):
-    return _clean_branch(value)
-
-
-def _protected_branches(value):
-    return [_clean_branch(item, allow_glob=True) for item in _string_list(value)]
-
-
-def _branch_pattern(value):
-    pattern = _optional_string(value)
-    if pattern.count(SLUG_PLACEHOLDER) != 1:
-        raise ValueError(f"must contain {SLUG_PLACEHOLDER} exactly once")
-    if pattern.count(TYPE_PLACEHOLDER) > 1:
-        raise ValueError(f"may contain {TYPE_PLACEHOLDER} at most once")
-    if pattern.count(NUMBER_PLACEHOLDER) > 1:
-        raise ValueError(f"may contain {NUMBER_PLACEHOLDER} at most once")
-    _check_branch_name(pattern.replace(SLUG_PLACEHOLDER, "example-slug").replace(TYPE_PLACEHOLDER, "feat")
-                       .replace(NUMBER_PLACEHOLDER, "1"))
-    return pattern
-
-
-def _branch_number_command(value):
-    command = _optional_string(value)
-    if not command.strip():
-        raise ValueError("must not be empty")
-    if "\n" in command or "\r" in command:
-        raise ValueError("must be a single line")
-    return command
-
-
-def _branch_types(value):
-    types = _string_list(value)
-    for name in types:
-        if not TYPE_NAME.match(name):
-            raise ValueError(f"'{name}' is not a job type; use letters, digits, '.', '_' or '-', like 'feat'")
-    if len(set(types)) != len(types):
-        raise ValueError("lists a job type twice")
-    return types
-
-
-def _base_branch_by_type(value):
-    if not isinstance(value, dict):
-        raise ValueError("expected an object mapping a job type to a branch, like {\"hotfix\": \"main\"}")
-    return {name: _branch(branch) for name, branch in value.items()}
-
-
-def _commit_skill(value):
-    name = _optional_string(value).strip().lstrip("/")
-    if not SKILL_NAME.match(name):
-        raise ValueError(f"'{value}' is not a skill name such as 'git-commit'")
-    return name
 
 
 def _model_choice(name, value):
@@ -367,117 +182,21 @@ def glob_to_regex(pattern):
     return re.compile("".join(parts) + r"\Z")
 
 
-def _check_cross_keys(config):
-    """Rules between keys (mergePolicy, {type}, baseBranchByType, reviewerPaths); raises ValueError."""
-    types = config["branchTypes"]
-    if config["mergePolicy"] == AGENT_MERGE_POLICY and not config["mergeCommand"]:
-        raise ValueError("mergePolicy agent needs mergeCommand, the command that merges the merge request")
-    if TYPE_PLACEHOLDER in config["branchPattern"] and not types:
-        raise ValueError(f"branchPattern uses {TYPE_PLACEHOLDER} but branchTypes is empty")
-    unknown = [name for name in config["baseBranchByType"] if name not in types]
-    if unknown:
-        raise ValueError(f"baseBranchByType names {', '.join(unknown)}, which branchTypes does not list")
+def validate_overrides(overrides):
+    """Raise ValueError when config keys break a rule between keys (reviewerPaths names only
+    listed reviewers), as the keys of a project.json would."""
+    config = {**DEFAULTS, **overrides}
     unscoped = [name for name in config["reviewerPaths"] if name not in config["reviewers"]]
     if unscoped:
         raise ValueError(f"reviewerPaths names {', '.join(unscoped)}, which reviewers does not list")
-    for name in types:
-        _check_branch_name(config["branchPattern"].replace(SLUG_PLACEHOLDER, "example-slug")
-                           .replace(TYPE_PLACEHOLDER, name).replace(NUMBER_PLACEHOLDER, "1"))
-
-
-def _record_commit_message(value):
-    message = _optional_string(value)
-    if message.count(WHAT_PLACEHOLDER) != 1:
-        raise ValueError(f"must contain {WHAT_PLACEHOLDER} exactly once")
-    if "\n" in message or not message.strip():
-        raise ValueError("must be a single, non-empty subject line")
-    return message
-
-
-def _commit_trailers(value):
-    trailers = _string_list(value)
-    for trailer in trailers:
-        if not TRAILER.match(trailer):
-            raise ValueError(f"'{trailer}' is not a git trailer such as 'Co-Authored-By: Name <email>'")
-        unknown = [name for name in PLACEHOLDER.findall(trailer) if name != MODEL_PLACEHOLDER]
-        if unknown:
-            raise ValueError(f"'{trailer}' uses {', '.join(unknown)}; the only placeholder is {MODEL_PLACEHOLDER}")
-    return trailers
-
-
-def commit_trailers(config, model):
-    """The configured trailers with {model} replaced by the committing agent's model name."""
-    return [trailer.replace(MODEL_PLACEHOLDER, model) for trailer in config["commitTrailers"]]
-
-
-def protected_match(config, branch):
-    """The protectedBranches entry (name or glob) that branch matches, else None."""
-    return next((entry for entry in config["protectedBranches"]
-                 if fnmatch.fnmatchcase(branch, entry)), None)
-
-
-def job_branch(config, slug, job_type=None, number=None):
-    """The job branch for a slug, its intent's Type and Number. Raises ValueError when the pattern needs
-    a type that is missing or not in branchTypes, a number that is missing, or when the branch would
-    be a protected branch."""
-    pattern = config["branchPattern"]
-    if TYPE_PLACEHOLDER in pattern:
-        if job_type not in config["branchTypes"]:
-            raise ValueError(f"branchPattern needs the job type; intent.md 'Type:' must be one of "
-                             f"{', '.join(config['branchTypes'])}, got {job_type!r}")
-        pattern = pattern.replace(TYPE_PLACEHOLDER, job_type)
-    if NUMBER_PLACEHOLDER in pattern:
-        if number is None:
-            raise ValueError("branchPattern needs the job number; intent.md 'Number:' is missing")
-        pattern = pattern.replace(NUMBER_PLACEHOLDER, str(number))
-    branch = pattern.replace(SLUG_PLACEHOLDER, slug)
-    if protected_match(config, branch):
-        raise ValueError(f"branchPattern gives '{branch}' for slug '{slug}', which is a protected branch")
-    return branch
-
-
-def base_branch_for(config, job_type=None):
-    """The branch a job of this type starts from and merges into."""
-    return config["baseBranchByType"].get(job_type, config["baseBranch"])
-
-
-def _reject_remote_prefixes(overrides, start_dir):
-    """Raise ValueError when a configured branch starts with a remote name, like origin/develop."""
-    remotes = remote_names(start_dir)
-    names = [overrides.get("defaultBranch"), overrides.get("baseBranch"), *overrides.get("protectedBranches", []),
-             *overrides.get("baseBranchByType", {}).values()]
-    for name in filter(None, names):
-        remote = name.split("/", 1)[0]
-        is_glob = any(char in name for char in GLOB_CHARS)  # 'release/*' is a pattern, not a remote
-        if "/" in name and remote in remotes and not is_glob:
-            raise ValueError(f"'{name}' names a remote-tracking branch; drop the '{remote}/' prefix")
-
-
-def validate_overrides(overrides, start_dir):
-    """Raise ValueError when config keys break a rule of the repository around start_dir or a
-    rule between keys, as the keys of a project.json would."""
-    _reject_remote_prefixes(overrides, start_dir)
-    _check_cross_keys({**DEFAULTS, **overrides})
 
 
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
-    "defaultBranch": _branch,
-    "baseBranch": _branch,
-    "protectedBranches": _protected_branches,
     "verifyCommand": _optional_string,
+    "diffCommand": _optional_string,
     "mrCommand": _mr_command,
-    "mergePolicy": _merge_policy,
-    "mergeCommand": _merge_command,
-    "worktreePath": _worktree_path,
-    "worktreeCommand": _worktree_command,
-    "branchPattern": _branch_pattern,
-    "branchNumberCommand": _branch_number_command,
-    "commitTrailers": _commit_trailers,
-    "branchTypes": _branch_types,
-    "baseBranchByType": _base_branch_by_type,
-    "commitSkill": _commit_skill,
     "agentModels": _agent_models,
     "reviewerPaths": _reviewer_paths,
 }
@@ -485,12 +204,12 @@ COERCERS = {
 
 LEGACY_COERCERS = {
     "artifactRoot": _artifact_root,
-    "recordCommitMessage": _record_commit_message,
 }
 
 
 def _read_overrides(path, coercers):
-    """Return the overrides of a JSON config file validated by coercers. Raises ValueError when unusable."""
+    """Return the overrides of a JSON config file validated by coercers; keys without a coercer
+    pass through unchanged. Raises ValueError when unusable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -515,14 +234,17 @@ def read_config_file(path):
 
 def read_legacy_file(path):
     """Return the validated overrides from a removed per-repository .claude/argani.json, including
-    its two legacy keys. Only the migration (init, import) reads it. Raises ValueError when unusable."""
+    its legacy key. Only the migration (init, import) reads it. Raises ValueError when unusable."""
     return _read_overrides(path, {**COERCERS, **LEGACY_COERCERS})
 
 
 def project_overrides(project_file):
-    """The validated config keys of a project.json; the identity keys are not config."""
+    """(config keys, ignored key names) of a project.json. Identity keys are not config; keys argani
+    no longer knows (for example the git settings of 1.x) are ignored and only named in the second
+    value, so a caller that runs per tool call stays quiet."""
     overrides = read_config_file(Path(project_file))
-    return {key: value for key, value in overrides.items() if key not in IDENTITY_KEYS}
+    ignored = [key for key in overrides if key not in IDENTITY_KEYS and key not in DEFAULTS and key != "remotes"]
+    return {key: value for key, value in overrides.items() if key in DEFAULTS}, ignored
 
 
 def _fresh_defaults():
@@ -530,107 +252,68 @@ def _fresh_defaults():
             for key, value in DEFAULTS.items()}
 
 
-def _derive_branches(config, fallback_default_branch):
-    """Fill defaultBranch and baseBranch when unset and complete protectedBranches."""
-    if not config["defaultBranch"]:
-        config["defaultBranch"] = fallback_default_branch()
-    if not config["baseBranch"]:
-        config["baseBranch"] = config["defaultBranch"]
-    protected = [config["defaultBranch"], config["baseBranch"], *config["baseBranchByType"].values(),
-                 *config["protectedBranches"]]
-    config["protectedBranches"] = list(dict.fromkeys(protected))
-
-
 def _project_tasks_dir(home, name):
     return home / argani_home.PROJECTS_DIR / name / TASKS_DIR
 
 
 def load_project_config(home, name):
-    """Effective config of a registered project, without any git call. Raises ValueError when
-    the project.json is missing or invalid."""
+    """Effective config of a registered project, found by name. Raises ValueError when the
+    project.json is missing or invalid."""
     config = _fresh_defaults()
-    config.update(project_overrides(project_registry.project_file(home, name)))
-    _check_cross_keys(config)
-    _derive_branches(config, lambda: "main")
-    config.update(project=name, home=str(home), tasksDir=str(_project_tasks_dir(home, name)),
-                  toplevel=None, currentBranch=None)
+    overrides, ignored = project_overrides(project_registry.project_file(home, name))
+    validate_overrides(overrides)
+    config.update(overrides)
+    config.update(project=name, home=str(home), tasksDir=str(_project_tasks_dir(home, name)), projectRoot=None,
+                  ignoredKeys=ignored)
     return config
 
 
-def _resolve_project(start_dir, root):
-    """(home, project) for a repository; either is None when unusable. Never raises: the registry
-    is shared by every repository, so a broken home or entry must not block them, not even in
-    strict mode."""
+def _resolve_project(start_dir):
+    """(home, project, project root) for a directory; each is None when unusable. Never raises: the
+    registry is shared by every project, so a broken home or entry must not block them, not even
+    in strict mode."""
     home = None
     try:
         home = argani_home.home_path()
-        return home, project_registry.resolve(start_dir, home, root)
+        found = project_registry.resolve_with_root(start_dir, home)
+        return (home, *found) if found else (home, None, None)
     except Exception as error:  # the contract is never to raise, whatever the registry holds
         print(f"argani: ignoring the argani home: {error}", file=sys.stderr)
-        return home, None
-
-
-def _file_present(repo_file):
-    """True when the repository still has its old config file; an unreadable .claude never matters here."""
-    try:
-        return repo_file.is_file()
-    except OSError:
-        return False
+        return home, None, None
 
 
 def load_config(start_dir=".", strict=False):
     """Effective config. Never raises unless strict=True; a bad file falls back to defaults.
 
     The config of a registered project comes from its project.json in the argani home; a
-    repository without a project gets the defaults, and its .claude/argani.json is not read."""
+    directory outside every project gets the defaults. projectRoot is the registered path that
+    contains start_dir, else None."""
     config = _fresh_defaults()
-    root = toplevel(start_dir)
-    home, project = _resolve_project(start_dir, root)
-    repo_file = Path(root) / ".claude" / "argani.json" if root else None
+    home, project, project_root = _resolve_project(start_dir)
+    ignored = []
     try:
         if project:
-            source = project_registry.project_file(home, project["name"])
-            if repo_file and _file_present(repo_file):
-                print(f"argani: {repo_file} is ignored; the project {project['name']} is configured in {source}",
-                      file=sys.stderr)
-            overrides = project_overrides(source)
-            validate_overrides(overrides, start_dir)
+            overrides, ignored = project_overrides(project_registry.project_file(home, project["name"]))
+            validate_overrides(overrides)
             config.update(overrides)
-        elif root and _file_present(repo_file):
-            print(UNREGISTERED_FILE_NOTE, file=sys.stderr)
     except ValueError as error:
         if strict:
             raise
         print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
-    _derive_branches(config, lambda: detect_default_branch(start_dir) if root else "main")
     config.update(project=project["name"] if project else None, home=str(home) if home else None,
                   tasksDir=str(_project_tasks_dir(home, project["name"])) if project else None,
-                  toplevel=root, currentBranch=current_branch(start_dir) if root else None)
+                  projectRoot=project_root, ignoredKeys=ignored)
     return config
 
 
 def tasks_dir(config):
-    """The folder holding the job folders, or None outside a repository."""
+    """The folder holding the job folders, or None outside a project."""
     return Path(config["tasksDir"]) if config["tasksDir"] else None
 
 
 def job_dir(config, slug):
     folder = tasks_dir(config)
     return folder / slug if folder else None
-
-
-def main(argv):
-    try:
-        config = load_config(argv[1] if len(argv) > 1 else ".", strict=True)
-    except ValueError as error:
-        print(f"argani: invalid config: {error}", file=sys.stderr)
-        return 1
-    print(json.dumps(config, indent=2))
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))
 
 
 def fill_command(template, values):
@@ -645,23 +328,18 @@ def mr_command_for(config, values):
     return fill_command(config["mrCommand"], values) if config["mrCommand"] else None
 
 
-def merge_command_for(config, values):
-    """The configured mergeCommand filled by fill_command, or None when there is no mergeCommand."""
-    return fill_command(config["mergeCommand"], values) if config["mergeCommand"] else None
+def main(argv):
+    try:
+        config = load_config(argv[1] if len(argv) > 1 else ".", strict=True)
+    except ValueError as error:
+        print(f"argani: invalid config: {error}", file=sys.stderr)
+        return 1
+    if config["ignoredKeys"]:
+        print(f"argani: ignoring keys argani no longer uses in the project.json of {config['project']}: "
+              f"{', '.join(config['ignoredKeys'])}", file=sys.stderr)
+    print(json.dumps(config, indent=2))
+    return 0
 
 
-def worktree_folder(config):
-    """The folders of worktreePath before the one holding {branch}, relative to the main checkout
-    ('.claude/worktrees' for '.claude/worktrees/{branch}'), or None when worktree mode is off."""
-    if not config["worktreePath"]:
-        return None
-    parts = config["worktreePath"].split("/")
-    return "/".join(parts[:next(index for index, part in enumerate(parts) if BRANCH_PLACEHOLDER in part)])
-
-
-def worktree_path(config, branch, main_checkout):
-    """Absolute folder of the branch's worktree under the main checkout, or None when worktree mode is off."""
-    pattern = config["worktreePath"]
-    if not pattern or not main_checkout:
-        return None
-    return Path(main_checkout).resolve() / pattern.replace(BRANCH_PLACEHOLDER, branch.replace("/", "-"))
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

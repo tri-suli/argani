@@ -1,73 +1,61 @@
 # Configuration: `project.json` in the argani home
 
 Settings for the `argani` plugin. They live in the project's `project.json` in the [argani
-home](#argani-home), beside its identity keys (`name`, `remotes`, `paths`); the keys are the ones
-documented below. A repository that is not registered as a project gets the defaults; the old
-per-repository `.claude/argani.json` is no longer read since 1.0.0, and scripts print `argani:
-.claude/argani.json is no longer read since 1.0.0; run /argani:init to register this repository
-(its keys are carried over)` on stderr when the file exists. When a registered repository still has
-the file, scripts print `argani: <toplevel>/.claude/argani.json is ignored; the project <name> is
-configured in <project file>`. A broken home or project registry never blocks a repository: it is
-ignored with a note on stderr, even in strict mode.
+home](#argani-home), beside its identity keys (`name`, `paths`); the keys are the ones documented
+below. A directory that is not registered as a project gets the defaults, and `tasksDir` is `null`.
+The old per-repository `.claude/argani.json` is no longer read (since 1.0.0). A broken home or
+project registry never blocks a project: it is ignored with a note on stderr, even in strict mode.
 
-Every key is optional and has a default, except that factory mode needs `verifyCommand`.
-`/argani:init` proposes the config from what the repository already uses (test command, branch
-prefixes, commitlint scopes, remote host), asks for the rest, validates it and registers the
-project; it carries over the keys of an old `.claude/argani.json`, never overwrites an existing
-project and never commits.
+argani never runs git and has no setting about branches, worktrees, commits or merges: those belong
+to the project and its own tools. Keys of argani 1.x that were about them (`defaultBranch`,
+`baseBranch`, `protectedBranches`, `branchPattern`, `branchTypes`, `baseBranchByType`,
+`branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`, `mergeCommand`,
+`commitTrailers`, `commitSkill`) are ignored when they are still in a `project.json`; scripts print
+a note on stderr naming them.
+
+Every key is optional and has a default, except that factory mode and the review need
+`verifyCommand` and `diffCommand`. `/argani:init` proposes the config from what the directory
+already uses (test command), asks for the rest, validates it and registers the project; it carries
+over the keys of an old `.claude/argani.json` and never overwrites an existing project.
 
 ## Location
 
-The file is `<home>/projects/<name>/project.json` (see [argani home](#argani-home)). The repository
-of a directory is found with `git -C <current working directory> rev-parse --show-toplevel`,
-**not** from `CLAUDE_PROJECT_DIR`, so the right project is used in worktrees and inside subagents.
-Scripts and hooks must resolve it through `scripts/argani_config.py`. Outside a git repository, and
-in a repository without a project, the defaults apply and `tasksDir` is `null`.
+The file is `<home>/projects/<name>/project.json`. The project of a directory is found from the
+real path of the directory (the current working directory of the script, **not**
+`CLAUDE_PROJECT_DIR`) and of its ancestors, matched against the `paths` of the registered projects;
+the nearest match wins. Scripts and hooks must resolve it through `scripts/argani_config.py`.
+Outside every project the defaults apply and `tasksDir` is `null`.
 
-If the project file is unreadable, not valid JSON, or has a wrongly typed key, scripts and the git
-guard use the defaults (with a note on stderr) and keep checking: the default-branch guard still
-works. The artifact guard cannot check `protectedPaths` then, so it asks (main session) or denies
-(subagent) for every write inside the repository until the file is fixed.
+If the project file is unreadable, not valid JSON, or has a wrongly typed key, scripts use the
+defaults (with a note on stderr). The artifact guard cannot check `protectedPaths` then, so it asks
+(main session) or denies (subagent) for every write inside the project until the file is fixed.
 
 ## Keys
 
-| Key                   | Default                                               | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|-----------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `defaultBranch`       | detected                                              | The repository's main branch; always protected. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`.                                                                                        |
-| `baseBranch`          | `defaultBranch`                                       | Branch the job branch is created from, the target of the merge request, and the base of every review diff (`<baseBranch>...HEAD`). Always protected.                                                                                                                                                                                                                                                                              |
-| `protectedBranches`   | `[]`                                                  | Further branches the git guard protects: pushing to them, merging into them and PR/MR merges are asked in the main session and denied for subagents; everything else follows the repository's own rules. Entries may be globs (`"release/*"`, matched with `fnmatch`, where `*` also matches `/`). The effective list always includes `defaultBranch` and `baseBranch`, so a repository can only add protection, never remove it. |
-| `verifyCommand`       | none                                                  | Command that proves the work (tests, linters, link check). Required by factory mode.                                                                                                                                                                                                                                                                                                                                              |
-| `reviewers`           | `["code"]`                                            | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                                                                                                                        |
-| `protectedPaths`      | `[]`                                                  | Globs relative to the toplevel that agents must not write.                                                                                                                                                                                                                                                                                                                                                                        |
-| `mrCommand`           | none                                                  | Command that opens the merge request. `{branch}` is the job branch, `{base}` its base branch (see `baseBranchByType`), `{title}` the title and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, nothing is pushed.                                                                                                                                                                                                                                                           |
-| `mergePolicy`         | `"human"`                                             | Who merges the merge request after `APPROVE`: `human` (merging stays a human step, held by the git guard) or `agent` (the factory merges with `mergeCommand`). `agent` requires `mergeCommand`; see Merge policy below. |
-| `mergeCommand`        | none                                                  | Command that merges the merge request when `mergePolicy` is `agent`. `{mr}` is the merge request URL or number written in `mr.md`, `{branch}` the job branch, `{base}` its base branch; all are shell-quoted by argani, so write them without quotes. Example: `gh pr merge {mr} --rebase --delete-branch` or `glab mr merge {mr} --rebase --remove-source-branch --yes`. |
-| `worktreePath`        | none                                                  | Worktree mode: a folder relative to the toplevel with `{branch}` exactly once, for example `".worktrees/{branch}"`. Each job runs in its own git worktree there; `{branch}` is the job branch with every `/` replaced by `-`. Must be relative, without `..`, not under `.git`, and its first segment must not hold `{branch}` (a folder like `.worktrees/` comes first). See "Worktree mode". |
-| `worktreeCommand`     | none                                                  | Command that creates the worktree. Runs in the session's working directory, so it must not depend on it: use `{toplevel}` (the main checkout) and `{path}` (the worktree), both absolute, for example `git -C {toplevel} worktree add -b {branch} {path} {base}`. Placeholders `{branch}`, `{base}`, `{path}` and `{toplevel}` (all optional), shell-quoted by argani like `mrCommand`. Without it argani runs `git -C <main checkout> worktree add -b <branch> <path> <base>`; `git worktree add <path> <branch>` when the branch exists; `git worktree add --track -b <branch> <path> origin/<branch>` when only the remote has it. Used with `worktreePath`. |
-| `branchPattern`       | `"feature/{slug}"`                                    | Name of the job branch; `{slug}` is replaced by the job's slug and must appear exactly once. The result must be a valid git branch name and must not be a protected branch. Set the prefix or structure your repository uses, for example `"feat/{slug}"` or `"{slug}"`. It may also contain `{type}` once, filled from the intent's `Type:` line; that needs `branchTypes`. It may contain `{n}` at most once, filled from the intent's `Number:` line (see Job numbers).                                                      |
-| `commitTrailers`   | `["Co-Authored-By: {model} <noreply@anthropic.com>"]` | Git trailers added to the builder's code commits; record commits in the argani home carry none. `{model}` is replaced by the name of the model that makes the commit (for example `Claude Sonnet 5.5`), so the trailer stays right when sessions or agents use different models; it is the only placeholder. Each entry must look like `Key: value`. `[]` means no trailer at all.                                                                      |
-| `branchNumberCommand` | none                                                  | A one-line shell command, run in the repository toplevel, that prints the next job number (the first integer on stdout); used with `{n}` in `branchPattern`. Without it argani counts from the existing intents. |
-| `branchTypes`         | `[]`                                                  | Job types an intent may name in its `Type:` header line, for example `["feature", "bugfix", "hotfix"]`. Required when `branchPattern` contains `{type}`; when set, every intent needs a `Type:` from this list. Letters, digits, `.`, `_` and `-` only.                                                                                                                                                                           |
-| `baseBranchByType`    | `{}`                                                  | Base branch per job type, for types that do not start from `baseBranch`, for example `{"hotfix": "main"}`. Keys must be listed in `branchTypes`; every value is protected like `baseBranch`.                                                                                                                                                                                                                                      |
-| `commitSkill`         | none                                                  | A repository skill (for example `"git-commit"`) through which every argani commit is made: the builder's commits use it instead of `git commit`, and it decides staging, scope and trailers, so `commitTrailers` is not added on top. Without it, argani commits with `git commit`.                                                                                                         |
-| `agentModels`         | see below                                             | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"|"medium"|"high": ...}`. Keys are `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below).                                  |
-| `reviewerPaths`       | `{}`                                                  | Path globs per checklist (same syntax as `protectedPaths`), for example `{"security": ["src/auth/**"]}`. A checklist listed here runs only when the job's diff touches one of its globs; the others always run. Keys must be listed in `reviewers`.                                                                                                                                                                               |
+| Key              | Default       | Meaning                                                                                                                                                                                                                                                                                                                      |
+|------------------|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `verifyCommand`  | none          | Command that proves the work (tests, linters, link check), run by the builder in the directory of the session. Required by factory mode.                                                                                                                                                                                      |
+| `diffCommand`    | none          | The project's command that prints the change under review as a unified diff. `capture_change.py` runs it before each review round with the project root (the registered path that contains the session's directory) as working directory, so the paths in the diff line up with `reviewerPaths` and `protectedPaths`; 120 s limit, 1 MB or more is warned about because reviewers read a large diff partially. It saves the output unchanged as `review/round-<N>/change.diff`. Required by factory mode and the review. See "Choosing `diffCommand`". |
+| `reviewers`      | `["code"]`    | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                   |
+| `reviewerPaths`  | `{}`          | Path globs per checklist (same syntax as `protectedPaths`), for example `{"security": ["src/auth/**"]}`. A checklist listed here runs only when the captured `change.diff` touches one of its globs; the others always run. Without a `change.diff` (or one that is not a unified diff) every reviewer runs. Keys must be listed in `reviewers`. |
+| `protectedPaths` | `[]`          | Globs relative to the project directory that agents must not write.                                                                                                                                                                                                                                                         |
+| `mrCommand`      | none          | Command that opens the merge request. `{title}` is the title and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, the factory only prints the description. |
+| `agentModels`    | see below     | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"\|"medium"\|"high": ...}`. Keys are `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below). |
 
-Branch names in `defaultBranch`, `baseBranch` and `protectedBranches` are trimmed and lose a
-`refs/heads/` prefix. A name that git rejects, a glob outside `protectedBranches`, or a name that
-starts with a remote (`origin/develop`) makes the config invalid. An invalid config holds every push,
-merge and pull in the git guard.
+## Choosing `diffCommand`
 
-## Merge policy
+The command must match how the builder keeps its work, which is the project's own commit rule:
 
-With `mergePolicy: "human"` (default) the git guard holds every merge into a protected branch: the main
-session is asked, subagents are denied. With `"agent"`, the guard no longer holds a merge request merge
-(`gh pr merge`, `glab mr merge`, the API merge paths) or a `git merge` while on a protected branch, for the
-main session and subagents alike, and after `APPROVE` the factory opens the merge request, runs
-`mergeCommand` and appends `Merged: <date>` to `mr.md`. A direct `git push` to a protected branch stays held
-under both policies: the merge request is the audited path. The reviewer, approver and spec-writer stay
-read-only whatever the policy. Branch protection on the remote (required reviews, status checks) still
-applies and can refuse the merge; then the factory stops and shows the error.
+- `git diff origin/main...HEAD` shows **committed work only**. Use it when the builder commits.
+- `git diff origin/main` shows the working tree against the base, but **not untracked files**. Use it
+  when the project forbids agent commits; new files need `git add -N <path>` (intent to add) to
+  appear in it, so have the builder's rules or your own routine do that.
+
+A mismatch shows up as an empty capture ("diffCommand printed nothing; nothing to review"), which
+stops the factory: check `diffCommand` against the builder's commit rule first. The change of a round
+is fixed once a reviewer has worked on it: `capture_change.py` refuses to replace the `change.diff`
+of a round that already holds a review (the only exception is a round reviewed before 2.0.0, at
+stage `needs-decision`, whose `change.diff` is missing).
 
 ## Models
 
@@ -97,98 +85,36 @@ Example: a cheaper builder except for risky jobs, and security reviewed only whe
 
 ## `protectedPaths` glob semantics
 
-Patterns are matched against the file's path relative to the toplevel (forward slashes), anchored
-at both ends:
+Patterns are matched against the file's path relative to the project directory (the registered
+path that contains it; forward slashes), anchored at both ends:
 
 - `*` and `?` match within one path segment and never cross `/`.
 - `**` matches across segments: `raw/**` covers everything below `raw/`; `docs/**/secret.md`
   matches `docs/secret.md` and `docs/a/b/secret.md`.
-- A pattern without `/` is still anchored at the toplevel: `*.lock` matches `poetry.lock`, not
-  `sub/poetry.lock` (use `**/*.lock`).
+- A pattern without `/` is still anchored at the project directory: `*.lock` matches `poetry.lock`,
+  not `sub/poetry.lock` (use `**/*.lock`).
 - No character classes (`[abc]`) or negation.
 
-A match denies `Write` and `Edit` for everyone, main session included.
+A match denies `Write` and `Edit` for everyone, main session included. Writes through `Bash` are not
+guarded; the builder has full `Bash` and is told not to touch the task folder except `plan.md` and
+`build.md`.
 
-Symlinks: a path is checked where it resolves (the repository that holds the target) and, for each
-symlinked folder on the way, as written in the repository that holds the symlink. So a protected
-folder stays protected when it is a symlink, whether it points into another checkout (as in a
-worktree) or to a folder outside any repository. `mv`, `rm` and other writes through Bash are not
-covered.
+Symlinks: a path is checked where it resolves and, for each symlinked folder on the way, as written
+in the project that holds the symlink. So a protected folder stays protected when it is a symlink,
+whether it points into another directory of the project or to a folder outside any project. `mv`,
+`rm` and other writes through Bash are not covered.
 
 ## Example
 
 ```json
 {
-  "defaultBranch": "main",
   "verifyCommand": "npm test",
+  "diffCommand": "git diff origin/main...HEAD",
   "reviewers": ["code", "security", "compliance"],
   "protectedPaths": ["raw/**", "archive/**"],
-  "mrCommand": "gh pr create --base main --head {branch} --title {title} --body-file {bodyFile}",
-  "branchPattern": "feature/{slug}",
-  "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"]
+  "mrCommand": "gh pr create --title {title} --body-file {bodyFile}"
 }
 ```
-
-## Branching models
-
-Trunk-based development needs no branch settings: jobs branch from the default branch and merge back
-into it.
-
-Git Flow: features branch from `develop` and merge into `develop`, while `main` stays protected:
-
-```json
-{
-  "defaultBranch": "main",
-  "baseBranch": "develop",
-  "branchPattern": "feature/{slug}",
-  "mrCommand": "gh pr create --base develop --head {branch} --title {title} --body-file {bodyFile}"
-}
-```
-
-The effective `protectedBranches` is then `["main", "develop"]`.
-
-Job types: several kinds of branch (`feature`, `bugfix`, `hotfix`, ...) need `{type}` in the pattern.
-Each intent then states its type in a `Type:` header line, chosen from `branchTypes`, and a type
-that starts somewhere else names its base in `baseBranchByType`:
-
-```json
-{
-  "defaultBranch": "main",
-  "baseBranch": "develop",
-  "branchPattern": "{type}/{slug}",
-  "branchTypes": ["feature", "bugfix", "hotfix"],
-  "baseBranchByType": { "hotfix": "main" },
-  "mrCommand": "gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"
-}
-```
-
-An intent with `Type: hotfix` and slug `crash` gets branch `hotfix/crash`, created from `main` and
-merged back into `main`; `Type: feature` gets `feature/<slug>` from `develop`. `artifact_check.py`
-rejects an intent without a listed type. Every `baseBranchByType` branch is protected as well.
-Release branches, which bundle several jobs, are not modelled; cut them by hand.
-
-Job numbers: a pattern like `feat/common-{n}-{slug}` or `{type}/{n}-{slug}` puts a running number
-in the branch. `/argani:intent` assigns it once, when the intent is written, with
-`scripts/next_number.py`, and stores it in the header line `Number: 56` (a positive integer);
-`artifact_check.py` requires that line when the pattern has `{n}`, and the number is never changed
-afterwards. `next_number.py` prints `{"number": 57, "source": ...}`: it runs `branchNumberCommand`
-when set (the project's own registry), else it is one more than the highest `Number:` of the
-intents in the tasks folder; the last non-empty line the command prints must be a positive integer
-(`0056` is 56). The `tasks` source counts only intents that exist: the
-project's task folders.
-Two intents written at the same time can get the same number, so a registry command is the safe
-choice for teams. argani never reuses a number, but deleting an intent frees its number. Adding `{n}`
-to an existing project makes running jobs invalid until their intent gets a `Number:` line, and their
-job branch name changes with it.
-
-Worktree mode: `worktreePath` makes every job live in its own git worktree, for a repository that
-forbids switching branches in the main checkout. The factory then never runs `git switch`: when the
-branch is not checked out anywhere it creates the worktree (`scripts/worktree_command.py <slug>`
-prints the command from `worktreeCommand`, else `git worktree add`), and the state's `checkout` is the
-worktree that holds the branch. Add the folder (`.worktrees/`) to `.gitignore`; argani also ignores
-the folder before `{branch}` (`.worktrees`, `.claude/worktrees`) when it checks whether the main checkout is dirty. The state's `checkout`, `current_branch` and `dirty` are null until the worktree exists. A project registered by `paths` also resolves from its worktrees, through the path of its main checkout. Every git command of the job (push,
-diffs, the merge request description) runs with `git -C <checkout>`, and the builder, reviewers and
-approver get `Checkout:` in their prompt and work there. Worktrees are never removed by argani.
 
 ## Reading the effective config
 
@@ -196,53 +122,49 @@ approver get `Checkout:` in their prompt and work there. Worktrees are never rem
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py [dir]
 ```
 
-Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`, the `project` name
-(`null` for a repository without a project), the `home`, and `tasksDir`, the folder of the job folders:
-`<home>/projects/<name>/tasks` for a project, `null` without a project or outside git. The identity keys are never part of it. `load_project_config()` reads a project
-without git, so it cannot reject remote-prefixed branch names such as `origin/develop`; write plain
-branch names. `null` values are
-ignored and types are checked (`reviewers` and `protectedPaths` must be lists of strings, the other
-keys strings). An unusable file makes the command exit 1 with an error on stderr, while
-`load_config()` falls back to the defaults with a note on stderr so that hooks fail open.
+Prints the merged configuration as JSON, plus the `project` name (`null` for a directory without a
+project), the `home`, `projectRoot` (the registered path that contains `dir`) and `tasksDir`, the
+folder of the job folders: `<home>/projects/<name>/tasks` for a project, `null` without one. The
+identity keys are never part of it. `null` values are ignored and types are checked (`reviewers` and
+`protectedPaths` must be lists of strings, the other keys strings). An unusable file makes the
+command exit 1 with an error on stderr, while `load_config()` falls back to the defaults with a note
+on stderr so that hooks fail open.
 
 ## argani home
 
-The board that will hold every project's tasks lives in the argani home: `$ARGANI_HOME` when set,
-else `~/.argani`. It is a folder of the user, apart from the plugin (whose installed copy is
-replaced on every release) and from the project repositories. `ARGANI_HOME` must be an absolute
-path (a leading `~` is expanded) without `..`.
+The board that holds every project's tasks lives in the argani home: `$ARGANI_HOME` when set, else
+`~/.argani`. It is a folder of the user, apart from the plugin (whose installed copy is replaced on
+every release) and from the projects. `ARGANI_HOME` must be an absolute path (a leading `~` is
+expanded) without `..`.
 
 `python3 <plugin root>/scripts/argani_home.py` prints the home and whether its folders exist;
-`--create` makes the missing folders only (the home and `projects/`) and never touches existing files.
-Its parent folder must already exist. The home is a plain folder: argani never runs `git init` there.
-Version control is optional and the user's own choice; when the user makes the home a git repository
-of its own (`git init` in the home), the factory records every job folder of a registered project
-there (`argani: record <project>/<slug> <what>`; nothing is pushed). Without it the artifacts stay as
-files and nothing is committed. The `git` field of the script's output only reports whether the home
-is a repository of its own. In a versioned home, add `board.md` to its `.gitignore`: the board is
-regenerated and never recorded.
+`--create` makes the missing folders only (the home and `projects/`) and never touches existing
+files. Its parent folder must already exist. The home is a plain folder; what the user does with it
+(backup, sync, version control) is theirs, and argani writes nothing of its own beyond the files
+described here. If the home is under version control, add `board.md` to its ignore list: the board
+is regenerated.
 
-`/argani:init` registers the current repository as a project: it detects the settings, asks what
-cannot be detected, and runs `python3 <plugin root>/scripts/register_project.py <name> < config.json`,
+`/argani:init` registers a directory as a project: it detects the settings, asks what cannot be
+detected, and runs `python3 <plugin root>/scripts/register_project.py <name> <dir> < config.json`,
 which creates the home when missing and writes `projects/<name>/project.json` (identity keys plus
-the config keys read from stdin, validated like any config). Registering a second clone of the same
-repository only adds its path. The script never writes into the repository. `tasksDir` in the output of `argani_config.py` is where the skills write the artifacts.
+the config keys read from stdin, validated like any config). The directory may be any directory; its
+real path is registered and no git is needed. Registering the same project from another directory
+only appends that path. The script never writes into the directory. `tasksDir` in the output of
+`argani_config.py` is where the skills write the artifacts.
 
 Each project registered on the board has an entry, `projects/<name>/project.json`:
 
 ```
 <home>/
   projects/
-    <name>/project.json     {"name": "<name>", "remotes": [...], "paths": [...]}
+    <name>/project.json     {"name": "<name>", "paths": [...]}
+    <name>/tasks/<slug>/    intent.md, spec.md, plan.md, build.md, review/, decision.md, mr.md
 ```
 
-`name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `remotes` are normalized git remote
-URLs (lowercase host and path, no scheme, user, port or `.git`, so `git@github.com:Org/repo.git` and
-`https://github.com/org/repo` are the same; local path remotes keep their case, and relative remotes
-are ignored); `paths` are real paths of checkouts that have no shared
-remote. A repository belongs to the project that lists any of its remotes, else the project that
-lists the real path of its top-level folder; clones and worktrees of one remote therefore share a
-project, and two projects claiming one remote is an error. The home itself is never a project. A
-broken entry is skipped with a warning on stderr so it cannot block other repositories.
+`name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `paths` are the real paths of the
+project's directories. A directory belongs to the project that lists its real path, or the real
+path of its nearest ancestor that any project lists; a path listed by two projects is an error. The
+home itself is never a project. A broken entry is skipped with a warning on stderr so it cannot
+block other projects. A leftover `remotes` key from argani 1.x is ignored.
 `python3 <plugin root>/scripts/project_registry.py [dir]` prints the project of `dir` (default: the
-current directory) and exits 1 when there is none. Later releases add the config and tasks here.
+current directory) and exits 1 when there is none.

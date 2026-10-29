@@ -1,7 +1,6 @@
 # Build: {{title}}
 
 Spec: {{slug}}
-Branch: {{branch}}
 Date: {{YYYY-MM-DD}}
 
 <!-- Written by the builder when work is finished. On rework, append a section

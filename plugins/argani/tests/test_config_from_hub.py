@@ -6,52 +6,74 @@ from pathlib import Path
 
 import pytest
 
-from conftest import git
-
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 import argani_config  # noqa: E402
-import artifact_check  # noqa: E402
 import project_registry  # noqa: E402
-from test_branch_types import INTENT  # noqa: E402
+
+INTENT = """# Intent: Demo
+
+Status: {status}
+
+## Problem
+p
+
+## Desired outcome
+o
+
+## Affected users and systems
+- u
+
+## Constraints
+- c
+
+## Acceptance criteria
+1. [ ] works — verify: pytest
+
+## Out of scope
+- x
+
+## Open questions
+- None
+"""
 
 
-def registered_repo(make_repo, register_project, repo_config=None, **project_config):
-    repo = make_repo(legacy_config=repo_config)
+def registered_repo(make_project, register_project, repo_config=None, **project_config):
+    repo = make_project(legacy_config=repo_config)
     path = register_project("demo", paths=[str(repo.resolve())], **project_config)
     return repo, path
 
 
-def test_project_config_ignores_the_repository_file(make_repo, register_project, hub, capsys):
-    repo, path = registered_repo(make_repo, register_project, {"verifyCommand": "repo"}, verifyCommand="hub")
+def test_project_config_ignores_the_repository_file(make_project, register_project, hub, capsys):
+    repo, path = registered_repo(make_project, register_project, {"verifyCommand": "repo"}, verifyCommand="hub")
     config = argani_config.load_config(repo, strict=True)
     assert config["verifyCommand"] == "hub"
     assert (config["project"], config["home"]) == ("demo", str(hub))
     assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
-    assert f"{repo}/.claude/argani.json is ignored; the project demo is configured in {path}" in capsys.readouterr().err
+    assert capsys.readouterr().err == ""
 
 
-def test_repository_file_alone_is_ignored_and_there_is_no_tasks_dir(make_repo, hub, capsys):
-    repo = make_repo(legacy_config={"verifyCommand": "repo"})
+def test_repository_file_alone_is_ignored_and_there_is_no_tasks_dir(make_project, hub, capsys):
+    repo = make_project(legacy_config={"verifyCommand": "repo"})
     config = argani_config.load_config(repo, strict=True)
     assert (config["verifyCommand"], config["project"], config["tasksDir"]) == (None, None, None)
     assert argani_config.job_dir(config, "login") is None
-    assert "argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init" in capsys.readouterr().err
+    assert capsys.readouterr().err == ""
 
 
-def test_neither_gives_defaults(make_repo):
-    config = argani_config.load_config(make_repo(), strict=True)
+def test_neither_gives_defaults(make_project):
+    config = argani_config.load_config(make_project(), strict=True)
     assert config["verifyCommand"] is None and config["project"] is None
 
 
-def test_outside_git_has_no_tasks_dir(tmp_path):
+def test_outside_every_project_there_is_no_tasks_dir(tmp_path):
     config = argani_config.load_config(tmp_path)
     assert config["tasksDir"] is None and argani_config.tasks_dir(config) is None
     assert argani_config.job_dir(config, "login") is None
 
 
-def test_identity_keys_never_leak(make_repo, register_project):
-    repo, _ = registered_repo(make_repo, register_project, verifyCommand="hub")
+def test_identity_keys_never_leak(make_project, register_project):
+    repo, _ = registered_repo(make_project, register_project, verifyCommand="hub")
     assert not set(argani_config.IDENTITY_KEYS) & set(argani_config.load_config(repo))
     out = subprocess.run([sys.executable, str(SCRIPTS / "argani_config.py"), str(repo)],
                          capture_output=True, text=True)
@@ -59,8 +81,8 @@ def test_identity_keys_never_leak(make_repo, register_project):
     assert printed["verifyCommand"] == "hub" and not set(argani_config.IDENTITY_KEYS) & set(printed)
 
 
-def test_invalid_project_file(make_repo, register_project, capsys):
-    repo, path = registered_repo(make_repo, register_project, reviewers="code")
+def test_invalid_project_file(make_project, register_project, capsys):
+    repo, path = registered_repo(make_project, register_project, reviewers="code")
     with pytest.raises(ValueError, match="project.json"):
         argani_config.load_config(repo, strict=True)
     config = argani_config.load_config(repo)
@@ -68,15 +90,15 @@ def test_invalid_project_file(make_repo, register_project, capsys):
     assert f"ignoring config, using defaults: {path}" in capsys.readouterr().err
 
 
-def test_broken_other_project_does_not_matter(make_repo, register_project, hub):
-    repo, _ = registered_repo(make_repo, register_project, verifyCommand="hub")
+def test_broken_other_project_does_not_matter(make_project, register_project, hub):
+    repo, _ = registered_repo(make_project, register_project, verifyCommand="hub")
     (hub / "projects" / "broken").mkdir()
     (hub / "projects" / "broken" / "project.json").write_text("{")
     assert argani_config.load_config(repo, strict=True)["verifyCommand"] == "hub"
 
 
-def test_conflicting_registry_never_blocks(make_repo, register_project, capsys):
-    repo = make_repo()
+def test_conflicting_registry_never_blocks(make_project, register_project, capsys):
+    repo = make_project()
     register_project("one", paths=[str(repo.resolve())])
     register_project("two", paths=[str(repo.resolve())])
     config = argani_config.load_config(repo, strict=True)
@@ -84,28 +106,21 @@ def test_conflicting_registry_never_blocks(make_repo, register_project, capsys):
     assert "argani: ignoring the argani home:" in capsys.readouterr().err
 
 
-def test_invalid_home_is_not_fatal(make_repo, monkeypatch, capsys):
-    repo = make_repo()
+def test_invalid_home_is_not_fatal(make_project, monkeypatch, capsys):
+    repo = make_project()
     monkeypatch.setenv("ARGANI_HOME", "relative/home")
     config = argani_config.load_config(repo, strict=True)
     assert (config["home"], config["project"]) == (None, None)
     assert "argani: ignoring the argani home:" in capsys.readouterr().err
 
 
-def test_load_project_config_needs_no_git(register_project, hub):
-    register_project("demo", baseBranch="develop", protectedBranches=["release/*"])
+def test_load_project_config_finds_a_project_by_name(register_project, hub):
+    register_project("demo", diffCommand="git diff HEAD", reviewers=["code", "ux"])
     config = argani_config.load_project_config(hub, "demo")
-    assert (config["defaultBranch"], config["baseBranch"]) == ("main", "develop")
-    assert config["protectedBranches"] == ["main", "develop", "release/*"]
-    assert (config["project"], config["home"], config["toplevel"], config["currentBranch"]) == (
-        "demo", str(hub), None, None)
+    assert (config["diffCommand"], config["reviewers"]) == ("git diff HEAD", ["code", "ux"])
+    assert (config["project"], config["home"], config["projectRoot"]) == ("demo", str(hub), None)
     assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
     assert not set(argani_config.IDENTITY_KEYS) & set(config)
-
-
-def test_load_project_config_keeps_a_configured_default_branch(register_project, hub):
-    register_project("demo", defaultBranch="trunk")
-    assert argani_config.load_project_config(hub, "demo")["defaultBranch"] == "trunk"
 
 
 def test_load_project_config_raises_for_missing_or_invalid(register_project, hub):
@@ -116,17 +131,17 @@ def test_load_project_config_raises_for_missing_or_invalid(register_project, hub
         argani_config.load_project_config(hub, "bad")
 
 
-def test_job_dir_of_a_project_and_of_an_unregistered_repository(make_repo, register_project, hub):
-    repo, _ = registered_repo(make_repo, register_project)
+def test_job_dir_of_a_project_and_of_an_unregistered_repository(make_project, register_project, hub):
+    repo, _ = registered_repo(make_project, register_project)
     config = argani_config.load_config(repo)
     assert argani_config.job_dir(config, "login") == hub / "projects" / "demo" / "tasks" / "login"
-    assert argani_config.job_dir(argani_config.load_config(make_repo("other")), "login") is None
+    assert argani_config.job_dir(argani_config.load_config(make_project("other")), "login") is None
 
 
-def write_intent(hub, type_line):
+def write_intent(hub, extra_header=""):
     intent = hub / "projects" / "demo" / "tasks" / "login" / "intent.md"
     intent.parent.mkdir(parents=True)
-    intent.write_text(INTENT.format(status="draft", type_line=type_line))
+    intent.write_text(INTENT.format(status="draft").replace("Status: draft\n", f"Status: draft\n{extra_header}"))
     return intent
 
 
@@ -135,21 +150,19 @@ def check_status(path):
                           capture_output=True, text=True)
 
 
-def test_artifact_check_uses_the_project_branch_types(register_project, hub):
-    register_project("demo", branchPattern="{type}/{slug}", branchTypes=["feature"])
-    assert check_status(write_intent(hub, "Type: feature\n")).returncode == 0
+def test_artifact_check_needs_no_project_config(register_project, hub):
+    register_project("demo")
+    assert check_status(write_intent(hub)).returncode == 0
 
 
-def test_artifact_check_rejects_a_type_the_project_lacks(register_project, hub):
-    register_project("demo", branchTypes=["feature"])
-    result = check_status(write_intent(hub, "Type: bugfix\n"))
-    assert result.returncode == 1 and "got 'bugfix'" in result.stdout
+def test_artifact_check_ignores_type_and_number_lines(register_project, hub):
+    register_project("demo")
+    assert check_status(write_intent(hub, "Type: anything\nNumber: x\n")).returncode == 0
 
 
 def test_artifact_check_with_an_invalid_project_file(register_project, hub):
     register_project("demo", reviewers=1)
-    result = check_status(write_intent(hub, ""))
-    assert result.returncode == 0 and "ignoring config" in result.stderr
+    assert check_status(write_intent(hub)).returncode == 0
 
 
 def test_project_of_path(hub):
@@ -169,54 +182,24 @@ def test_a_tilde_user_home_is_a_home_error(monkeypatch):
         argani_home.home_path()
 
 
-def test_unreadable_claude_folder_neither_raises_nor_drops_the_hub_config(make_repo, register_project):
-    import os
-    if os.geteuid() == 0:
-        pytest.skip("root reads everything")
-    repo, _ = registered_repo(make_repo, register_project, {"verifyCommand": "repo"}, verifyCommand="hub")
-    (repo / ".claude").chmod(0)
-    try:
-        assert argani_config.load_config(repo, strict=True)["verifyCommand"] == "hub"
-    finally:
-        (repo / ".claude").chmod(0o755)
-
-
-def test_no_hub_costs_no_extra_git_calls(make_repo, monkeypatch):
-    repo = make_repo(legacy_config={"verifyCommand": "repo"})
-    calls = []
-    real_run = subprocess.run
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a) or real_run(*a, **k))
-    argani_config.load_config(repo)
-    # toplevel, origin/HEAD, local main, current branch: no registry scan without a home
-    assert len(calls) == 4
-
-
 def test_project_of_path_names_the_other_project_for_a_prefixed_name(hub):
     other = hub / "projects" / "demo-other" / "tasks" / "x" / "intent.md"
     assert project_registry.project_of_path(other, hub)[0] == "demo-other"
 
 
-def test_project_with_invalid_identity_is_skipped_and_the_repo_has_no_project(make_repo, register_project, capsys):
-    repo = make_repo()
+def test_project_with_invalid_identity_is_skipped_and_the_directory_has_no_project(make_project, register_project, capsys):
+    repo = make_project()
     path = register_project("demo", paths=[str(repo.resolve())], verifyCommand="hub")
-    path.write_text(json.dumps({"name": "demo", "remotes": "x", "paths": [str(repo.resolve())],
+    path.write_text(json.dumps({"name": "demo", "paths": "x",
                                 "verifyCommand": "hub"}))
     config = argani_config.load_config(repo, strict=True)
     assert (config["verifyCommand"], config["project"]) == (None, None)
     assert "skipping" in capsys.readouterr().err
 
 
-def test_guard_git_holds_a_push_to_a_branch_protected_by_the_project(make_repo, register_project):
-    from hook_helpers import bash_payload, decision_of, run_hook
-    repo, _ = registered_repo(make_repo, register_project, protectedBranches=["release/*"])
-    git(repo, "checkout", "-q", "-b", "feature")
-    assert decision_of(run_hook("guard_git.py", bash_payload("git push origin release/1", repo))) == "ask"
-    assert decision_of(run_hook("guard_git.py", bash_payload("git push origin feature", repo))) is None
-
-
-def test_guard_artifacts_denies_a_protected_path_from_the_project(make_repo, register_project):
+def test_guard_artifacts_denies_a_protected_path_from_the_project(make_project, register_project):
     from hook_helpers import decision_of, file_payload, run_hook
-    repo, _ = registered_repo(make_repo, register_project, protectedPaths=["raw/**"])
+    repo, _ = registered_repo(make_project, register_project, protectedPaths=["raw/**"])
     output = run_hook("guard_artifacts.py", file_payload("Write", repo, repo / "raw" / "a.txt", content="x"))
     assert decision_of(output) == "deny"
 
@@ -230,18 +213,17 @@ def perform_intent_setup(repo):
     config = json.loads(run_script("argani_config.py", repo).stdout)
     intent = Path(config["tasksDir"]) / "login" / "intent.md"
     intent.parent.mkdir(parents=True)
-    intent.write_text(INTENT.format(status="draft", type_line=""))
+    intent.write_text(INTENT.format(status="draft"))
     assert run_script("artifact_check.py", "intent", intent).stdout.startswith("VALID")
     assert run_script("artifact_check.py", "status", intent).stdout.strip() == "draft"
     return config
 
 
-def test_skill_steps_for_a_registered_project_leave_the_repository_clean(make_repo, register_project, hub):
-    repo, _ = registered_repo(make_repo, register_project)
+def test_skill_steps_for_a_registered_project_leave_the_project_directory_untouched(make_project, register_project, hub):
+    repo, _ = registered_repo(make_project, register_project)
     config = perform_intent_setup(repo)
     assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
-    status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True)
-    assert status.stdout == ""
+    assert list(repo.iterdir()) == []
 
 
 def test_intent_spec_plan_skills_use_tasks_dir_not_the_repository_path():
@@ -249,7 +231,7 @@ def test_intent_spec_plan_skills_use_tasks_dir_not_the_repository_path():
         assert "<toplevel>/<artifactRoot>/" not in skill.read_text(), skill
 
 
-@pytest.mark.parametrize("skill, required", [("review", "job_dir"), ("factory", "job_dir"), ("factory", "record_dir")])
+@pytest.mark.parametrize("skill, required", [("review", "job_dir"), ("factory", "job_dir")])
 def test_review_and_factory_skills_use_the_state_paths(skill, required):
     assert required in (SCRIPTS.parent / "skills" / skill / "SKILL.md").read_text()
 
@@ -261,18 +243,6 @@ def test_setup_of_the_artifact_skills(skill):
         assert required in text, (skill, required)
     for forbidden in ("current directory", "<toplevel>/<artifactRoot>/", "<tasksDir>/<slug>"):
         assert forbidden not in text, (skill, forbidden)
-
-
-def test_type_is_checked_against_the_project_where_the_file_lives(make_repo, register_project, hub):
-    register_project("demo", branchTypes=["feat"])
-    repo = make_repo(config={"branchTypes": ["fix"]})
-    text = INTENT.format(status="draft", type_line="Type: feat\n")
-    in_hub = write_intent(hub, "Type: feat\n")
-    assert run_script("artifact_check.py", "intent", in_hub).returncode == 0
-    in_repo = repo / "intent.md"
-    in_repo.write_text(text)
-    result = run_script("artifact_check.py", "intent", in_repo)
-    assert result.returncode == 1 and "Type" in result.stdout
 
 
 def test_board_skill_is_read_only_and_runs_board_py():
@@ -288,92 +258,22 @@ def test_board_skill_is_read_only_and_runs_board_py():
     assert "Write" not in frontmatter and "Edit" not in frontmatter
 
 
-@pytest.mark.parametrize("path, required", [
-    ("skills/factory/SKILL.md", ["worktree_command.py", "Checkout:", "checkout", "worktree_mode"]),
-    ("skills/review/SKILL.md", ["git -C", "Checkout:", "checkout"]),
-    ("agents/builder.md", ["Checkout"]),
-    ("agents/reviewer.md", ["Checkout"]),
-    ("agents/approver.md", ["Checkout"]),
-])
-def test_worktree_mode_is_described_where_the_agents_read(path, required):
-    text = (SCRIPTS.parent / path).read_text()
-    for phrase in required:
-        assert phrase in text, f"{path} does not mention {phrase}"
-
-
-def make_worktree(repo, name="feature-x"):
-    folder = repo.parent / name
-    git(repo, "worktree", "add", "-q", "-b", name, str(folder))
-    return folder
-
-
-def test_a_project_registered_by_path_resolves_from_its_linked_worktree(make_repo, register_project):
-    repo, _ = registered_repo(make_repo, register_project, verifyCommand="hub")
-    worktree = make_worktree(repo)
-    config = argani_config.load_config(worktree, strict=True)
+def test_a_subfolder_of_a_registered_directory_loads_the_project_config(make_project, register_project):
+    repo, _ = registered_repo(make_project, register_project, verifyCommand="hub")
+    (repo / "src" / "deep").mkdir(parents=True)
+    config = argani_config.load_config(repo / "src" / "deep", strict=True)
     assert (config["project"], config["verifyCommand"]) == ("demo", "hub")
-    assert config["toplevel"] == str(worktree.resolve())
+    assert config["projectRoot"] == str(repo.resolve())
 
 
-def test_guard_artifacts_denies_a_protected_path_written_inside_a_worktree(make_repo, register_project):
-    from hook_helpers import decision_of, file_payload, run_hook
-    repo, _ = registered_repo(make_repo, register_project, protectedPaths=["raw/**"])
-    worktree = make_worktree(repo)
-    output = run_hook("guard_artifacts.py", file_payload("Write", worktree, worktree / "raw" / "a.txt", content="x"))
-    assert decision_of(output) == "deny"
-
-
-# --- no git (missing or masked): the registered path of the folder or an ancestor is the identity ---
-
-@pytest.fixture
-def without_git(monkeypatch):
-    import git_cli
-    monkeypatch.setattr(git_cli, "toplevel", lambda start_dir: None)
-    monkeypatch.setattr(git_cli, "git_output", lambda *args, **kwargs: None)
-
-
-@pytest.fixture
-def registered_folder(tmp_path, register_project):
-    folder = tmp_path / "plain" / "app"
-    (folder / "src" / "deep").mkdir(parents=True)
-    register_project("demo", paths=[str(folder.resolve())], verifyCommand="make")
-    return folder
-
-
-@pytest.mark.parametrize("subfolder", ["", "src", "src/deep"])
-def test_resolve_without_git_matches_the_registered_path_or_an_ancestor(
-        registered_folder, hub, without_git, subfolder):
-    project = project_registry.resolve(registered_folder / subfolder, hub)
-    assert project["name"] == "demo"
-
-
-def test_resolve_without_git_ignores_unregistered_folders(registered_folder, hub, without_git, tmp_path):
-    assert project_registry.resolve(tmp_path / "plain", hub) is None
-    assert project_registry.resolve(tmp_path, hub) is None
-
-
-def test_resolve_without_git_reports_a_path_claimed_twice(registered_folder, register_project, hub, without_git):
-    register_project("other", paths=[str(registered_folder.resolve())])
-    with pytest.raises(project_registry.ProjectError, match="claimed by projects"):
-        project_registry.resolve(registered_folder, hub)
-
-
-@pytest.mark.parametrize("subfolder", ["", "src/deep"])
-def test_load_config_without_git_finds_the_project_and_its_tasks_dir(
-        registered_folder, hub, without_git, subfolder):
-    config = argani_config.load_config(registered_folder / subfolder, strict=True)
-    assert (config["project"], config["home"], config["verifyCommand"]) == ("demo", str(hub), "make")
-    assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
-    assert (config["toplevel"], config["currentBranch"], config["defaultBranch"]) == (None, None, "main")
-
-
-def test_cli_without_git_on_the_path_prints_the_project(registered_folder, hub, tmp_path, monkeypatch):
+def test_cli_without_git_on_the_path_prints_the_project(make_project, register_project, hub, tmp_path, monkeypatch):
+    repo, _ = registered_repo(make_project, register_project, verifyCommand="make")
     empty = tmp_path / "empty-bin"
     empty.mkdir()
     monkeypatch.setenv("PATH", str(empty))
-    result = subprocess.run([sys.executable, str(SCRIPTS / "argani_config.py"), str(registered_folder / "src")],
+    result = subprocess.run([sys.executable, str(SCRIPTS / "argani_config.py"), str(repo)],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     printed = json.loads(result.stdout)
-    assert (printed["project"], printed["toplevel"]) == ("demo", None)
+    assert (printed["project"], printed["projectRoot"]) == ("demo", str(repo.resolve()))
     assert printed["tasksDir"] == str(hub / "projects" / "demo" / "tasks")

@@ -3,13 +3,15 @@
 
 Rules (see docs/review-protocol.md): protectedPaths are denied for everyone; review and decision
 files need a verdict on line 1; round 3+ is refused; each argani agent writes only its own files.
+change.diff is written by capture_change.py alone (through Bash, which this guard does not see), so Write
+and Edit of it are denied to every caller, the main session included.
 
 Artifacts live in the task folder <home>/projects/<name>/tasks/<slug>/ of the argani home. A write
 there that passes the rules is explicitly allowed, which also spares the permission prompt for writes
 outside the working directory. Paths under projects/<valid name>/ in the home never take the
-repository flow, even when the home is a git repository; other paths in the home follow the
-ordinary flow. In a repository only protectedPaths and the one-writer rule apply: an agent that
-writes a single kind of file may write nothing there.
+project flow; other paths in the home follow the ordinary flow. In a project directory only
+protectedPaths and the one-writer rule apply: an agent that writes a single kind of file may write
+nothing there.
 """
 import os
 import re
@@ -23,11 +25,12 @@ import project_registry
 
 REVIEW_VERDICT = re.compile(r"^(PASS|CHANGES)(\s|$)")
 DECISION_VERDICT = re.compile(r"^(APPROVE|ESCALATE)(\s|$)")
+CHANGE_FILE = re.compile(r"^review/round-\d+/change\.diff$")
 REVIEW_FILE = re.compile(r"^review/round-(\d+)/(review-[^/]+\.md)$")
 ROUND_DIR = re.compile(r"^review/round-(\d+)/")
 MAX_ROUNDS = 2
 BUILDER_FORBIDDEN = {"intent.md", "spec.md", "decision.md", "mr.md"}
-# Agents that may write exactly one kind of file in the whole repository: (pattern, description).
+# Agents that may write exactly one kind of file in the whole project: (pattern, description).
 SOLE_FILE_WRITERS = {
     "argani:reviewer": (REVIEW_FILE, "review/round-N/review-<checklist>.md"),
     "argani:approver": (re.compile(r"^decision\.md$"), "decision.md"),
@@ -82,6 +85,9 @@ def artifact_verdict(inner):
 
 def check_write(payload, inner, path, unknown_content_denies=False):
     """Return a deny reason for a write; inner is the path below the task folder."""
+    if CHANGE_FILE.match(inner):
+        return ("argani guard: change.diff is the change captured for the round; only "
+                "scripts/capture_change.py writes it. Do not write or edit it.")
     reason = writer_violation(payload.get("agent_type"), inner)
     if reason:
         return f"argani guard: one writer per file: {reason}. Write only your own artifact."
@@ -107,11 +113,11 @@ def deny_sole_writer(payload, agent_type):
     pattern, description = SOLE_FILE_WRITERS[agent_type]
     emit(payload, "deny", f"argani guard: one writer per file: {agent_type} may write only "
          f"{description} in its task folder (<home>/projects/<name>/tasks/<slug>/), nowhere else "
-         "(not in a repository, not under .git). Write only your own artifact.")
+         "(not in the project, not under .git). Write only your own artifact.")
 
 
 def protected_through_symlink(path):
-    """(relative path, error) when a symlinked folder on the path is protected in the repository
+    """(relative path, error) when a symlinked folder on the path is protected in the project
     that holds the symlink, matched against the path as written there; a protected folder keeps
     its protection wherever the symlink points. (None, None) when nothing matches."""
     parts = path.parts
@@ -120,18 +126,17 @@ def protected_through_symlink(path):
         if not link.is_symlink():
             continue
         holder = link.parent
-        top = argani_config.toplevel(holder)
-        if not top:
-            continue
-        written = Path(os.path.realpath(holder), *parts[index:])
-        try:
-            relative = written.relative_to(os.path.realpath(top)).as_posix()
-        except ValueError:
-            continue
         try:
             config = argani_config.load_config(holder, strict=True)
         except ValueError as error:
-            return relative, error
+            return link.as_posix(), error
+        if not config["projectRoot"]:
+            continue
+        written = Path(os.path.realpath(holder), *parts[index:])
+        try:
+            relative = written.relative_to(config["projectRoot"]).as_posix()
+        except ValueError:
+            continue
         if any(glob_to_regex(pattern).match(relative) for pattern in config["protectedPaths"]):
             return relative, None
     return None, None
@@ -141,13 +146,13 @@ def guard_hub_path(payload, path, sole_writer):
     """Decide a write inside a project's folder in the argani home; False when path is not in one.
 
     The rules need only the folder names, so the project's configuration is not loaded and protectedPaths
-    (relative to the project repository) are not checked. Paths under projects/<valid name>/ never take the
-    repository flow, even when the home is a git repository; only a proper artifact path
+    (relative to the project root) are not checked. Paths under projects/<valid name>/ never take the
+    project flow; only a proper artifact path
     tasks/<slug>/<file> is allowed explicitly, anything else gets no decision (sole writers are denied).
     """
     try:
         owner = project_registry.project_of_path(path, argani_home.home_path())
-    except (argani_home.HomeError, OSError, ValueError) as error:  # leave the repository flow untouched
+    except (argani_home.HomeError, OSError, ValueError) as error:  # leave the project flow untouched
         print(f"argani guard: hub check skipped: {error}", file=sys.stderr)
         return False
     if owner is None:
@@ -181,7 +186,7 @@ def guard(payload):
         return
     linked, error = protected_through_symlink(path)
     if error:
-        emit(payload, "ask", f"argani guard: {linked} is reached through a symlink in a repository "
+        emit(payload, "ask", f"argani guard: {linked} is reached through a symlink in a project "
              f"whose configuration is invalid ({error}); protectedPaths cannot be checked. "
              "Fix the file.")
         return
@@ -193,7 +198,7 @@ def guard(payload):
     if guard_hub_path(payload, path, sole_writer):
         return
     anchor = next((parent for parent in [path, *path.parents] if parent.is_dir()), None)
-    if anchor is None or not argani_config.toplevel(anchor):
+    if anchor is None:
         if sole_writer:
             deny_sole_writer(payload, sole_writer)
         return
@@ -203,7 +208,11 @@ def guard(payload):
         emit(payload, "ask", f"argani guard: the project's configuration is invalid ({error}); protectedPaths "
              "cannot be checked. Fix the file.")
         return
-    top = Path(os.path.realpath(config["toplevel"]))
+    if not config["projectRoot"]:
+        if sole_writer:
+            deny_sole_writer(payload, sole_writer)
+        return
+    top = Path(config["projectRoot"])
     path = Path(os.path.realpath(path))
     try:
         relative = path.relative_to(top).as_posix()

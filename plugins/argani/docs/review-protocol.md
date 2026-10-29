@@ -9,12 +9,15 @@ All paths are under the task folder `<home>/projects/<name>/tasks/<slug>/` in th
 
 | File                                   | Written by                                          | Line 1                  | Last line                 |
 |----------------------------------------|-----------------------------------------------------|-------------------------|---------------------------|
+| `review/round-N/change.diff`           | `capture_change.py` (run by the main session)       | a unified diff          | none                      |
 | `review/round-N/review-<checklist>.md` | `argani:reviewer`, one per checklist in `reviewers` | `PASS` or `CHANGES`     | `=== END OF REVIEW ===`   |
 | `review/round-N/review-human.md`       | the orchestrator or human, from a `rework` note     | `CHANGES`               | `=== END OF REVIEW ===`   |
 | `decision.md`                          | `argani:approver`                                   | `APPROVE` or `ESCALATE` | `=== END OF DECISION ===` |
 
 `<checklist>` is a name from `checklists/` (`code`, `security`, `compliance`, `ux`, `ui-design`, `citation`, `format`).
-`N` starts at 1.
+`N` starts at 1. `change.diff` is the change under review in round `N`: the output of the project's
+`diffCommand`, captured before the reviewers are spawned. It is never written by an agent; reviewers
+and the approver only read it.
 
 ## Verdict line
 
@@ -55,7 +58,7 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 
 - A round is **complete** only when every checklist the job needs has a file in
   `review/round-N/` that ends with the closing line. The job needs every checklist in `reviewers`,
-  except one scoped by `reviewerPaths` whose paths the job's diff does not touch;
+  except one scoped by `reviewerPaths` whose paths the round's `change.diff` does not touch;
   `factory_state.py` reports the list as `reviewers`. Do not summarise, decide, or start rework
   on a partial round.
 - `review-human.md` is extra: it does not count toward completeness and does not replace a seat.
@@ -68,11 +71,11 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 - The approver judges only the seats in `reviewers`. A `review-human.md` counts as addressed once
   `build.md` has the heading `## Rework after round <N>` for the current round `N`, and then does not
   by itself cause `ESCALATE`; without that heading it does. The builder writes one such heading for
-  every folder listed in its `Findings to address`. Any other file in the round folder is reported in
+  every round whose files are listed in its `Findings to address`. Any other file in the round folder is reported in
   `decision.md` and ignored for the verdict.
 - `human` is reserved: a configured reviewer may not be named `human`.
 - `ESCALATE` in `decision.md` stops the job and marks it as needing a human.
-- `APPROVE` still ends in a merge request, never a merge by an agent; with `mergePolicy: agent` the factory orchestrator merges it.
+- `APPROVE` still ends in a merge request that a human reviews and merges. argani never merges.
 
 ## One writer per file
 
@@ -80,34 +83,43 @@ The hook reads `agent_type` from the hook input (value `argani:<agent>`):
 
 | Agent                | May write (in the task folder `<home>/projects/<name>/tasks/<slug>/`) | May not write                                                                               |
 |----------------------|-------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `argani:reviewer`    | `review/round-*/review-*.md`                                      | anything else, in the argani home or in a repository                                        |
-| `argani:approver`    | `decision.md`                                                     | anything else, in the argani home or in a repository                                        |
-| `argani:spec-writer` | `spec.md`                                                         | anything else, in the argani home or in a repository                                        |
-| `argani:builder`     | everything else, including `plan.md`, `build.md`; source files in the repository | in the task folder: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
+| `argani:reviewer`    | `review/round-*/review-*.md`                                      | anything else, in the argani home or in a project directory (`change.diff` included)       |
+| `argani:approver`    | `decision.md`                                                     | anything else, in the argani home or in a project directory (`change.diff` included)       |
+| `argani:spec-writer` | `spec.md`                                                         | anything else, in the argani home or in a project directory (`change.diff` included)       |
+| `argani:builder`     | `plan.md`, `build.md`; source files in the project directory      | in the task folder: `intent.md`, `spec.md`, `review/**` (`change.diff` included), `decision.md`, `mr.md` |
 
-In a repository the guard applies only `protectedPaths` and the one-writer rule: the three sole
-writers may write nothing there, and the builder, the main session and other agents are not
+`change.diff` is written by `scripts/capture_change.py` alone, through `Bash`. The guard denies
+`Write` and `Edit` of it to **every** caller, the main session included, and to subagents of any
+plugin. Writes through `Bash` are not guarded: the builder has full `Bash` and is told not to touch the
+task folder except `plan.md` and `build.md`. A round's `change.diff` is fixed once a reviewer has worked
+on it: `capture_change.py` refuses to replace it.
+
+In a project directory the guard applies only `protectedPaths` and the one-writer rule: the three
+sole writers may write nothing there, and the builder, the main session and other agents are not
 restricted beyond `protectedPaths`. Writes in the task folder that pass the rules
 are explicitly allowed by the guard, which also spares the permission prompt for writes outside the
-working directory. `protectedPaths` apply to the project repository only.
+working directory. `protectedPaths` apply to the project directory only.
 
 Verified 2026-10-28 with `claude -p --plugin-dir` (headless): a Write to
 `<home>/projects/demo/tasks/login/intent.md` succeeded through the guard's allow, while a Write to
 another folder outside the working directory was refused. Whether `deny` rules in the user's settings
 outrank a hook allow was not tested.
 
-Paths outside any git repository are not touched by this rule. The main session and other agent
-types are not restricted by it. A reviewer writes only the file for its own checklist; the hook
-cannot tell which checklist a reviewer was given, so that part is an instruction in the agent prompt.
+Paths outside any registered project are not touched by this rule for the main session and other
+agent types. A reviewer writes only the file for its own checklist; the hook cannot tell which
+checklist a reviewer was given, so that part is an instruction in the agent prompt.
 
 ## Running a round
 
 **Manual mode.** `/argani:review <slug>`:
-1. Read `reviewers` from the project configuration (`argani_config.py`).
-2. In one message, spawn one `argani:reviewer` per checklist (parallel). Each prompt names the
-   checklist file, `spec.md`, `plan.md`, the diff `<baseBranch>...HEAD`, and its one output path.
-3. Wait until every expected file exists and ends with the closing line; rerun any cut-off seat.
-4. Report each verdict. The human decides whether to rework or run the approver.
+1. Read `reviewers` and `diffCommand` from the project configuration (`argani_config.py`).
+2. Run `capture_change.py <slug>`: it runs `diffCommand` in the project root and writes
+   `review/round-N/change.diff`. An empty diff stops the round: nothing to review.
+3. In one message, spawn one `argani:reviewer` per checklist (parallel). Each prompt names the
+   checklist file, the slug folder, the round and the `Change` file; the reviewer writes its one
+   output path.
+4. Wait until every expected file exists and ends with the closing line; rerun any cut-off seat.
+5. Report each verdict. The human decides whether to rework or run the approver.
 
 **Factory mode.** `/argani:factory` runs the same round after the builder finishes, then:
 `CHANGES` anywhere starts a new round with a fresh builder that reads the round folder;
@@ -119,12 +131,10 @@ with `CHANGES` on line 1, the note as an Important finding, and the closing line
 as a normal round. It is allowed only after a clean round 1 and before a decision; it is refused
 after round 2, and the hook denies `round-3`.
 
-## Who commits what
+## Version control
 
-The builder commits code, never `plan.md` or `build.md` (the slug folder is outside the repository).
-The factory orchestrator commits the slug folder (only paths under it) after each step into the argani
-home's git repository, so the audit trail is in the home's history, but only when the user has made
-the home a git repository of its own (otherwise nothing is committed and the artifacts stay as files).
+Not argani's business. The builder follows the project's own `CLAUDE.md` and skills for commits;
+the task folder is outside the project and is never part of a commit.
 
 ## Agents
 
@@ -133,10 +143,10 @@ one artifact. Spawn them with `subagent_type: "argani:<agent>"`.
 
 | Agent                | Reads                                                                        | Writes                                               | Closing line                                                                            |
 |----------------------|------------------------------------------------------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `argani:spec-writer` | `intent.md`, repo `CLAUDE.md`, config                                        | `spec.md`                                            | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
-| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code on `<branch>`, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
-| `argani:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `git diff <default>...HEAD` | `review/round-N/review-<checklist>.md`               | `=== END OF REVIEW ===`                                                                 |
-| `argani:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, diff stat             | `decision.md`                                        | `=== END OF DECISION ===`                                                               |
+| `argani:spec-writer` | `intent.md`, project `CLAUDE.md`, config                                     | `spec.md`                                            | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
+| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code in the project, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
+| `argani:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `change.diff`               | `review/round-N/review-<checklist>.md`               | `=== END OF REVIEW ===`                                                                 |
+| `argani:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, `change.diff`         | `decision.md`                                        | `=== END OF DECISION ===`                                                               |
 
 ### Spawn prompts
 
@@ -154,14 +164,11 @@ Language: <project language>
 # argani:builder
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
-Branch: <branch>
 Verify command: <verifyCommand>
-Commit skill: <commitSkill, or "none">
-Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <N>
-Checkout: <state checkout; the toplevel without worktree mode>
-Findings to address: <abs round folders>            # only when N > 1: round N-1 with CHANGES,
-                                                     # and round N when it holds review-human.md
+Findings to address:                                 # only when N > 1: one abs path per review file
+- <abs review/round-K/review-<checklist>.md>         # of round N-1 (and of round N when it holds
+                                                     # review-human.md)
 
 # argani:reviewer
 Plugin root: <plugin root>
@@ -169,15 +176,13 @@ Checklist: <name>
 Checklist file: <plugin root>/checklists/<name>.md
 Slug folder: <abs slug folder>
 Round: <N>
-Base branch: <baseBranch>
-Checkout: <state checkout; the toplevel without worktree mode>
+Change: <abs review/round-N/change.diff>
 
 # argani:approver
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
 Round folder: <abs review/round-N>
-Base branch: <baseBranch>
-Checkout: <state checkout; the toplevel without worktree mode>
+Change: <abs review/round-N/change.diff>
 Reviewers: <comma-separated checklist names>
 Protected paths: <comma-separated globs, or "none">
 ```
@@ -186,44 +191,17 @@ Protected paths: <comma-separated globs, or "none">
 
 The hooks are a guard against mistakes, not a sandbox. These are known and accepted:
 
-- The git guard holds only merging into a protected branch: a push whose destination is
-  protected, a `git merge` while on a protected branch, and a PR/MR merge (`gh pr merge`,
-  `glab mr merge`, or a merge through `gh api` / `glab api`). The main session is asked; every
-  subagent is denied. With `mergePolicy: agent` the PR/MR merges and `git merge` are not held (a push to a
-  protected branch still is). That includes `git merge` on a protected branch outside the factory flow;
-  "only the orchestrator merges" is then a rule of the skills. A merge with `--admin`, `-R`/`--repo`, or a
-  URL or API path of another repository is still held. Pushing and pulling job branches, and merging into them, are left to the
-  repository's own rules, for the main session and every subagent alike. The branch is simulated
-  through the command chain; shell expansions, aliases, `git -c` settings, `cd` to a directory
-  that does not exist, repositories created inside the command, refspecs such as `:`, and encoded
-  or generated commands are not. Branch protection on the remote is what stops a deliberate
-  bypass.
-- `git branch -f <default> ...` and `git update-ref refs/heads/<default> ...` move the default
-  branch without `push`/`merge`, and `guard_git.py` does not look for them.
 - Writing a file through Bash (heredoc, `tee`, `sed -i`) bypasses `guard_artifacts.py`, which only
-  sees `Write` and `Edit`.
-- `xargs`, `eval` and similar indirection hide the git command from the parser. `bash|sh|zsh -c
-  "<cmd>"` is analysed; other nesting is not.
-- `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
-  wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
-- `git push --delete` matches only when the deleted branch is protected.
-- A broken project configuration is not a bypass: the git guard asks (main session) or denies
-  (subagent) for every push and merge, because the protected branches are unknown, and the
-  artifact guard does the same for every write, because `protectedPaths` cannot be checked.
-- A `checkout` or `switch` whose result cannot be determined (`-`, a commit, an unknown name) holds
-  any later push or merge in the same command.
+  sees `Write` and `Edit`. The reviewer and the approver have no `Bash`, but the builder and the
+  main session do (so `change.diff` could be rewritten through `Bash`; the builder's instructions
+  forbid it).
+- A broken project configuration is not a bypass: the artifact guard asks (main session) or denies
+  (subagent) for every write inside the project directory, because `protectedPaths` cannot be
+  checked.
 
 Acceptable because the reviewer, approver and spec-writer have `Write`, but the hook limits it to
-their own file everywhere: any other path is denied, including paths outside the repository and
-under `.git/`. The harness does not enforce the `Bash(...)` scoping in an agent's `tools` (see "Verified
-behaviour" in `argani.md`), so `guard_git.py` does: for `argani:reviewer` and `argani:approver` every
-command segment must be `git diff|log|show|rev-parse` without `--output`, and for `argani:spec-writer`
-also `python3 <plugin root>/scripts/<name>.py`; anything else, or an unparsable command, is denied.
-Pipes, `;`, `&&`, redirections and `bash -c` are segments like any other, so they do not widen the
-allowlist, and a backtick or `$(` anywhere in the command (quoted or not) is denied. `--output` and
-`--ext-diff` are refused. A `diff.external` that a human configured in the repository's own
-`.git/config` is trusted; the agents cannot write there. The builder and other agents have no allowlist
-beyond the merge gate above. The protection that matters is on the remote: protect
-`defaultBranch` and `baseBranch` with branch protection rules on GitHub or GitLab, so that only a
-human-owned merge request can change them. If a bypass is ever observed, add it to the hook
+their own file everywhere: any other path is denied, including paths outside the project and under
+`.git/`. The harness does not enforce the `Bash(...)` scoping in an agent's `tools` (see "Verified
+behaviour" in `argani.md`), so the reviewer and the approver are given no `Bash` at all, and the
+spec-writer only `python3 <plugin root>/scripts/*`. If a bypass is ever observed, add it to the hook
 rather than widening trust.

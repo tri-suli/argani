@@ -1,5 +1,4 @@
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -9,47 +8,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import argani_home  # noqa: E402
 
 
-def git(directory, *args):
-    subprocess.run(
-        ["git", "-C", str(directory), "-c", "user.name=t", "-c", "user.email=t@t", *args],
-        check=True, capture_output=True,
-    )
-
-
-@pytest.fixture(autouse=True)
-def hermetic_git_config(monkeypatch):
-    """Ignore the developer's global and system git config; hook subprocesses inherit this."""
-    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
-
-
 @pytest.fixture
-def make_repo(tmp_path, request):
-    """Factory: a git repo on `main` with one commit. `config` registers the repository as a project
-    in the argani home with those keys; `legacy_config` writes the removed .claude/argani.json."""
+def make_project(tmp_path, request):
+    """Factory: a plain directory (no git). `config` registers it as a project in the argani home
+    with those keys; `legacy_config` writes the removed .claude/argani.json."""
     def build(name="repo", config=None, legacy_config=None):
-        repo = tmp_path / name
-        repo.mkdir()
-        git(repo, "init", "-q", "-b", "main")
-        git(repo, "commit", "-q", "--allow-empty", "-m", "init")
+        directory = tmp_path / name
+        directory.mkdir()
         if config is not None:
-            request.getfixturevalue("register_project")(name, paths=[str(repo.resolve())], **config)
+            request.getfixturevalue("register_project")(name, paths=[str(directory.resolve())], **config)
         if legacy_config is not None:
-            (repo / ".claude").mkdir()
-            (repo / ".claude" / "argani.json").write_text(json.dumps(legacy_config))
-        return repo
+            (directory / ".claude").mkdir()
+            (directory / ".claude" / "argani.json").write_text(json.dumps(legacy_config))
+        return directory
     return build
 
 
 @pytest.fixture
-def repo(make_repo):
-    return make_repo()
-
-
-@pytest.fixture
-def feature_repo(repo):
-    git(repo, "checkout", "-q", "-b", "feature")
-    return repo
+def repo(make_project):
+    """A plain project directory, not registered; the name stays from the era when it was a git repository."""
+    return make_project()
 
 
 @pytest.fixture(autouse=True)
@@ -76,9 +54,9 @@ def hub():
 @pytest.fixture
 def register_project(hub):
     """Factory: write projects/<name>/project.json with identity keys plus any extra config."""
-    def register(name, remotes=(), paths=(), **config):
+    def register(name, paths=(), **config):
         path = hub / "projects" / name / "project.json"
         path.parent.mkdir()
-        path.write_text(json.dumps({"name": name, "remotes": list(remotes), "paths": list(paths), **config}))
+        path.write_text(json.dumps({"name": name, "paths": list(paths), **config}))
         return path
     return register

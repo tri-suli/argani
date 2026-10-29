@@ -8,6 +8,7 @@ missing and writes <home>/projects/<name>/project.json with the identity keys an
 The directory (default: the current one) may be any directory; its real path is registered.
 When that project already exists, the real path is appended to its paths (a project may span
 several directories); the config keys stay as they are. Never writes into the directory.
+Only real directories are registered; a pattern in `paths` (for nested checkouts) is added by hand.
 Prints the resulting project.json; exit 1 with one message on any error.
 """
 import json
@@ -78,12 +79,32 @@ def _replace(file, entry):
     os.replace(_temporary_copy(file, entry), file)
 
 
-def refuse_overlap_with_registered_paths(real_dir, home):
+def _pattern_directory(pattern):
+    """The literal directory a pattern entry lives under: the part before the first segment that
+    holds a pattern character."""
+    first = min(pattern.index(character) for character in "*?" if character in pattern)
+    return pattern[:first].rsplit("/", 1)[0] or "/"
+
+
+def refuse_overlap_with_registered_paths(real_dir, home, name):
     """Raise RegistrationError when real_dir is inside or contains a registered path of any project,
-    the project being registered included. The same path again is fine (a repeated registration)."""
+    the project being registered included. The same path again is fine (a repeated registration).
+    A pattern entry is never "inside" or "contained"; a pattern of another project refuses a
+    real_dir that matches it or contains the directory the pattern lives under. The project's own
+    patterns refuse nothing."""
     for project in project_registry.list_projects(home):
         for registered in project["paths"]:
             if registered == real_dir:
+                continue
+            if project_registry.is_pattern(registered):
+                if project["name"] == name:
+                    continue
+                if project_registry.path_matches(registered, real_dir):
+                    raise RegistrationError(
+                        f"{real_dir} matches the pattern {registered} of project {project['name']}")
+                if Path(_pattern_directory(registered)).is_relative_to(real_dir):
+                    raise RegistrationError(
+                        f"{real_dir} contains the pattern {registered} of project {project['name']}")
                 continue
             if Path(real_dir).is_relative_to(registered):
                 raise RegistrationError(
@@ -104,7 +125,9 @@ def register(name, start_dir, raw_config):
     real_home = os.path.realpath(home)
     if os.path.commonpath([real_dir, real_home]) == real_home:
         raise RegistrationError(f"{real_dir} is inside the argani home; run this from a project directory")
-    refuse_overlap_with_registered_paths(real_dir, home)
+    if project_registry.is_pattern(real_dir):
+        raise RegistrationError(f"{real_dir} holds a pattern character (* or ?) in its name and cannot be registered")
+    refuse_overlap_with_registered_paths(real_dir, home, name)
     current = project_registry.resolve(real_dir, home)
     if current and current["name"] != name:
         raise RegistrationError(f"this directory already belongs to the project {current['name']}, not {name}")

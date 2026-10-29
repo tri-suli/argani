@@ -277,3 +277,15 @@ def test_cli_without_git_on_the_path_prints_the_project(make_project, register_p
     printed = json.loads(result.stdout)
     assert (printed["project"], printed["projectRoot"]) == ("demo", str(repo.resolve()))
     assert printed["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
+
+
+def test_project_root_inside_a_nested_pattern_checkout_is_the_nested_directory(make_project, register_project):
+    repo = make_project("outer")
+    nested = repo / ".worktrees" / "job" / "src"
+    nested.mkdir(parents=True)
+    real = str(repo.resolve())
+    register_project("demo", paths=[real, f"{real}/.worktrees/*"])
+    config = argani_config.load_config(nested, strict=True)
+    assert config["project"] == "demo"
+    assert config["projectRoot"] == f"{real}/.worktrees/job"
+    assert argani_config.load_config(repo, strict=True)["projectRoot"] == real

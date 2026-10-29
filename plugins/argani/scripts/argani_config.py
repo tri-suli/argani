@@ -286,8 +286,8 @@ def load_config(start_dir=".", strict=False):
     """Effective config. Never raises unless strict=True; a bad file falls back to defaults.
 
     The config of a registered project comes from its project.json in the argani home; a
-    directory outside every project gets the defaults. projectRoot is the registered path that
-    contains start_dir, else None."""
+    directory outside every project gets the defaults. projectRoot is the nearest registered
+    path or pattern match that contains start_dir, else None."""
     config = _fresh_defaults()
     home, project, project_root = _resolve_project(start_dir)
     ignored = []

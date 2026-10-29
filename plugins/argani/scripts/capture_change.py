@@ -4,8 +4,9 @@
 Usage: python3 capture_change.py <slug> [dir]
 
 Runs the project's diffCommand (a shell command that prints the change as a unified diff) with the
-project root (the registered path that contains `dir`) as its working directory, so the paths of
-the `diff --git` lines line up with the globs of reviewerPaths and protectedPaths, and writes its
+project root (the nearest registered path or pattern match that contains `dir`) as its working
+directory, so the paths of the `diff --git` lines line up with the globs of reviewerPaths and
+protectedPaths, and writes its
 output unchanged (UTF-8, invalid bytes replaced, no line-ending changes) to
 <job_dir>/review/round-<N>/change.diff, where N is the state's review_round. The reviewers and the
 approver read that file instead of running anything themselves. Prints JSON {"path", "bytes",

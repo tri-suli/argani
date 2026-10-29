@@ -212,3 +212,40 @@ def test_creating_an_existing_entry_loses_the_race(tmp_path):
         raise AssertionError("second create must fail")
     assert json.loads(file.read_text()) == {"name": "shop"}
     assert [path.name for path in file.parent.iterdir()] == ["project.json"]
+
+
+def test_a_directory_matched_by_a_pattern_of_another_project_is_refused(make_project, register_project, hub):
+    parent = make_project("one")
+    (parent / ".worktrees" / "job").mkdir(parents=True)
+    pattern = f"{parent.resolve()}/.worktrees/*"
+    register_project("legacy", paths=[pattern])
+    code, out = register(parent / ".worktrees" / "job")
+    assert code == 1 and pattern in out and "legacy" in out
+    assert not (hub / "projects" / "shop").exists()
+
+
+def test_the_literal_parent_is_accepted_when_the_project_lists_a_pattern_under_it(make_project, register_project, hub):
+    parent = make_project("one")
+    (parent / ".worktrees").mkdir()
+    pattern = f"{parent.resolve()}/.worktrees/*"
+    register_project("shop", paths=[pattern])
+    code, out = register(parent)
+    assert code == 0, out
+    assert project_json(hub)["paths"] == [pattern, str(parent.resolve())]
+
+
+def test_a_directory_containing_the_pattern_of_another_project_is_refused(make_project, register_project, hub):
+    parent = make_project("one")
+    (parent / ".worktrees").mkdir()
+    pattern = f"{parent.resolve()}/.worktrees/*"
+    register_project("other", paths=[pattern])
+    code, out = register(parent)
+    assert code == 1 and f"{parent.resolve()} contains the pattern {pattern} of project other" in out
+    assert not (hub / "projects" / "shop").exists()
+
+
+def test_a_directory_whose_name_holds_a_pattern_character_is_refused(make_project, hub):
+    odd = make_project("odd*dir")
+    code, out = register(odd)
+    assert code == 1 and "pattern character" in out
+    assert not (hub / "projects" / "shop").exists()

@@ -23,7 +23,9 @@ over the keys of an old `.claude/argani.json` and never overwrites an existing p
 The file is `<home>/projects/<name>/project.json`. The project of a directory is found from the
 real path of the directory (the current working directory of the script, **not**
 `CLAUDE_PROJECT_DIR`) and of its ancestors, matched against the `paths` of the registered projects;
-the nearest match wins. Scripts and hooks must resolve it through `scripts/argani_config.py`.
+the nearest match wins. An entry of `paths` may be a pattern (see "The argani home"), so a checkout
+nested inside a registered path can be its own project root. Scripts and hooks must resolve it
+through `scripts/argani_config.py`.
 Outside every project the defaults apply and `tasksDir` is `null`.
 
 If the project file is unreadable, not valid JSON, or has a wrongly typed key, scripts use the
@@ -35,7 +37,7 @@ defaults (with a note on stderr). The artifact guard cannot check `protectedPath
 | Key              | Default       | Meaning                                                                                                                                                                                                                                                                                                                      |
 |------------------|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `verifyCommand`  | none          | Command that proves the work (tests, linters, link check), run by the builder in the directory of the session. Required by factory mode.                                                                                                                                                                                      |
-| `diffCommand`    | none          | The project's command that prints the change under review as a unified diff. `capture_change.py` runs it before each review round with the project root (the registered path that contains the session's directory) as working directory, so the paths in the diff line up with `reviewerPaths` and `protectedPaths`; 120 s limit, 1 MB or more is warned about because reviewers read a large diff partially. It saves the output unchanged as `review/round-<N>/change.diff`. Required by factory mode and the review. See "Choosing `diffCommand`". |
+| `diffCommand`    | none          | The project's command that prints the change under review as a unified diff. `capture_change.py` runs it before each review round with the project root (the nearest registered path or pattern match that contains the session's directory) as working directory, so the paths in the diff line up with `reviewerPaths` and `protectedPaths`; 120 s limit, 1 MB or more is warned about because reviewers read a large diff partially. It saves the output unchanged as `review/round-<N>/change.diff`. Required by factory mode and the review. See "Choosing `diffCommand`". |
 | `reviewers`      | `["code"]`    | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                   |
 | `reviewerPaths`  | `{}`          | Path globs per checklist (same syntax as `protectedPaths`), for example `{"security": ["src/auth/**"]}`. A checklist listed here runs only when the captured `change.diff` touches one of its globs; the others always run. Without a `change.diff` (or one that is not a unified diff) every reviewer runs. Keys must be listed in `reviewers`. |
 | `protectedPaths` | `[]`          | Globs relative to the project directory that agents must not write.                                                                                                                                                                                                                                                         |
@@ -50,6 +52,10 @@ The command must match how the builder keeps its work, which is the project's ow
 - `git diff origin/main` shows the working tree against the base, but **not untracked files**. Use it
   when the project forbids agent commits; new files need `git add -N <path>` (intent to add) to
   appear in it, so have the builder's rules or your own routine do that.
+
+When the project works in checkouts nested inside the registered path (for example worktrees under
+`.worktrees/`), list them as a pattern in `paths`; otherwise `diffCommand` runs in the outer checkout
+and prints nothing.
 
 A mismatch shows up as an empty capture ("diffCommand printed nothing; nothing to review"), which
 stops the factory: check `diffCommand` against the builder's commit rule first. The change of a round
@@ -123,7 +129,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py [dir]
 ```
 
 Prints the merged configuration as JSON, plus the `project` name (`null` for a directory without a
-project), the `home`, `projectRoot` (the registered path that contains `dir`) and `tasksDir`, the
+project), the `home`, `projectRoot` (the nearest registered path or pattern match that contains `dir`) and `tasksDir`, the
 folder of the job folders: `<home>/projects/<name>/tasks` for a project, `null` without one. The
 identity keys are never part of it. `null` values are ignored and types are checked (`reviewers` and
 `protectedPaths` must be lists of strings, the other keys strings). An unusable file makes the
@@ -162,9 +168,16 @@ Each project registered on the board has an entry, `projects/<name>/project.json
 ```
 
 `name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `paths` are the real paths of the
-project's directories. A directory belongs to the project that lists its real path, or the real
-path of its nearest ancestor that any project lists; a path listed by two projects is an error. The
-home itself is never a project. A broken entry is skipped with a warning on stderr so it cannot
-block other projects. A leftover `remotes` key from argani 1.x is ignored.
+project's directories. An entry may also be a pattern: `*` and `?` stay inside one path segment; there is no `**`
+(it is two `*`, so `.worktrees/**` is `.worktrees/*`). Patterns are added by hand to
+`project.json` (`register_project.py` registers real directories only), for example
+`"paths": ["/p/app", "/p/app/.worktrees/*"]`: inside `/p/app/.worktrees/job-a/src` the project root is
+`/p/app/.worktrees/job-a`, inside `/p/app/src` it is `/p/app`, and the pattern never matches
+`/p/app` or `/p/app/.worktrees` themselves. A directory belongs to the project that lists its real
+path or matches it by a pattern, or does so for its nearest ancestor that any project lists; a path
+matched by two projects is an error. That nearest ancestor is the project root used by
+`diffCommand`, `protectedPaths` and `reviewerPaths`. The home itself is never a project. A broken
+entry is skipped with a warning on stderr so it cannot block other projects. A leftover `remotes`
+key from argani 1.x is ignored.
 `python3 <plugin root>/scripts/project_registry.py [dir]` prints the project of `dir` (default: the
 current directory) and exits 1 when there is none.

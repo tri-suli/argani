@@ -206,3 +206,63 @@ def test_a_home_inside_a_project_path_is_not_a_project_directory(tmp_path, monke
         json.dumps({"name": "shop", "paths": [os.path.realpath(project)]}))
     assert project_registry.resolve(project, inner_home)["name"] == "shop"
     assert project_registry.resolve(inner_home / "projects" / "shop", inner_home) is None
+
+
+def nested_checkout(repo):
+    """repo with a .worktrees folder holding the checkouts job-a and job-b."""
+    for name in ("job-a", "job-b"):
+        (repo / ".worktrees" / name / "src").mkdir(parents=True)
+    return os.path.realpath(repo)
+
+
+def test_a_pattern_matches_a_child_directory_and_its_subfolders_with_the_child_as_root(hub, register_project, repo):
+    real = nested_checkout(repo)
+    register_project("local", paths=[real, f"{real}/.worktrees/*"])
+    entry, root = project_registry.resolve_with_root(repo / ".worktrees" / "job-a" / "src", hub)
+    assert entry["name"] == "local" and root == f"{real}/.worktrees/job-a"
+
+
+def test_the_literal_parent_stays_the_root_outside_the_pattern(hub, register_project, repo):
+    real = nested_checkout(repo)
+    register_project("local", paths=[real, f"{real}/.worktrees/*"])
+    (repo / "src").mkdir()
+    assert project_registry.resolve_with_root(repo / "src", hub)[1] == real
+    assert project_registry.resolve_with_root(repo / ".worktrees", hub)[1] == real
+
+
+def test_a_star_does_not_cross_a_separator(hub, register_project, repo):
+    real = nested_checkout(repo)
+    (repo / ".worktrees" / "job-a" / "deep" / "er").mkdir(parents=True)
+    register_project("local", paths=[f"{real}/.worktrees/*"])
+    root = project_registry.resolve_with_root(repo / ".worktrees" / "job-a" / "deep" / "er", hub)[1]
+    assert root == f"{real}/.worktrees/job-a"
+
+
+def test_a_pattern_does_not_match_its_own_parent(hub, register_project, repo):
+    real = nested_checkout(repo)
+    register_project("local", paths=[f"{real}/.worktrees/*"])
+    assert project_registry.resolve_with_root(repo, hub) is None
+    assert project_registry.resolve_with_root(repo / ".worktrees", hub) is None
+
+
+def test_a_double_star_is_only_two_stars_and_does_not_cross_separators(hub, register_project, repo):
+    real = nested_checkout(repo)
+    (repo / ".worktrees" / "job-a" / "deep").mkdir()
+    register_project("local", paths=[f"{real}/.worktrees/**"])
+    assert project_registry.resolve_with_root(repo / ".worktrees" / "job-a" / "deep", hub)[1] == \
+        f"{real}/.worktrees/job-a"
+
+
+def test_a_trailing_slash_of_a_pattern_entry_is_ignored(hub, register_project, repo):
+    real = nested_checkout(repo)
+    register_project("local", paths=[f"{real}/.worktrees/*/"])
+    assert project_registry.resolve_with_root(repo / ".worktrees" / "job-a" / "src", hub)[1] == \
+        f"{real}/.worktrees/job-a"
+
+
+def test_a_literal_and_a_pattern_of_two_projects_matching_one_path_conflict(hub, register_project, repo):
+    real = nested_checkout(repo)
+    register_project("alpha", paths=[f"{real}/.worktrees/job-a"])
+    register_project("beta", paths=[f"{real}/.worktrees/*"])
+    with pytest.raises(project_registry.ProjectError, match="claimed by projects alpha and beta"):
+        project_registry.resolve_with_root(repo / ".worktrees" / "job-a", hub)

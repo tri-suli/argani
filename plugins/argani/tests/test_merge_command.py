@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test_factory_state import hub_job, job  # noqa: F401
+from test_factory_state import job  # noqa: F401
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "merge_command.py"
 MERGE_CONFIG = {"mergePolicy": "agent", "mergeCommand": "gh pr merge {mr} --rebase"}

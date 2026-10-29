@@ -5,8 +5,7 @@ the mechanical parts (verdict line, round limit, who writes what); the rest is i
 
 ## Files
 
-All paths are under the task folder `<home>/projects/<name>/tasks/<slug>/` in the argani home
-(legacy: `<artifactRoot>/<slug>/`, default `argani/<slug>/`).
+All paths are under the task folder `<home>/projects/<name>/tasks/<slug>/` in the argani home.
 
 | File                                   | Written by                                          | Line 1                  | Last line                 |
 |----------------------------------------|-----------------------------------------------------|-------------------------|---------------------------|
@@ -79,15 +78,16 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 
 The hook reads `agent_type` from the hook input (value `argani:<agent>`):
 
-| Agent                | May write                                                         | May not write                                                                               |
+| Agent                | May write (in the task folder `<home>/projects/<name>/tasks/<slug>/`) | May not write                                                                               |
 |----------------------|-------------------------------------------------------------------|---------------------------------------------------------------------------------------------|
-| `argani:reviewer`    | `<artifactRoot>/<slug>/review/round-*/review-*.md`                | anything else in the repository                                                             |
-| `argani:approver`    | `<artifactRoot>/<slug>/decision.md`                               | anything else in the repository                                                             |
-| `argani:spec-writer` | `<artifactRoot>/<slug>/spec.md`                                   | anything else in the repository                                                             |
-| `argani:builder`     | everything else, including `plan.md`, `build.md` and source files | under `<artifactRoot>/<slug>/`: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
-| the three sole writers | -                                                               | anything else in the argani home; other agents get no decision there                       |
+| `argani:reviewer`    | `review/round-*/review-*.md`                                      | anything else, in the argani home or in a repository                                        |
+| `argani:approver`    | `decision.md`                                                     | anything else, in the argani home or in a repository                                        |
+| `argani:spec-writer` | `spec.md`                                                         | anything else, in the argani home or in a repository                                        |
+| `argani:builder`     | everything else, including `plan.md`, `build.md`; source files in the repository | in the task folder: `intent.md`, `spec.md`, `review/**`, `decision.md`, `mr.md` |
 
-The same table applies in the task folder of the argani home. Hub artifact writes that pass the rules
+In a repository the guard applies only `protectedPaths` and the one-writer rule: the three sole
+writers may write nothing there, and the builder, the main session and other agents are not
+restricted beyond `protectedPaths`. Writes in the task folder that pass the rules
 are explicitly allowed by the guard, which also spares the permission prompt for writes outside the
 working directory. `protectedPaths` apply to the project repository only.
 
@@ -103,7 +103,7 @@ cannot tell which checklist a reviewer was given, so that part is an instruction
 ## Running a round
 
 **Manual mode.** `/argani:review <slug>`:
-1. Read `reviewers` from `.claude/argani.json`.
+1. Read `reviewers` from the project configuration (`argani_config.py`).
 2. In one message, spawn one `argani:reviewer` per checklist (parallel). Each prompt names the
    checklist file, `spec.md`, `plan.md`, the diff `<baseBranch>...HEAD`, and its one output path.
 3. Wait until every expected file exists and ends with the closing line; rerun any cut-off seat.
@@ -121,11 +121,10 @@ after round 2, and the hook denies `round-3`.
 
 ## Who commits what
 
-The builder commits code, and `plan.md` and `build.md` when the slug folder is inside the repository.
-The factory orchestrator commits the slug folder (only paths under it) after each step: for a
-registered project into the argani home's git repository, so the audit trail is in the home's
-history, but only when the user has made the home a git repository of its own (otherwise nothing is
-committed and the artifacts stay as files); for a legacy repository onto the job branch.
+The builder commits code, never `plan.md` or `build.md` (the slug folder is outside the repository).
+The factory orchestrator commits the slug folder (only paths under it) after each step into the argani
+home's git repository, so the audit trail is in the home's history, but only when the user has made
+the home a git repository of its own (otherwise nothing is committed and the artifacts stay as files).
 
 ## Agents
 
@@ -155,7 +154,6 @@ Language: <project language>
 # argani:builder
 Plugin root: <plugin root>
 Slug folder: <abs slug folder>
-Job folder in repository: <yes|no>
 Branch: <branch>
 Verify command: <verifyCommand>
 Commit skill: <commitSkill, or "none">
@@ -209,7 +207,7 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - `cd ~` and `cd -` are not resolved (the hook keeps the previous directory, so it may check the
   wrong repository and allow). `--git-dir` and `--work-tree` are ignored for repository detection.
 - `git push --delete` matches only when the deleted branch is protected.
-- A broken `.claude/argani.json` is not a bypass: the git guard asks (main session) or denies
+- A broken project configuration is not a bypass: the git guard asks (main session) or denies
   (subagent) for every push and merge, because the protected branches are unknown, and the
   artifact guard does the same for every write, because `protectedPaths` cannot be checked.
 - A `checkout` or `switch` whose result cannot be determined (`-`, a commit, an unknown name) holds

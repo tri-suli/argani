@@ -19,14 +19,10 @@ def decide(command, cwd, agent_type="argani:builder"):
     return decision_of(run_hook("guard_git.py", bash_payload(command, cwd, agent_type)))
 
 
-@pytest.fixture(params=["legacy", "hub"])
-def agent_repo(request, make_repo, register_project):
-    """A repo on feature whose project has mergePolicy agent, from a legacy file or the hub."""
-    if request.param == "legacy":
-        repo = make_repo(config=AGENT_CONFIG)
-    else:
-        repo = make_repo()
-        register_project("demo", paths=[str(repo)], **AGENT_CONFIG)
+@pytest.fixture
+def agent_repo(make_repo):
+    """A repo on feature whose project has mergePolicy agent."""
+    repo = make_repo(config=AGENT_CONFIG)
     git(repo, "remote", "add", "origin", "git@github.com:acme/app.git")
     git(repo, "checkout", "-q", "-b", "feature")
     return repo

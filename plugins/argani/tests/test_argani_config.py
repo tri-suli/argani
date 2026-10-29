@@ -22,7 +22,7 @@ def make_repo(path):
 def test_defaults_outside_git_repo(tmp_path):
     config = argani_config.load_config(tmp_path)
     assert config["toplevel"] is None
-    assert config["artifactRoot"] == "argani"
+    assert "artifactRoot" not in config and "recordCommitMessage" not in config
     assert config["defaultBranch"] == "main"
     assert config["reviewers"] == ["code"]
     assert config["protectedPaths"] == []
@@ -42,30 +42,42 @@ def test_default_branch_detected_from_origin_head(tmp_path):
     assert argani_config.load_config(repo)["defaultBranch"] == "develop"
 
 
-def test_config_file_overrides_defaults(tmp_path):
+def test_project_config_overrides_defaults(tmp_path, register_project):
     repo = make_repo(tmp_path / "repo")
-    (repo / ".claude").mkdir()
-    (repo / ".claude" / "argani.json").write_text(json.dumps({
-        "artifactRoot": "work", "defaultBranch": "release",
-        "verifyCommand": "make test", "reviewers": ["code", "security"],
-    }))
+    register_project("repo", paths=[str(repo.resolve())], defaultBranch="release",
+                     verifyCommand="make test", reviewers=["code", "security"])
     config = argani_config.load_config(repo)
-    assert config["artifactRoot"] == "work"
     assert config["defaultBranch"] == "release"
     assert config["verifyCommand"] == "make test"
     assert config["reviewers"] == ["code", "security"]
     assert config["protectedPaths"] == []
 
 
-def test_config_found_from_subdirectory(tmp_path):
+def test_project_config_found_from_subdirectory(tmp_path, register_project):
     repo = make_repo(tmp_path / "repo")
-    (repo / ".claude").mkdir()
-    (repo / ".claude" / "argani.json").write_text('{"artifactRoot": "docs/work"}')
+    register_project("repo", paths=[str(repo.resolve())], verifyCommand="make test")
     nested = repo / "a" / "b"
     nested.mkdir(parents=True)
     config = argani_config.load_config(nested)
-    assert config["artifactRoot"] == "docs/work"
+    assert config["verifyCommand"] == "make test"
     assert Path(config["toplevel"]).resolve() == repo.resolve()
+
+
+def test_repository_file_is_ignored_with_a_note_since_1_0_0(tmp_path, capsys):
+    repo = make_repo(tmp_path / "repo")
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "argani.json").write_text(json.dumps({"defaultBranch": "release", "verifyCommand": "make"}))
+    config = argani_config.load_config(repo)
+    assert config["defaultBranch"] == "main" and config["verifyCommand"] is None
+    assert config["project"] is None and config["tasksDir"] is None
+    assert capsys.readouterr().err == (
+        "argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init to register this "
+        "repository (its keys are carried over)\n")
+
+
+def test_no_note_without_a_repository_file(tmp_path, capsys):
+    argani_config.load_config(make_repo(tmp_path / "repo"))
+    assert capsys.readouterr().err == ""
 
 
 def test_current_branch(tmp_path):

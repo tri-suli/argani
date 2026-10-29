@@ -24,16 +24,19 @@ def hermetic_git_config(monkeypatch):
 
 
 @pytest.fixture
-def make_repo(tmp_path):
-    """Factory: a git repo on `main` with one commit and an optional .claude/argani.json."""
-    def build(name="repo", config=None):
+def make_repo(tmp_path, request):
+    """Factory: a git repo on `main` with one commit. `config` registers the repository as a project
+    in the argani home with those keys; `legacy_config` writes the removed .claude/argani.json."""
+    def build(name="repo", config=None, legacy_config=None):
         repo = tmp_path / name
         repo.mkdir()
         git(repo, "init", "-q", "-b", "main")
         git(repo, "commit", "-q", "--allow-empty", "-m", "init")
         if config is not None:
+            request.getfixturevalue("register_project")(name, paths=[str(repo.resolve())], **config)
+        if legacy_config is not None:
             (repo / ".claude").mkdir()
-            (repo / ".claude" / "argani.json").write_text(json.dumps(config))
+            (repo / ".claude" / "argani.json").write_text(json.dumps(legacy_config))
         return repo
     return build
 

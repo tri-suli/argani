@@ -132,8 +132,8 @@ def factory_state(repo, slug="login"):
 @pytest.mark.parametrize("job_type, branch, base", [("feature", "feature/login", "develop"),
                                                     ("hotfix", "hotfix/login", "main")])
 def test_factory_state_reports_type_branch_and_base(make_repo, job_type, branch, base):
-    repo, _ = load(make_repo, GIT_FLOW)
-    folder = repo / "argani" / "login"
+    repo, config = load(make_repo, GIT_FLOW)
+    folder = Path(config["tasksDir"]) / "login"
     folder.mkdir(parents=True)
     (folder / "intent.md").write_text(INTENT.format(status="approved by Tri on 2026-10-27",
                                                     type_line=f"Type: {job_type}\n"))
@@ -143,8 +143,8 @@ def test_factory_state_reports_type_branch_and_base(make_repo, job_type, branch,
 
 
 def test_factory_state_without_type_stops_at_intent(make_repo):
-    repo, _ = load(make_repo, GIT_FLOW)
-    folder = repo / "argani" / "login"
+    repo, config = load(make_repo, GIT_FLOW)
+    folder = Path(config["tasksDir"]) / "login"
     folder.mkdir(parents=True)
     (folder / "intent.md").write_text(INTENT.format(status="approved by Tri on 2026-10-27", type_line=""))
     code, out = factory_state(repo)
@@ -152,8 +152,3 @@ def test_factory_state_without_type_stops_at_intent(make_repo):
     assert (code, state["branch"], state["on_job_branch"], state["stage"]) == (
         0, None, False, "needs-intent-approval")
 
-
-def test_missing_job_folder_hint_shows_the_type_slot(make_repo):
-    repo, _ = load(make_repo, GIT_FLOW)
-    code, out = factory_state(repo, "nope")
-    assert code == 1 and "<type>/nope" in out

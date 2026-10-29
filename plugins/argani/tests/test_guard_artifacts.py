@@ -1,4 +1,3 @@
-import json
 import pytest
 
 from hook_helpers import decision_of, file_payload, run_hook
@@ -13,124 +12,33 @@ def write(repo, relative, content, agent_type=None, absolute=True):
                     file_payload("Write", repo, file_path, agent_type, content=content))
 
 
-def edit(repo, relative, old, new, replace_all=False):
-    return run_hook("guard_artifacts.py", file_payload(
-        "Edit", repo, repo / relative, old_string=old, new_string=new, replace_all=replace_all))
-
-
 REVIEW = "argani/demo/review/round-1/review-code.md"
 DECISION = "argani/demo/decision.md"
 
-
-@pytest.mark.parametrize("content", [
-    "PASS" + END_REVIEW, "PASS looks fine" + END_REVIEW, "CHANGES needs tests" + END_REVIEW,
-    "CHANGES\n- [Important] a.py:1 - ...", "\ufeffPASS\n", "PASS\r\nbody\r\n",
-])
-def test_valid_review_first_line_is_allowed(repo, content):
-    assert write(repo, REVIEW, content) is None
-
-
-@pytest.mark.parametrize("content", [
-    "Hasil: PASS\n", "\nPASS\n", "# Review\nPASS\n", "PASSED\n", "pass\n", "", "APPROVE\n",
-])
-def test_invalid_review_first_line_is_denied(repo, content):
-    output = write(repo, REVIEW, content)
-    assert decision_of(output) == "deny"
-    assert "PASS or CHANGES" in output["permissionDecisionReason"]
-
-
-def test_relative_file_path_resolves_against_cwd(repo):
-    assert decision_of(write(repo, REVIEW, "oops\n", absolute=False)) == "deny"
-
-
-def test_decision_verdicts(repo):
-    assert write(repo, DECISION, "APPROVE\n=== END OF DECISION ===\n") is None
-    assert write(repo, DECISION, "ESCALATE two rounds failed\n") is None
-    output = write(repo, DECISION, "OK\n")
-    assert decision_of(output) == "deny"
-    assert "APPROVE or ESCALATE" in output["permissionDecisionReason"]
-
-
-def test_edit_producing_invalid_first_line_is_denied(repo):
-    path = repo / REVIEW
-    path.parent.mkdir(parents=True)
-    path.write_text("PASS\nbody\n")
-    assert decision_of(edit(repo, REVIEW, "PASS", "Hasil: PASS")) == "deny"
-    assert edit(repo, REVIEW, "PASS", "CHANGES") is None
-    assert edit(repo, REVIEW, "body", "other body") is None  # line 1 untouched
-
-
-def test_edit_replace_all_is_applied(repo):
-    path = repo / REVIEW
-    path.parent.mkdir(parents=True)
-    path.write_text("PASS\nPASS\n")
-    assert decision_of(edit(repo, REVIEW, "PASS", "x", replace_all=True)) == "deny"
-    assert edit(repo, REVIEW, "PASS\nPASS", "PASS\nx", replace_all=True) is None
-
-
-def test_edit_on_missing_file_or_missing_text_is_allowed(repo):
-    assert edit(repo, REVIEW, "PASS", "nonsense") is None
-    path = repo / REVIEW
-    path.parent.mkdir(parents=True)
-    path.write_text("PASS\n")
-    assert edit(repo, REVIEW, "not present", "nonsense") is None
-
-
-@pytest.mark.parametrize("round_number,expected", [(1, None), (2, None), (3, "deny"), (12, "deny")])
-def test_round_limit(repo, round_number, expected):
-    relative = f"argani/demo/review/round-{round_number}/review-code.md"
-    assert decision_of(write(repo, relative, "PASS\n")) == expected
-
-
-def test_round_limit_applies_to_review_human_too(repo):
-    assert decision_of(write(repo, "argani/demo/review/round-3/review-human.md", "CHANGES\n")) == "deny"
-
-
-def test_reviewer_writes_only_its_review_file(repo):
-    assert write(repo, REVIEW, "PASS\n", "argani:reviewer") is None
-    assert decision_of(write(repo, DECISION, "APPROVE\n", "argani:reviewer")) == "deny"
-    assert decision_of(write(repo, "argani/demo/build.md", "x", "argani:reviewer")) == "deny"
-
-
-def test_approver_writes_only_decision(repo):
-    assert write(repo, DECISION, "APPROVE\n", "argani:approver") is None
-    assert decision_of(write(repo, REVIEW, "PASS\n", "argani:approver")) == "deny"
-
-
-def test_spec_writer_writes_only_spec(repo):
-    assert write(repo, "argani/demo/spec.md", "x", "argani:spec-writer") is None
-    assert decision_of(write(repo, "argani/demo/intent.md", "x", "argani:spec-writer")) == "deny"
+# --- paths inside a repository: only protectedPaths and the one-writer rule apply ---
 
 
 @pytest.mark.parametrize("relative", [
-    "argani/demo/spec.md", "argani/demo/intent.md", "argani/demo/mr.md", "argani/demo/decision.md",
-    "argani/demo/review/round-1/review-code.md",
+    REVIEW, DECISION, "argani/demo/spec.md", "argani/demo/intent.md", "argani/demo/mr.md",
+    "argani/demo/review/round-3/review-code.md", "argani/demo/build.md",
 ])
-def test_builder_cannot_write_other_agents_files(repo, relative):
-    assert decision_of(write(repo, relative, "PASS\n", "argani:builder")) == "deny"
+def test_the_main_session_and_other_agents_are_not_restricted_in_a_repository(repo, relative):
+    assert write(repo, relative, "oops\n") is None  # no verdict or round rule outside the argani home
+    assert write(repo, relative, "oops\n", "argani:other") is None
 
 
 @pytest.mark.parametrize("relative", [
-    "src/x.py", "argani/demo/plan.md", "argani/demo/build.md", "argani/README.md",
+    "src/x.py", "argani/demo/plan.md", "argani/demo/build.md", "argani/demo/spec.md", REVIEW, DECISION,
 ])
-def test_builder_can_write_code_plan_and_build(repo, relative):
+def test_the_builder_is_not_restricted_in_a_repository(repo, relative):
     assert write(repo, relative, "x", "argani:builder") is None
 
 
-def test_main_session_and_other_agents_are_not_restricted_by_writer_rule(repo):
-    assert write(repo, "argani/demo/spec.md", "x") is None
-    assert write(repo, "argani/demo/spec.md", "x", "argani:other") is None
-    assert write(repo, REVIEW, "PASS\n") is None
-
-
 @pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer"])
-@pytest.mark.parametrize("relative", ["src/a.py", "decision.md", "argani/README.md", "docs/spec.md"])
+@pytest.mark.parametrize("relative", ["src/a.py", "decision.md", "argani/README.md", "docs/spec.md", REVIEW, DECISION,
+                                       "argani/demo/spec.md"])
 def test_sole_writer_agents_are_denied_everywhere_else_in_the_repository(repo, agent_type, relative):
     assert decision_of(write(repo, relative, "x", agent_type)) == "deny"
-
-
-def test_builder_may_write_source_files(repo):
-    assert write(repo, "src/a.py", "x", "argani:builder") is None
 
 
 @pytest.mark.parametrize("agent_type", ["argani:reviewer", "argani:approver", "argani:spec-writer"])
@@ -154,9 +62,7 @@ def test_builder_and_main_session_are_not_limited_outside_the_repository(repo, t
 
 
 def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_repo):
-    repo = make_repo()
-    (repo / ".claude").mkdir()
-    (repo / ".claude" / "argani.json").write_text('{"protectedPaths": ["raw/**"')  # truncated
+    repo = make_repo(config={"reviewers": 1})
     output = write(repo, "raw/a/b.txt", "x")
     assert decision_of(output) == "ask"
     assert "configuration is invalid" in output["permissionDecisionReason"]
@@ -164,11 +70,14 @@ def test_invalid_config_asks_in_main_session_and_denies_in_subagent(make_repo):
 
 
 def test_invalid_config_does_not_affect_writes_outside_the_repository(make_repo, tmp_path_factory):
-    repo = make_repo()
-    (repo / ".claude").mkdir()
-    (repo / ".claude" / "argani.json").write_text("[1]")
+    make_repo(config={"reviewers": 1})
     outside = tmp_path_factory.mktemp("outside")
     assert write(outside, "raw/a/b.txt", "x") is None
+
+
+def test_a_removed_repository_file_protects_nothing(make_repo):
+    repo = make_repo(legacy_config={"protectedPaths": ["raw/**"]})
+    assert write(repo, "raw/a/b.txt", "x") is None
 
 
 def test_protected_paths_are_denied_for_everyone(make_repo):
@@ -181,15 +90,6 @@ def test_protected_paths_are_denied_for_everyone(make_repo):
     assert write(repo, "src/raw/a.txt", "x") is None
     assert write(repo, "sub/poetry.lock", "x") is None
     assert write(repo, "rawer/a.txt", "x") is None
-
-
-def test_custom_artifact_root(make_repo):
-    repo = make_repo(config={"artifactRoot": "work/jobs"})
-    relative = "work/jobs/demo/review/round-1/review-code.md"
-    assert decision_of(write(repo, relative, "Hasil: PASS\n")) == "deny"
-    assert write(repo, relative, "PASS\n") is None
-    assert decision_of(write(repo, "work/jobs/demo/review/round-3/review-code.md", "PASS\n")) == "deny"
-    assert write(repo, REVIEW, "Hasil: PASS\n") is None  # default root is no longer special
 
 
 def test_non_artifact_paths_and_non_repos_are_allowed(repo, tmp_path_factory):
@@ -209,8 +109,6 @@ def worktree_with_symlinked_raw(make_repo):
     worktree = main.parent / "worktree"
     subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", "-b", "feature", str(worktree)],
                    check=True)
-    (worktree / ".claude").mkdir()
-    (worktree / ".claude" / "argani.json").write_text(json.dumps(config))
     (worktree / "shared" / "project").mkdir(parents=True)
     (worktree / "shared" / "project" / "raw").symlink_to(main / "shared" / "project" / "raw")
     return main, worktree
@@ -340,7 +238,7 @@ def test_edit_that_creates_a_file_is_checked_against_new_string(hub, demo_projec
         assert decision_of(run_hook("guard_artifacts.py", payload)) == expected
 
 
-def test_unverifiable_verdict_edit_in_the_hub_is_denied_but_not_in_a_legacy_repository(
+def test_unverifiable_verdict_edit_in_the_hub_is_denied_but_not_in_a_repository(
         hub, demo_project, repo):
     for target in (hub / "projects" / "demo" / HUB_REVIEW, repo / REVIEW):
         payload = file_payload("Edit", hub, target, old_string="PASS", new_string="x")
@@ -360,7 +258,7 @@ def test_symlink_in_the_repository_into_the_hub_keeps_protected_paths(make_repo,
     assert decision_of(write(repo, "link/login/plan.md", "x", "argani:builder")) == "deny"
 
 
-def test_symlink_inside_the_hub_pointing_outside_takes_the_legacy_flow(
+def test_symlink_inside_the_hub_pointing_outside_takes_the_repository_flow(
         hub, demo_project, tmp_path_factory):
     elsewhere = tmp_path_factory.mktemp("elsewhere")
     folder = hub / "projects" / "demo" / "tasks" / "login"
@@ -389,7 +287,7 @@ def test_cwd_relative_hub_path_resolves_against_cwd(hub, demo_project):
     assert decision_of(hub_write(hub, "", cwd=folder, file_path="intent.md")) == "allow"
 
 
-def test_a_home_that_is_a_git_repository_is_not_a_legacy_repository(hub, demo_project):
+def test_a_home_that_is_a_git_repository_is_not_treated_as_a_repository(hub, demo_project):
     from conftest import git
     git(hub, "init", "-q", "-b", "main")
     assert decision_of(hub_write(hub, "tasks/login/intent.md")) == "allow"
@@ -398,7 +296,7 @@ def test_a_home_that_is_a_git_repository_is_not_a_legacy_repository(hub, demo_pr
 
 def test_invalid_home_skips_the_hub_branch(repo, tmp_path, monkeypatch):
     monkeypatch.setenv("ARGANI_HOME", "relative/home")
-    assert write(repo, REVIEW, "PASS\n", "argani:reviewer") is None
+    assert decision_of(write(repo, REVIEW, "PASS\n", "argani:reviewer")) == "deny"
     assert decision_of(write(repo, "src/a.py", "x", "argani:reviewer")) == "deny"
     lookalike = tmp_path / "relative" / "home" / "projects" / "demo" / "tasks" / "login" / "spec.md"
     lookalike.parent.mkdir(parents=True)
@@ -406,3 +304,64 @@ def test_invalid_home_skips_the_hub_branch(repo, tmp_path, monkeypatch):
     assert decision_of(run_hook("guard_artifacts.py", payload)) == "deny"
     assert run_hook("guard_artifacts.py", file_payload(
         "Write", tmp_path, lookalike, content="x")) is None
+
+
+# --- verdict, edit and round rules on hub paths ---
+
+HUB_DECISION = "tasks/login/decision.md"
+
+
+@pytest.mark.parametrize("content", [
+    "PASS" + END_REVIEW, "PASS looks fine" + END_REVIEW, "CHANGES needs tests" + END_REVIEW,
+    "CHANGES\n- [Important] a.py:1 - ...", "﻿PASS\n", "PASS\r\nbody\r\n",
+])
+def test_valid_review_first_line_is_allowed_in_the_hub(hub, demo_project, content):
+    assert decision_of(hub_write(hub, HUB_REVIEW, content)) == "allow"
+
+
+@pytest.mark.parametrize("content", [
+    "Hasil: PASS\n", "\nPASS\n", "# Review\nPASS\n", "PASSED\n", "pass\n", "", "APPROVE\n",
+])
+def test_invalid_review_first_line_is_denied_in_the_hub(hub, demo_project, content):
+    output = hub_write(hub, HUB_REVIEW, content)
+    assert decision_of(output) == "deny"
+    assert "PASS or CHANGES" in output["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("content, expected", [
+    ("APPROVE\n=== END OF DECISION ===\n", "allow"), ("ESCALATE two rounds failed\n", "allow"),
+    ("OK\n", "deny"), ("PASS\n", "deny"), ("\nAPPROVE\n", "deny"),
+])
+def test_decision_verdicts_in_the_hub(hub, demo_project, content, expected):
+    output = hub_write(hub, HUB_DECISION, content)
+    assert decision_of(output) == expected
+    if expected == "deny":
+        assert "APPROVE or ESCALATE" in output["permissionDecisionReason"]
+
+
+def hub_edit(hub, relative, old, new, replace_all=False):
+    path = hub / "projects" / "demo" / relative
+    return run_hook("guard_artifacts.py", file_payload(
+        "Edit", hub, path, old_string=old, new_string=new, replace_all=replace_all))
+
+
+def test_edit_replace_all_is_applied_in_the_hub(hub, demo_project):
+    path = hub / "projects" / "demo" / HUB_REVIEW
+    path.parent.mkdir(parents=True)
+    path.write_text("PASS\nPASS\n")
+    assert decision_of(hub_edit(hub, HUB_REVIEW, "PASS", "x", replace_all=True)) == "deny"
+    assert decision_of(hub_edit(hub, HUB_REVIEW, "PASS\nPASS", "PASS\nx", replace_all=True)) == "allow"
+
+
+def test_edit_that_does_not_touch_line_one_is_allowed_in_the_hub(hub, demo_project):
+    path = hub / "projects" / "demo" / HUB_REVIEW
+    path.parent.mkdir(parents=True)
+    path.write_text("PASS\nbody\n")
+    assert decision_of(hub_edit(hub, HUB_REVIEW, "body", "other body")) == "allow"
+    assert decision_of(hub_edit(hub, HUB_REVIEW, "PASS", "CHANGES")) == "allow"
+
+
+@pytest.mark.parametrize("round_number, expected", [(1, "allow"), (2, "allow"), (3, "deny"), (12, "deny")])
+def test_round_limit_applies_to_review_human_in_the_hub(hub, demo_project, round_number, expected):
+    relative = f"tasks/login/review/round-{round_number}/review-human.md"
+    assert decision_of(hub_write(hub, relative, "CHANGES\n")) == expected

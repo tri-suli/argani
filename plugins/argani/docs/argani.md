@@ -9,9 +9,8 @@ Writing the work is no longer the bottleneck. The bottleneck moved to the stages
 deciding what is wanted, designing, reviewing, testing, releasing. Those stages run at human
 speed and mostly inside conversations, which leave no audit trail. The plugin turns each stage
 into a written artifact, so that who asked for what, what an agent produced, and who approved it
-are all readable afterwards: for a registered project in the task folder of the argani home (a
-plain folder; when the user keeps the home under git, the factory also records each stage as a
-commit there), for a legacy repository as committed files on the job branch.
+are all readable afterwards: in the task folder of the argani home (a plain folder; when the user
+keeps the home under git, the factory also records each stage as a commit there).
 
 The loop is one and the same in every mode:
 
@@ -37,7 +36,7 @@ Operate is recorded as a stage but not yet automated.
 
 ## Artifact location
 
-Per job, in the task folder `<home>/projects/<project>/tasks/<slug>/` of the argani home for a registered project (nothing is written into the repository). Legacy, until 1.0.0: `<artifactRoot>/<slug>/` in the repository (default `argani/<slug>/`, see `config.md`). When the repository
+Per job, in the task folder `<home>/projects/<project>/tasks/<slug>/` of the argani home (nothing is written into the repository). When the repository
 sets `branchTypes`, `intent.md` carries a `Type:` header line with one of them; it fills `{type}` in
 `branchPattern` and picks the base branch from `baseBranchByType`. An optional `Risk:` line
 (`low`, `medium` or `high`, default `medium`) picks the models of the agents through `agentModels`.
@@ -107,7 +106,7 @@ python3 board.py --all [--write] [--json] # every project; --write saves <home>/
 
 A project's checkout is the first path in its `project.json` `paths` that is a git repository toplevel; without one, branches are unknown and finished jobs show In review. A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
 
-Done means the job branch (or `origin/<branch>`) is an ancestor of the base branch (or `origin/<base>`). A branch deleted after the merge, a squash or rebase merge, or a merge not yet pulled therefore shows In review until `mr.md` gets a `Merged: <YYYY-MM-DD>` line: the factory appends it itself when `mergePolicy` is `agent`, otherwise add it by hand. For a legacy job (no registered project) the factory does not record the merge, so the `Merged:` line stays uncommitted in the job folder; the branch is gone after the merge. Use a registered project for a recorded merge.
+Done means the job branch (or `origin/<branch>`) is an ancestor of the base branch (or `origin/<base>`). A branch deleted after the merge, a squash or rebase merge, or a merge not yet pulled therefore shows In review until `mr.md` gets a `Merged: <YYYY-MM-DD>` line: the factory appends it itself when `mergePolicy` is `agent`, otherwise add it by hand.
 
 ## Always-on rules
 
@@ -140,16 +139,13 @@ The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time f
 `scripts/factory_state.py <slug>`, which only reports and never writes. With `worktreePath` in the
 config the factory runs every job in its own git worktree and never switches branches in the main checkout.
 
-Who commits what: the builder commits code to the job branch (and `plan.md` and `build.md` when the
-job folder is inside the repository). The orchestrator records the job folder (`intent.md`, `spec.md`,
+Who commits what: the builder commits code to the job branch, never `plan.md` or `build.md`. The orchestrator records the job folder (`intent.md`, `spec.md`,
 `plan.md`, `build.md`, `review/**`, `decision.md`, `mr-body.md`, `mr.md`): before the build, after the builder
-(for a registered project, whose `plan.md` and `build.md` the builder leaves uncommitted), after each
-review round, after the decision and before the push. For a project registered in the argani home it commits them
+(whose `plan.md` and `build.md` are left uncommitted), after each
+review round, after the decision and before the push. It commits them
 in the home's own git repository with a fixed message `argani: record <project>/<slug> <what>`, so the
 project repository only ever sees code, but only when the user has made the home a git repository of
-its own (argani never runs `git init` there); otherwise nothing is committed and the artifacts stay as files. For a legacy repository it commits only paths under
-`<artifactRoot>/<slug>/` on the job branch, with subjects and trailers from `recordCommitMessage` and
-`commitTrailers` in `.claude/argani.json`. Nothing is ever pushed or merged without a human, except that with `mergePolicy: agent` the factory merges the merge request itself.
+its own (argani never runs `git init` there); otherwise nothing is committed and the artifacts stay as files. Nothing is ever pushed or merged without a human, except that with `mergePolicy: agent` the factory merges the merge request itself.
 Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that
 requires a separate instruction for every commit uses the manual loop instead.
 
@@ -157,7 +153,7 @@ requires a separate instruction for every commit uses the manual loop instead.
 
 There is one generic reviewer agent. What it checks comes from a checklist in the catalog
 (`code`, `security`, `compliance`, `ux`, `ui-design`, `citation`, `format`). The repository
-chooses the active checklists through `reviewers` in `.claude/argani.json`.
+chooses the active checklists through `reviewers` in its `project.json`.
 
 ## Adoption order
 
@@ -169,7 +165,7 @@ chooses the active checklists through `reviewers` in `.claude/argani.json`.
 
 ## Moving legacy jobs
 
-A repository that kept its jobs in `<artifactRoot>/<slug>/` (legacy) and is now registered moves
+A repository that kept its jobs in `<artifactRoot>/<slug>/` before 1.0.0 and is now registered moves
 them with `/argani:import [<slug> ...]`. It finds the folders in the working tree and on every local
 and remote branch, picks one source per slug (the working tree, else the branch named like the job
 branch, else the branch with the newest commit on the folder), reports every candidate, and copies
@@ -180,7 +176,7 @@ copied. A destination that holds exactly the chosen files is `already-imported` 
 one with different or extra files is a conflict and is never written. When the home is a git
 repository of its own, the script records the imported jobs there. The
 repository is not modified and nothing is deleted; removing the old folders and
-`.claude/argani.json` goes through the repository's normal process. Version 1.0.0 drops legacy mode.
+`.claude/argani.json` goes through the repository's normal process. Since 1.0.0 `.claude/argani.json` is no longer read and a repository without a project has no job folder.
 
 ## Verified behaviour
 

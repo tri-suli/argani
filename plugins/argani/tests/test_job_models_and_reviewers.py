@@ -153,9 +153,7 @@ def job(make_repo):
     """An approved job on feature/demo with a security reviewer scoped to src/auth/**."""
     repo = make_repo(config={"verifyCommand": "pytest", "reviewers": ["code", "security"],
                              "reviewerPaths": {"security": ["src/auth/**"]}})
-    git(repo, "add", ".claude")
-    git(repo, "commit", "-q", "-m", "config")
-    folder = repo / "argani" / "demo"
+    folder = Path(argani_config.load_config(repo)["tasksDir"]) / "demo"
     folder.mkdir(parents=True)
     (folder / "spec.md").write_text(SPEC)
     git(repo, "checkout", "-q", "-b", "feature/demo")

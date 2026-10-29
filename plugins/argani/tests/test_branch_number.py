@@ -156,16 +156,8 @@ def test_next_number_follows_the_highest_intent_number(hub_project):
     assert (code, json.loads(out)) == (0, {"number": 8, "source": "tasks"})
 
 
-def test_next_number_works_in_a_legacy_repository(make_repo):
-    repo = make_repo(config=NUMBERED)
-    write_intent(repo / "argani", "a", "Number: 9\n")
-    code, out, _ = next_number(repo)
-    assert (code, json.loads(out)) == (0, {"number": 10, "source": "tasks"})
-
-
 def test_branch_number_command_wins(make_repo):
     repo = make_repo(config={**NUMBERED, "branchNumberCommand": "printf '  42\\n'"})
-    write_intent(repo / "argani", "a", "Number: 9\n")
     code, out, _ = next_number(repo)
     assert (code, json.loads(out)) == (0, {"number": 42, "source": "branchNumberCommand"})
 
@@ -211,18 +203,6 @@ def test_an_invalid_number_line_is_ignored(hub_project):
     assert json.loads(next_number(repo)[1])["number"] == 5
 
 
-def test_legacy_numbers_on_other_branches_are_counted(make_repo):
-    from conftest import git
-    repo = make_repo(config=NUMBERED)
-    git(repo, "checkout", "-q", "-b", "feat/common-7-other")
-    write_intent(repo / "argani", "other", "Number: 7\n")
-    git(repo, "add", "argani")
-    git(repo, "commit", "-q", "-m", "intent")
-    git(repo, "checkout", "-q", "main")
-    assert not (repo / "argani").exists()
-    assert json.loads(next_number(repo)[1]) == {"number": 8, "source": "tasks"}
-
-
 def test_outside_a_repository_exits_one(tmp_path):
     code, out, _ = next_number(tmp_path)
     assert code == 1 and "Not inside a project repository" in out
@@ -247,12 +227,6 @@ def test_factory_state_without_number_stops_at_intent(hub_project):
     code, out = factory_state(repo)
     state = json.loads(out)
     assert (code, state["number"], state["branch"], state["stage"]) == (0, None, None, "needs-intent-approval")
-
-
-def test_missing_job_folder_hint_in_a_legacy_repository(make_repo):
-    repo = make_repo(config=NUMBERED)
-    code, out = factory_state(repo, "nope")
-    assert code == 1 and "feat/common-<n>-nope" in out
 
 
 def test_intent_skill_runs_next_number():

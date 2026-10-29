@@ -1,4 +1,4 @@
-"""Config from the argani home: project.json beside the identity keys, .claude/argani.json as fallback."""
+"""Config from the argani home: project.json beside the identity keys; .claude/argani.json is not read."""
 import json
 import subprocess
 import sys
@@ -17,12 +17,12 @@ from test_branch_types import INTENT  # noqa: E402
 
 
 def registered_repo(make_repo, register_project, repo_config=None, **project_config):
-    repo = make_repo(config=repo_config)
+    repo = make_repo(legacy_config=repo_config)
     path = register_project("demo", paths=[str(repo.resolve())], **project_config)
     return repo, path
 
 
-def test_hub_wins_over_the_repository_file(make_repo, register_project, hub, capsys):
+def test_project_config_ignores_the_repository_file(make_repo, register_project, hub, capsys):
     repo, path = registered_repo(make_repo, register_project, {"verifyCommand": "repo"}, verifyCommand="hub")
     config = argani_config.load_config(repo, strict=True)
     assert config["verifyCommand"] == "hub"
@@ -31,11 +31,12 @@ def test_hub_wins_over_the_repository_file(make_repo, register_project, hub, cap
     assert f"{repo}/.claude/argani.json is ignored; the project demo is configured in {path}" in capsys.readouterr().err
 
 
-def test_repository_file_alone_is_legacy(make_repo, hub):
-    repo = make_repo(config={"verifyCommand": "repo"})
+def test_repository_file_alone_is_ignored_and_there_is_no_tasks_dir(make_repo, hub, capsys):
+    repo = make_repo(legacy_config={"verifyCommand": "repo"})
     config = argani_config.load_config(repo, strict=True)
-    assert (config["verifyCommand"], config["project"]) == ("repo", None)
-    assert config["tasksDir"] == str(repo / "argani")
+    assert (config["verifyCommand"], config["project"], config["tasksDir"]) == (None, None, None)
+    assert argani_config.job_dir(config, "login") is None
+    assert "argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init" in capsys.readouterr().err
 
 
 def test_neither_gives_defaults(make_repo):
@@ -75,19 +76,19 @@ def test_broken_other_project_does_not_matter(make_repo, register_project, hub):
 
 
 def test_conflicting_registry_never_blocks(make_repo, register_project, capsys):
-    repo = make_repo(config={"verifyCommand": "repo"})
+    repo = make_repo()
     register_project("one", paths=[str(repo.resolve())])
     register_project("two", paths=[str(repo.resolve())])
     config = argani_config.load_config(repo, strict=True)
-    assert config["verifyCommand"] == "repo" and config["project"] is None
+    assert config["project"] is None
     assert "argani: ignoring the argani home:" in capsys.readouterr().err
 
 
 def test_invalid_home_is_not_fatal(make_repo, monkeypatch, capsys):
-    repo = make_repo(config={"verifyCommand": "repo"})
+    repo = make_repo()
     monkeypatch.setenv("ARGANI_HOME", "relative/home")
     config = argani_config.load_config(repo, strict=True)
-    assert (config["verifyCommand"], config["home"], config["project"]) == ("repo", None, None)
+    assert (config["home"], config["project"]) == (None, None)
     assert "argani: ignoring the argani home:" in capsys.readouterr().err
 
 
@@ -115,13 +116,11 @@ def test_load_project_config_raises_for_missing_or_invalid(register_project, hub
         argani_config.load_project_config(hub, "bad")
 
 
-def test_job_dir_in_both_modes(make_repo, register_project, hub):
+def test_job_dir_of_a_project_and_of_an_unregistered_repository(make_repo, register_project, hub):
     repo, _ = registered_repo(make_repo, register_project)
     config = argani_config.load_config(repo)
     assert argani_config.job_dir(config, "login") == hub / "projects" / "demo" / "tasks" / "login"
-    other = make_repo("other", config={"artifactRoot": "docs/tasks"})
-    legacy = argani_config.load_config(other)
-    assert argani_config.job_dir(legacy, "login") == Path(legacy["toplevel"]) / "docs/tasks/login"
+    assert argani_config.job_dir(argani_config.load_config(make_repo("other")), "login") is None
 
 
 def write_intent(hub, type_line):
@@ -183,13 +182,13 @@ def test_unreadable_claude_folder_neither_raises_nor_drops_the_hub_config(make_r
 
 
 def test_no_hub_costs_no_extra_git_calls(make_repo, monkeypatch):
-    repo = make_repo(config={"verifyCommand": "repo"})
+    repo = make_repo(legacy_config={"verifyCommand": "repo"})
     calls = []
     real_run = subprocess.run
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: calls.append(a) or real_run(*a, **k))
     argani_config.load_config(repo)
-    # toplevel, remote names, origin/HEAD, local main, current branch: the count before the hub existed
-    assert len(calls) == 5
+    # toplevel, origin/HEAD, local main, current branch: no registry scan without a home
+    assert len(calls) == 4
 
 
 def test_project_of_path_names_the_other_project_for_a_prefixed_name(hub):
@@ -197,13 +196,13 @@ def test_project_of_path_names_the_other_project_for_a_prefixed_name(hub):
     assert project_registry.project_of_path(other, hub)[0] == "demo-other"
 
 
-def test_project_with_invalid_identity_is_skipped_and_the_repo_falls_back(make_repo, register_project, capsys):
-    repo = make_repo(config={"verifyCommand": "repo"})
+def test_project_with_invalid_identity_is_skipped_and_the_repo_has_no_project(make_repo, register_project, capsys):
+    repo = make_repo()
     path = register_project("demo", paths=[str(repo.resolve())], verifyCommand="hub")
     path.write_text(json.dumps({"name": "demo", "remotes": "x", "paths": [str(repo.resolve())],
                                 "verifyCommand": "hub"}))
     config = argani_config.load_config(repo, strict=True)
-    assert (config["verifyCommand"], config["project"]) == ("repo", None)
+    assert (config["verifyCommand"], config["project"]) == (None, None)
     assert "skipping" in capsys.readouterr().err
 
 
@@ -243,13 +242,6 @@ def test_skill_steps_for_a_registered_project_leave_the_repository_clean(make_re
     assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
     status = subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True)
     assert status.stdout == ""
-
-
-def test_skill_steps_for_a_legacy_repository_write_into_it(make_repo, hub):
-    repo = make_repo(config={"verifyCommand": "repo"})
-    config = perform_intent_setup(repo)
-    assert config["tasksDir"] == str(repo / "argani")
-    assert (repo / "argani" / "login" / "intent.md").is_file()
 
 
 def test_intent_spec_plan_skills_use_tasks_dir_not_the_repository_path():
@@ -329,3 +321,59 @@ def test_guard_artifacts_denies_a_protected_path_written_inside_a_worktree(make_
     worktree = make_worktree(repo)
     output = run_hook("guard_artifacts.py", file_payload("Write", worktree, worktree / "raw" / "a.txt", content="x"))
     assert decision_of(output) == "deny"
+
+
+# --- no git (missing or masked): the registered path of the folder or an ancestor is the identity ---
+
+@pytest.fixture
+def without_git(monkeypatch):
+    import git_cli
+    monkeypatch.setattr(git_cli, "toplevel", lambda start_dir: None)
+    monkeypatch.setattr(git_cli, "git_output", lambda *args, **kwargs: None)
+
+
+@pytest.fixture
+def registered_folder(tmp_path, register_project):
+    folder = tmp_path / "plain" / "app"
+    (folder / "src" / "deep").mkdir(parents=True)
+    register_project("demo", paths=[str(folder.resolve())], verifyCommand="make")
+    return folder
+
+
+@pytest.mark.parametrize("subfolder", ["", "src", "src/deep"])
+def test_resolve_without_git_matches_the_registered_path_or_an_ancestor(
+        registered_folder, hub, without_git, subfolder):
+    project = project_registry.resolve(registered_folder / subfolder, hub)
+    assert project["name"] == "demo"
+
+
+def test_resolve_without_git_ignores_unregistered_folders(registered_folder, hub, without_git, tmp_path):
+    assert project_registry.resolve(tmp_path / "plain", hub) is None
+    assert project_registry.resolve(tmp_path, hub) is None
+
+
+def test_resolve_without_git_reports_a_path_claimed_twice(registered_folder, register_project, hub, without_git):
+    register_project("other", paths=[str(registered_folder.resolve())])
+    with pytest.raises(project_registry.ProjectError, match="claimed by projects"):
+        project_registry.resolve(registered_folder, hub)
+
+
+@pytest.mark.parametrize("subfolder", ["", "src/deep"])
+def test_load_config_without_git_finds_the_project_and_its_tasks_dir(
+        registered_folder, hub, without_git, subfolder):
+    config = argani_config.load_config(registered_folder / subfolder, strict=True)
+    assert (config["project"], config["home"], config["verifyCommand"]) == ("demo", str(hub), "make")
+    assert config["tasksDir"] == str(hub / "projects" / "demo" / "tasks")
+    assert (config["toplevel"], config["currentBranch"], config["defaultBranch"]) == (None, None, "main")
+
+
+def test_cli_without_git_on_the_path_prints_the_project(registered_folder, hub, tmp_path, monkeypatch):
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    result = subprocess.run([sys.executable, str(SCRIPTS / "argani_config.py"), str(registered_folder / "src")],
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    printed = json.loads(result.stdout)
+    assert (printed["project"], printed["toplevel"]) == ("demo", None)
+    assert printed["tasksDir"] == str(hub / "projects" / "demo" / "tasks")

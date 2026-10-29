@@ -15,12 +15,11 @@ This skill never writes code.
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it fails, show its error and stop.
    Read `tasksDir` and `project` from the JSON. Then:
    - `tasksDir` set: `<artifact dir>` is `tasksDir`, the folder that holds the job folders; a job
-     folder is `<artifact dir>/<slug>/`. For a registered project (`project` is set) it is the task
-     folder in the argani home: the job folder is outside the repository and nothing is written
-     into it. For a repository without a project, `tasksDir` is `<toplevel>/<artifactRoot>`, inside
-     the repository, until 1.0.0.
-   - `tasksDir` null (not in a git repository): stop. argani works from inside a project
-     repository; say to open the repository and run `/argani:init` if it is not registered yet.
+     folder is `<artifact dir>/<slug>/`. It is the task folder of the project in the argani home: the
+     job folder is outside the repository and nothing is written into it.
+   - `tasksDir` null (not in a git repository, or the repository is not registered): stop. argani
+     works from inside a registered project repository; say to open the repository and run
+     `/argani:init` if it is not registered yet.
    Always pass the full path under `<artifact dir>` to `artifact_check.py`: it reads `branchTypes`
    from the file's location.
 2. Artifact language: the language of this repository's CLAUDE.md, else the user's. Only the

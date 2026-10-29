@@ -78,19 +78,15 @@ def criterion_line(number, claim, verify):
     return f"- [ ] AC-{number}: {claim} (verify: {verify})"
 
 
-def argani_section(state, relative_job_dir):
-    if state["project"]:
-        task = (f"Task `{state['project']}/{state['slug']}` on the argani board; artifacts in "
-                f"`projects/{state['project']}/tasks/{state['slug']}` of the argani home "
-                "(nothing argani-related is in this diff).")
-    else:
-        task = f"Task `{state['slug']}`; artifacts in `{relative_job_dir}`"
+def argani_section(state):
+    task = (f"Task `{state['project']}/{state['slug']}` on the argani board; artifacts in "
+            f"`projects/{state['project']}/tasks/{state['slug']}` of the argani home "
+            "(nothing argani-related is in this diff).")
     return [task, f"Job branch `{state['branch']}` into `{state['base_branch']}`."]
 
 
-def build_description(state, intent_text, decision_text, relative_job_dir):
-    """{"title", "body"} for a job state from factory_state.build_state; relative_job_dir is the
-    job folder relative to the repository (used for a legacy job)."""
+def build_description(state, intent_text, decision_text):
+    """{"title", "body"} for a job state from factory_state.build_state."""
     blocks = []
     summary = intent_summary(intent_text)
     if summary:
@@ -101,7 +97,7 @@ def build_description(state, intent_text, decision_text, relative_job_dir):
     checklist = human_checklist(decision_text)
     if checklist:
         blocks.append([f"## {CHECKLIST_HEADING}", *checklist])
-    blocks.append(["## argani", *argani_section(state, relative_job_dir)])
+    blocks.append(["## argani", *argani_section(state)])
     body = "\n\n".join("\n".join(block) for block in blocks) + "\n"
     return {"title": intent_title(intent_text, state["slug"]), "body": body}
 
@@ -113,14 +109,6 @@ def parse_arguments(argv):
     if len(arguments) not in (1, 2):
         return None
     return arguments[0], (arguments[1] if len(arguments) == 2 else "."), write
-
-
-def relative_to_repository(job_dir, config):
-    toplevel = config["toplevel"]
-    try:
-        return str(job_dir.relative_to(Path(toplevel).resolve())) if toplevel else str(job_dir)
-    except ValueError:
-        return str(job_dir)
 
 
 def main(argv):
@@ -139,12 +127,12 @@ def main(argv):
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
-        print(f"No job folder for slug '{slug}' under {config['tasksDir'] or 'this directory'}.")
+        print("This repository is not registered; run /argani:init" if not config["project"]
+              else f"No job folder for slug '{slug}' under {config['tasksDir']}.")
         return 1
     job_dir = Path(state["job_dir"])
     description = build_description(state, read_normalized(job_dir / "intent.md"),
-                                    read_normalized(job_dir / "decision.md"),
-                                    relative_to_repository(job_dir, config))
+                                    read_normalized(job_dir / "decision.md"))
     if write:
         body_file = job_dir / "mr-body.md"
         body_file.write_text(description["body"], encoding="utf-8")

@@ -7,7 +7,7 @@ project (applications, documentation, knowledge bases):
 intent -> spec -> plan -> work on a branch -> review -> merge request -> operate
 ```
 
-Every stage ends in a committed artifact that the next stage reads, and humans decide at the gates.
+Every stage ends in a written artifact that the next stage reads, and humans decide at the gates.
 The loop has two modes: **manual** (you call the skills one by one) and **factory** (an orchestrator
 runs spec, build, review and decision with subagents, and stops at a merge request, or merges it with `mergePolicy: agent`). Agents never
 merge their own work (unless the project sets `mergePolicy: agent`, where the factory merges after `APPROVE`). See [`plugins/argani/docs/argani.md`](plugins/argani/docs/argani.md) for the full
@@ -37,14 +37,17 @@ Enable the plugin per repository, in `.claude/settings.json`:
 
 The first step in a repository is `/argani:init`: it registers the repository as a project on the
 board in `~/.argani` (or `$ARGANI_HOME`), from what the repository already uses, and writes nothing
-into the repository. See [`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
+into the repository. A repository that is not registered has no job folder, and since 1.0.0 the old
+per-repository `.claude/argani.json` is no longer read: `/argani:init` carries its keys over. See
+[`plugins/argani/docs/config.md`](plugins/argani/docs/config.md).
 
 `/argani:board [--all]` shows the board: the tasks of this repository's project, or of every project
 with `--all`, by column (Backlog, Design, In progress, Ready for MR, In review, Done, Needs human).
 It only reads.
 
-`/argani:import [<slug> ...]` moves the legacy job folders of a registered repository (committed on
-its branches) to the project's task folder in the argani home; it never modifies the repository.
+`/argani:import [<slug> ...]` moves the job folders that a registered repository kept before 1.0.0
+(`argani/<slug>`, committed on its branches) to the project's task folder in the argani home; it never
+modifies the repository.
 
 ## For users
 
@@ -120,9 +123,9 @@ scripts/check.sh                  validate and test
 | Review protocol and checklists | available |
 | Skill `/argani:review` | available |
 | Skill `/argani:board` (the board of a project or of all projects) | available |
-| Skill `/argani:import` (moves legacy job folders to the board) | available |
+| Skill `/argani:import` (moves pre-1.0.0 job folders to the board) | available |
 | Factory orchestrator `/argani:factory` | available |
-| Evals (`plugins/argani/evals`, two cases) | available |
+| Evals (`plugins/argani/evals`, one case) | available |
 
 ## License
 

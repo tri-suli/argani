@@ -4,11 +4,12 @@
 Rules (see docs/review-protocol.md): protectedPaths are denied for everyone; review and decision
 files need a verdict on line 1; round 3+ is refused; each argani agent writes only its own files.
 
-Artifacts live in the task folder <home>/projects/<name>/tasks/<slug>/ of the argani home (hub) or,
-in legacy mode, in <artifactRoot>/<slug>/ of the repository. A hub write that passes the rules is
-explicitly allowed, which also spares the permission prompt for writes outside the working directory.
-Paths under projects/<valid name>/ in the home never take the legacy repository flow, even when the
-home is a git repository; other paths in the home follow the ordinary flow.
+Artifacts live in the task folder <home>/projects/<name>/tasks/<slug>/ of the argani home. A write
+there that passes the rules is explicitly allowed, which also spares the permission prompt for writes
+outside the working directory. Paths under projects/<valid name>/ in the home never take the
+repository flow, even when the home is a git repository; other paths in the home follow the
+ordinary flow. In a repository only protectedPaths and the one-writer rule apply: an agent that
+writes a single kind of file may write nothing there.
 """
 import os
 import re
@@ -57,16 +58,16 @@ def first_line(content):
 def writer_violation(agent_type, inner):
     """Return a reason when this agent may not write the file.
 
-    inner is the path below the task folder, or None for any other path.
+    inner is the path below the task folder.
     """
     if agent_type == "argani:builder":
-        if inner and (inner in BUILDER_FORBIDDEN or inner.startswith("review/")):
+        if inner in BUILDER_FORBIDDEN or inner.startswith("review/"):
             return "the builder must not write intent.md, spec.md, review/**, decision.md or mr.md"
         return None
     if agent_type in SOLE_FILE_WRITERS:
         pattern, description = SOLE_FILE_WRITERS[agent_type]
-        if not (inner and pattern.match(inner)):
-            return f"{agent_type} may write only {description} under the artifact folder"
+        if not pattern.match(inner):
+            return f"{agent_type} may write only {description} in its task folder"
     return None
 
 
@@ -80,12 +81,10 @@ def artifact_verdict(inner):
 
 
 def check_write(payload, inner, path, unknown_content_denies=False):
-    """Return a deny reason for a write; inner is the path below the task folder or None."""
+    """Return a deny reason for a write; inner is the path below the task folder."""
     reason = writer_violation(payload.get("agent_type"), inner)
     if reason:
         return f"argani guard: one writer per file: {reason}. Write only your own artifact."
-    if not inner:
-        return None
     round_match = ROUND_DIR.match(inner)
     if round_match and int(round_match.group(1)) > MAX_ROUNDS:
         return (f"argani guard: round {round_match.group(1)} refused. Two review rounds maximum; "
@@ -107,15 +106,8 @@ def check_write(payload, inner, path, unknown_content_denies=False):
 def deny_sole_writer(payload, agent_type):
     pattern, description = SOLE_FILE_WRITERS[agent_type]
     emit(payload, "deny", f"argani guard: one writer per file: {agent_type} may write only "
-         f"{description} under the artifact folder, nowhere else (not outside the repository, "
-         "not under .git). Write only your own artifact.")
-
-
-def deny_sole_writer_in_hub(payload, agent_type):
-    pattern, description = SOLE_FILE_WRITERS[agent_type]
-    emit(payload, "deny", f"argani guard: one writer per file: {agent_type} may write only "
          f"{description} in its task folder (<home>/projects/<name>/tasks/<slug>/), nowhere else "
-         "in the argani home. Write only your own artifact.")
+         "(not in a repository, not under .git). Write only your own artifact.")
 
 
 def protected_through_symlink(path):
@@ -150,12 +142,12 @@ def guard_hub_path(payload, path, sole_writer):
 
     The rules need only the folder names, so the project's configuration is not loaded and protectedPaths
     (relative to the project repository) are not checked. Paths under projects/<valid name>/ never take the
-    legacy repository flow, even when the home is a git repository; only a proper artifact path
+    repository flow, even when the home is a git repository; only a proper artifact path
     tasks/<slug>/<file> is allowed explicitly, anything else gets no decision (sole writers are denied).
     """
     try:
         owner = project_registry.project_of_path(path, argani_home.home_path())
-    except (argani_home.HomeError, OSError, ValueError) as error:  # leave the legacy flow untouched
+    except (argani_home.HomeError, OSError, ValueError) as error:  # leave the repository flow untouched
         print(f"argani guard: hub check skipped: {error}", file=sys.stderr)
         return False
     if owner is None:
@@ -167,7 +159,7 @@ def guard_hub_path(payload, path, sole_writer):
                    and not any(part.startswith(".") for part in parts))
     if not is_artifact:
         if sole_writer:
-            deny_sole_writer_in_hub(payload, sole_writer)
+            deny_sole_writer(payload, sole_writer)
         return True
     reason = check_write(payload, "/".join(parts[2:]), path, unknown_content_denies=True)
     if reason:
@@ -223,14 +215,8 @@ def guard(payload):
         emit(payload, "deny", f"argani guard: {relative} matches protectedPaths in the project's configuration "
              "and must not be written. Ask the user to change it or to lift the protection.")
         return
-    root = config["artifactRoot"].strip("/")
-    inner = None
-    if relative.startswith(root + "/"):
-        below_root = relative[len(root) + 1:]
-        inner = below_root.split("/", 1)[1] if "/" in below_root else None
-    reason = check_write(payload, inner, path)
-    if reason:
-        emit(payload, "deny", reason)
+    if sole_writer:
+        deny_sole_writer(payload, sole_writer)
 
 
 if __name__ == "__main__":

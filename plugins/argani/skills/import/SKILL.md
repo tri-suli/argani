@@ -7,7 +7,7 @@ allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read
 
 # /argani:import
 
-Before the board a repository kept its jobs at `<artifactRoot>/<slug>/` (default `argani/<slug>`),
+Before 1.0.0 a repository kept its jobs at `<artifactRoot>/<slug>/` (default `argani/<slug>`),
 committed on the job branches. This skill copies them to `projects/<name>/tasks/<slug>/` in the
 argani home. The repository is never modified and nothing is deleted.
 
@@ -33,5 +33,5 @@ argani home. The repository is never modified and nothing is deleted.
    own, in which case the script committed the imported jobs there; otherwise they stay as files.
 6. Tell the human that the repository is untouched: the old folders (`<artifactRoot>/<slug>` on
    their branches) and `.claude/argani.json` can now be removed through the repository's normal
-   process (a branch, a commit, a merge request), and that 1.0.0 drops the legacy fallback. This
+   process (a branch, a commit, a merge request), and that `.claude/argani.json` is no longer read since 1.0.0. This
    skill writes nothing into the repository and never deletes.

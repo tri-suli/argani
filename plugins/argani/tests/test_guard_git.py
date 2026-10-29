@@ -159,10 +159,10 @@ def test_current_branch_is_simulated_from_main(repo, command):
     assert decide(command, repo) is None, command
 
 
-@pytest.mark.parametrize("content", ["[1]", '{"defaultBranch": "main"', "not json", '{"reviewers": 3}'])
-def test_broken_config_holds_every_push_merge_and_pull(feature_repo, content):
-    (feature_repo / ".claude").mkdir()
-    (feature_repo / ".claude" / "argani.json").write_text(content)
+@pytest.mark.parametrize("config", [{"reviewers": 3}, {"mergePolicy": "agent"}, {"branchPattern": "feature/{name}"}])
+def test_broken_config_holds_every_push_merge_and_pull(make_repo, config):
+    feature_repo = make_repo(config=config)
+    git(feature_repo, "checkout", "-q", "-b", "feature")
     assert decision_of(decide("git push origin main", feature_repo)) == "ask"
     assert decision_of(decide("git push origin main", feature_repo, "argani:builder")) == "deny"
     assert decision_of(decide("gh pr merge 1", feature_repo)) == "ask"
@@ -170,7 +170,7 @@ def test_broken_config_holds_every_push_merge_and_pull(feature_repo, content):
     # The protected branches are unknown, so even the job branch is held, with the reason.
     output = decide("git push origin feature", feature_repo)
     assert decision_of(output) == "ask"
-    assert "argani.json is invalid" in output["permissionDecisionReason"]
+    assert "the project configuration is invalid" in output["permissionDecisionReason"]
     assert decide("git status", feature_repo) is None
 
 
@@ -274,7 +274,7 @@ def test_invalid_branch_pattern_does_not_drop_base_branch_protection(make_repo):
     git(repo, "checkout", "-q", "-b", "feature")
     output = decide("git push origin develop", repo)
     assert decision_of(output) == "ask"
-    assert "argani.json is invalid" in output["permissionDecisionReason"]
+    assert "the project configuration is invalid" in output["permissionDecisionReason"]
 
 
 @pytest.mark.parametrize("protected", [[" refs/heads/develop "], ["develop "]])
@@ -318,19 +318,6 @@ def test_restoring_paths_from_a_tree_does_not_move_head(fresh_git_flow_clone, co
     assert decide(command, fresh_git_flow_clone) is None, command
 
 
-def test_unreadable_config_directory_holds_pushes(feature_repo):
-    claude_dir = feature_repo / ".claude"
-    claude_dir.mkdir()
-    (claude_dir / "argani.json").write_text("{}")
-    claude_dir.chmod(0)
-    try:
-        output = decide("git push origin HEAD:main", feature_repo)
-    finally:
-        claude_dir.chmod(0o755)
-    assert decision_of(output) == "ask"
-    assert "argani.json is invalid" in output["permissionDecisionReason"]
-
-
 @pytest.mark.parametrize("command", [
     "git checkout -fBdevelop && git push origin HEAD",
     "git checkout -qbdevelop && git push origin HEAD",
@@ -339,3 +326,20 @@ def test_unreadable_config_directory_holds_pushes(feature_repo):
 ])
 def test_clustered_attached_names_and_option_values_are_followed(git_flow_repo, command):
     assert decision_of(decide(command, git_flow_repo)) == "ask", command
+
+
+def test_the_removed_repository_file_no_longer_protects_branches(make_repo):
+    repo = make_repo(legacy_config={"protectedBranches": ["release/*"]})
+    git(repo, "checkout", "-q", "-b", "feature")
+    assert decide("git push origin release/1", repo) is None
+    assert decision_of(decide("git push origin main", repo)) == "ask"  # the detected default branch stays held
+
+
+@pytest.mark.parametrize("content", ["[1]", '{"defaultBranch": "main"', "not json", '{"reviewers": 3}'])
+def test_a_broken_repository_file_holds_nothing(make_repo, content):
+    repo = make_repo()
+    (repo / ".claude").mkdir()
+    (repo / ".claude" / "argani.json").write_text(content)
+    git(repo, "checkout", "-q", "-b", "feature")
+    assert decide("git push origin feature", repo) is None
+    assert decision_of(decide("git push origin main", repo)) == "ask"

@@ -92,7 +92,7 @@ def test_merge_request_command_follows_the_remote_host(make_repo, url, expected)
 
 
 def test_legacy_config_is_reported_with_its_carried_keys(make_repo):
-    repo = make_repo(config={"verifyCommand": "true", "artifactRoot": "docs", "commitSkill": "git-commit",
+    repo = make_repo(legacy_config={"verifyCommand": "true", "artifactRoot": "docs", "commitSkill": "git-commit",
                              "recordCommitMessage": "chore(x): record {what}", "commitTrailers": []})
     result = propose(repo)
     assert result["legacyExists"] is True
@@ -102,7 +102,7 @@ def test_legacy_config_is_reported_with_its_carried_keys(make_repo):
 
 
 def test_a_broken_legacy_config_is_reported_without_keys(make_repo):
-    repo = make_repo(config={"reviewers": "code"})
+    repo = make_repo(legacy_config={"reviewers": "code"})
     result = propose(repo)
     assert result["legacyKeys"] is None
     assert "reviewers" in result["legacyError"]
@@ -138,7 +138,7 @@ def test_commit_questions_remain_but_commitlint_and_artifact_root_do_not(make_re
 
 
 def test_legacy_keys_win_over_detected_ones_and_drop_their_questions(make_repo):
-    repo = make_repo(config={"verifyCommand": "make check", "reviewers": ["code", "security"],
+    repo = make_repo(legacy_config={"verifyCommand": "make check", "reviewers": ["code", "security"],
                              "commitTrailers": [], "defaultBranch": "main"})
     (repo / "go.mod").write_text("module x\n")
     result = propose(repo)
@@ -232,7 +232,7 @@ def test_an_unusable_home_is_an_error_field_not_a_failure(make_repo, monkeypatch
 
 
 def test_unknown_legacy_keys_are_left_behind(make_repo):
-    repo = make_repo(config={"verifyCommand": "true", "verifycommand": "typo", "artifactRoot": "docs"})
+    repo = make_repo(legacy_config={"verifyCommand": "true", "verifycommand": "typo", "artifactRoot": "docs"})
     result = propose(repo)
     assert result["legacyUnknownKeys"] == ["verifycommand"]
     assert "verifycommand" not in result["proposal"] and "verifycommand" not in result["legacyKeys"]
@@ -258,7 +258,7 @@ def test_a_lone_or_unseparated_number_proposes_nothing(make_repo, name):
 
 
 def test_a_carried_n_pattern_asks_for_the_number_command(make_repo):
-    repo = make_repo(config={"branchPattern": "feat/{n}-{slug}"})
+    repo = make_repo(legacy_config={"branchPattern": "feat/{n}-{slug}"})
     assert question(propose(repo), "branchNumberCommand") is not None
 
 
@@ -272,7 +272,7 @@ def test_no_numbered_branch_asks_nothing_about_numbers(make_repo):
 
 
 def test_the_number_command_is_carried_over_from_a_legacy_file(make_repo):
-    repo = make_repo(config={"branchPattern": "feat/{n}-{slug}", "branchNumberCommand": "cat n.txt"})
+    repo = make_repo(legacy_config={"branchPattern": "feat/{n}-{slug}", "branchNumberCommand": "cat n.txt"})
     result = propose(repo)
     assert result["proposal"]["branchNumberCommand"] == "cat n.txt"
     assert question(result, "branchNumberCommand") is None
@@ -298,7 +298,7 @@ def test_an_existing_worktree_folder_asks_for_the_worktree_path(make_repo, folde
 
 
 def test_worktree_keys_are_carried_over_from_a_legacy_file(make_repo):
-    repo = make_repo(config={"worktreePath": ".wt/{branch}", "worktreeCommand": "mk {path}"})
+    repo = make_repo(legacy_config={"worktreePath": ".wt/{branch}", "worktreeCommand": "mk {path}"})
     (repo / ".worktrees").mkdir()
     result = propose(repo)
     assert result["proposal"]["worktreePath"] == ".wt/{branch}"
@@ -321,7 +321,7 @@ def test_merge_command_follows_the_remote_host(make_repo, url, expected):
 
 
 def test_merge_keys_are_carried_over_from_a_legacy_file(make_repo):
-    repo = make_repo(config={"mergePolicy": "agent", "mergeCommand": "merge-tool {mr}"})
+    repo = make_repo(legacy_config={"mergePolicy": "agent", "mergeCommand": "merge-tool {mr}"})
     result = propose(repo)
     assert result["proposal"]["mergePolicy"] == "agent"
     assert result["proposal"]["mergeCommand"] == "merge-tool {mr}"

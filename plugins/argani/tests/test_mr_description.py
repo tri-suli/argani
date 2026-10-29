@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from conftest import git
-from test_factory_state import APPROVED, INTENT, hub_job, job  # noqa: F401
+from test_factory_state import APPROVED, INTENT, job  # noqa: F401
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "mr_description.py"
 FACTORY_SKILL = Path(__file__).resolve().parents[1] / "skills" / "factory" / "SKILL.md"
@@ -78,24 +78,14 @@ def test_no_checklist_section_without_one_in_the_decision(job):
     assert "Human verification" not in description(job)["body"]
 
 
-def test_hub_job_points_at_the_task_folder_and_claims_a_clean_diff(hub_job):
-    hub_job.intent()
-    body = description(hub_job)["body"]
+def test_job_points_at_the_task_folder_and_claims_a_clean_diff(job):
+    job.intent()
+    body = description(job)["body"]
     assert ("Task `demo/demo` on the argani board; artifacts in `projects/demo/tasks/demo` "
             "of the argani home") in body
-    assert str(hub_job.hub) not in body
+    assert str(job.hub) not in body
     assert "nothing argani-related is in this diff" in body
     assert "Job branch `feature/demo` into `main`." in body
-
-
-def test_legacy_job_makes_no_clean_diff_claim(make_repo):
-    from test_factory_state import build_job
-    legacy = build_job("legacy", make_repo, None, None)
-    legacy.intent()
-    body = description(legacy)["body"]
-    assert "Task `demo`; artifacts in `argani/demo`" in body
-    assert str(legacy.root) not in body
-    assert "nothing argani-related" not in body
 
 
 def test_write_saves_the_body_in_the_job_folder_and_still_prints_json(job):
@@ -166,15 +156,15 @@ def test_missing_job_folder_exits_one(job):
     assert "nope" in result.stdout
 
 
-def test_hub_diff_contains_no_argani_path(hub_job):
-    hub_job.intent()
-    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
-    (hub_job.root / "code.txt").write_text("code\n")
-    git(hub_job.root, "add", "code.txt")
-    git(hub_job.root, "commit", "-q", "-m", "code")
-    description(hub_job, "--write")
+def test_diff_contains_no_argani_path(job):
+    job.intent()
+    git(job.root, "switch", "-q", "-c", "feature/demo")
+    (job.root / "code.txt").write_text("code\n")
+    git(job.root, "add", "code.txt")
+    git(job.root, "commit", "-q", "-m", "code")
+    description(job, "--write")
     changed = subprocess.run(
-        ["git", "-C", str(hub_job.root), "diff", "--name-only", "main...feature/demo"],
+        ["git", "-C", str(job.root), "diff", "--name-only", "main...feature/demo"],
         capture_output=True, text=True, check=True).stdout.splitlines()
     assert changed == ["code.txt"]
 

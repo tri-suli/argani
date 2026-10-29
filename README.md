@@ -43,6 +43,9 @@ into the repository. See [`plugins/argani/docs/config.md`](plugins/argani/docs/c
 with `--all`, by column (Backlog, Design, In progress, Ready for MR, In review, Done, Needs human).
 It only reads.
 
+`/argani:import [<slug> ...]` moves the legacy job folders of a registered repository (committed on
+its branches) to the project's task folder in the argani home; it never modifies the repository.
+
 ## For users
 
 Install or update the plugin (`claude plugin marketplace update argani`, `claude plugin update
@@ -117,6 +120,7 @@ scripts/check.sh                  validate and test
 | Review protocol and checklists | available |
 | Skill `/argani:review` | available |
 | Skill `/argani:board` (the board of a project or of all projects) | available |
+| Skill `/argani:import` (moves legacy job folders to the board) | available |
 | Factory orchestrator `/argani:factory` | available |
 | Evals (`plugins/argani/evals`, two cases) | available |
 

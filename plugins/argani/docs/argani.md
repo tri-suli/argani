@@ -167,6 +167,21 @@ chooses the active checklists through `reviewers` in `.claude/argani.json`.
 4. Factory orchestrator ending in a merge request.
 5. Eval suite.
 
+## Moving legacy jobs
+
+A repository that kept its jobs in `<artifactRoot>/<slug>/` (legacy) and is now registered moves
+them with `/argani:import [<slug> ...]`. It finds the folders in the working tree and on every local
+and remote branch, picks one source per slug (the working tree, else the branch named like the job
+branch, else the branch with the newest commit on the folder), reports every candidate, and copies
+the files to `<home>/projects/<project>/tasks/<slug>/` after the human confirms. Each written file
+is compared with the bytes read from the source; files read from a branch are raw blobs, so LFS
+pointers stay pointers and CRLF filters are not applied. Symbolic links and submodules are never
+copied. A destination that holds exactly the chosen files is `already-imported` (a rerun is safe);
+one with different or extra files is a conflict and is never written. When the home is a git
+repository of its own, the script records the imported jobs there. The
+repository is not modified and nothing is deleted; removing the old folders and
+`.claude/argani.json` goes through the repository's normal process. Version 1.0.0 drops legacy mode.
+
 ## Verified behaviour
 
 Facts observed by running the plugin (Claude Code 2.1.310), not read from documentation.

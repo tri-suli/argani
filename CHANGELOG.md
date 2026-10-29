@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-29
+
+### Added
+
+- `/argani:import [<slug> ...]` and `scripts/import_jobs.py [dir] [--slug <slug> ...] [--artifact-root <folder>] [--apply]`: copies the legacy job folders (`<artifactRoot>/<slug>/`, found in the working tree and on every local and remote branch) of a registered repository to the project's task folder in the argani home. The plan is printed first (source and reason, candidates with `differs`, files, skipped links, status); `--apply` copies, compares each written file with the bytes read from its source, reports the stage of each job and, when the home is a git repository, records the import there. A rerun reports `already-imported`; a destination with different or extra files is a `conflict` and is never written. The repository is never modified.
+
 ## [0.20.0] - 2026-10-29
 
 ### Added

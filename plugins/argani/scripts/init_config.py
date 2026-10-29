@@ -274,6 +274,17 @@ def propose(start_dir="."):
                              "nothing is pushed. The factory fills {branch} with the job branch, {base} with "
                              "its base branch, {title} with the shell-quoted merge request title and "
                              "{bodyFile} with the path of the generated description."})
+    questions.append({"key": "mergePolicy", "candidates": list(argani_config.MERGE_POLICIES),
+                      "ask": "Who merges the merge request after APPROVE? human (default) keeps merging a "
+                             "human step; agent lets the factory merge with mergeCommand."})
+    merge_candidates = {
+        "github": ["gh pr merge {mr} --rebase --delete-branch"],
+        "gitlab": ["glab mr merge {mr} --rebase --remove-source-branch --yes"],
+    }.get(host, [])
+    questions.append({"key": "mergeCommand", "candidates": merge_candidates,
+                      "ask": "Ask only when mergePolicy is agent: which command merges the merge request? "
+                             "{mr} is the merge request URL or number written in mr.md, {branch} the job "
+                             "branch and {base} its base branch."})
 
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)

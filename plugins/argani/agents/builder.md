@@ -50,9 +50,9 @@ first in your Bash command, or `git -C <Checkout>`), and edit code only with abs
 
 ## Rules
 
-- Merging is a human step. Never push to a protected branch, never `git merge` while on one,
+- Merging is never yours: a human merges, or the factory orchestrator when the project's mergePolicy is agent (under agent the hook lets merges through, so this is a rule of the skills, not of the hook). Never push to a protected branch, never `git merge` while on one,
   never merge a PR/MR (`gh pr merge`, `glab mr merge`), and never run `git branch -f` or
-  `git update-ref`; a hook denies the first three. Pushing and pulling the job branch follow the
+  `git update-ref`; a hook denies the first three (under mergePolicy agent it lets the merges through, the rule stays yours). Pushing and pulling the job branch follow the
   repository's own rules (its `CLAUDE.md`); the orchestrator pushes for the merge request.
 - Never write `intent.md`, `spec.md`, anything under `review/`, `decision.md` or `mr.md` (a hook
   enforces this). If the spec seems wrong, record it under "Deviations from plan" and carry on

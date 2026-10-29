@@ -30,7 +30,7 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 | Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
 | Work     | code or documents on the job branch, `build.md` | Human or builder agent                      | none                                                                            |
 | Review   | `review/round-N/review-<checklist>.md`          | Reviewer agents                             | none                                                                            |
-| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge; the MR description is generated from the intent and the decision |
+| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the MR description is generated from the intent and the decision |
 | Operate  | follow-up intents                               | Human, from what production shows           | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.
@@ -52,7 +52,7 @@ build.md      work done, literal verification output, deviations; ends with === 
 review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === END OF REVIEW ===
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
 mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist, task folder)
-mr.md         merge request URL and branch, written once the MR exists
+mr.md         merge request URL and branch, written once the MR exists; `Merged: <date>` is appended once merged (mergePolicy agent)
 ```
 
 Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
@@ -92,7 +92,7 @@ project language.
 | `needs-build`, `needs-rework`, `needs-review`, `needs-decision` | In progress |
 | `needs-mr` | Ready for MR |
 | `done`, job branch not merged into its base (or unknown) | In review |
-| `done`, job branch merged into its base | Done |
+| `done`, job branch merged into its base, or `mr.md` has a `Merged: <date>` line | Done |
 | `escalate` | Needs human |
 | `error` (the task cannot be read: broken config, unreadable file) | Needs human |
 
@@ -107,13 +107,15 @@ python3 board.py --all [--write] [--json] # every project; --write saves <home>/
 
 A project's checkout is the first path in its `project.json` `paths` that is a git repository toplevel; without one, branches are unknown and finished jobs show In review. A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
 
-Done means the job branch (or `origin/<branch>`) is an ancestor of the base branch (or `origin/<base>`). A branch deleted after the merge, a squash or rebase merge, or a merge not yet pulled therefore shows In review until `mr.md` is updated by hand (a later release records the merge).
+Done means the job branch (or `origin/<branch>`) is an ancestor of the base branch (or `origin/<base>`). A branch deleted after the merge, a squash or rebase merge, or a merge not yet pulled therefore shows In review until `mr.md` gets a `Merged: <YYYY-MM-DD>` line: the factory appends it itself when `mergePolicy` is `agent`, otherwise add it by hand. For a legacy job (no registered project) the factory does not record the merge, so the `Merged:` line stays uncommitted in the job folder; the branch is gone after the merge. Use a registered project for a recorded merge.
 
 ## Always-on rules
 
 1. Skills advise, hooks enforce. Anything that must always hold is a hook reading the repo config.
 2. Nobody approves their own work. The approver's output is a merge request for a human; agents
-   never merge or push to a protected branch.
+   never push to a protected branch, and merging is a human step unless `mergePolicy` is `agent`. Under
+   `agent` the hook lets merges through for everyone, so "only the factory orchestrator merges, after
+   `APPROVE`" is a rule of the skills and agent prompts, not of the hook.
 3. Context comes from files, not conversation. Every agent is told which paths to read.
 4. One writer per file. Each agent writes only its own artifact.
 5. Acceptance criteria must be verifiable. Intent without a command, test, or named manual step
@@ -131,7 +133,7 @@ Done means the job branch (or `origin/<branch>`) is an ancestor of the base bran
 **Factory.** `/argani:factory` turns the session into an orchestrator that runs spec, build, review
 and decision with fresh subagents, each reading and writing files. It stops at only three
 places: the intent (human approves), the spec (human approves), and the merge request (human
-reviews and merges). `plan.md` is written by the builder before it changes any code and is
+reviews and merges, unless `mergePolicy` is `agent`). `plan.md` is written by the builder before it changes any code and is
 reviewed together with the diff in the merge request. Factory mode is expensive (several agents
 per job, up to two rounds), so use it only for jobs with clear acceptance criteria.
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
@@ -147,7 +149,7 @@ in the home's own git repository with a fixed message `argani: record <project>/
 project repository only ever sees code, but only when the user has made the home a git repository of
 its own (argani never runs `git init` there); otherwise nothing is committed and the artifacts stay as files. For a legacy repository it commits only paths under
 `<artifactRoot>/<slug>/` on the job branch, with subjects and trailers from `recordCommitMessage` and
-`commitTrailers` in `.claude/argani.json`. Nothing is ever pushed or merged without a human.
+`commitTrailers` in `.claude/argani.json`. Nothing is ever pushed or merged without a human, except that with `mergePolicy: agent` the factory merges the merge request itself.
 Running `/argani:factory` is the explicit instruction for exactly these commits; a repository that
 requires a separate instruction for every commit uses the manual loop instead.
 

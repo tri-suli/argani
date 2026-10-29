@@ -9,8 +9,8 @@ intent -> spec -> plan -> work on a branch -> review -> merge request -> operate
 
 Every stage ends in a committed artifact that the next stage reads, and humans decide at the gates.
 The loop has two modes: **manual** (you call the skills one by one) and **factory** (an orchestrator
-runs spec, build, review and decision with subagents, and stops at a merge request). Agents never
-merge their own work. See [`plugins/argani/docs/argani.md`](plugins/argani/docs/argani.md) for the full
+runs spec, build, review and decision with subagents, and stops at a merge request, or merges it with `mergePolicy: agent`). Agents never
+merge their own work (unless the project sets `mergePolicy: agent`, where the factory merges after `APPROVE`). See [`plugins/argani/docs/argani.md`](plugins/argani/docs/argani.md) for the full
 reference.
 
 ## Install
@@ -83,7 +83,7 @@ Prerequisites: an approved `intent.md` (the factory writes the spec and stops fo
 /argani:factory rework <slug> <note>   # add a human CHANGES note after a clean round 1
 ```
 
-It stops at the spec (approve it, then run it again) and at the merge request. With `mrCommand`
+It stops at the spec (approve it, then run it again) and at the merge request (with `mergePolicy: agent` it merges it too). With `mrCommand`
 configured it pushes the job branch and opens the MR; without it, it only prints the push and MR
 instructions. Cost: one spec-writer, one builder per round, one reviewer per checklist per round,
 one approver; use it for jobs with clear acceptance criteria.

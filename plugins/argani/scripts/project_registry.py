@@ -2,13 +2,16 @@
 """The project registry of the argani home: which registered project a directory belongs to.
 
 Each project is `<home>/projects/<name>/project.json` with the identity keys `name` and `paths`
-(real paths of the project's directories). A leftover `remotes` key from argani 1.x is ignored.
+(real paths of the project's directories). An entry may also be a pattern: `*` and `?`
+stay inside one path segment; there is no `**`. For example
+`/p/app/.worktrees/*` for checkouts nested inside the registered `/p/app`; patterns are added by
+hand. A leftover `remotes` key from argani 1.x is ignored.
 
 Usage: python3 project_registry.py [dir]
 
 Prints JSON: project, file, paths, root of the project that `dir` (default: the current
 directory) belongs to. A directory belongs to the project that lists its real path or the real
-path of its nearest ancestor that any project lists.
+path of its nearest ancestor that any project lists or matches by a pattern.
 Exit 1 with a message when the directory is not registered or the registry is inconsistent.
 """
 import json
@@ -71,7 +74,7 @@ def read_project(path):
         raise ProjectError(f"{path}: 'name' must match {PROJECT_NAME.pattern}, got {name!r}")
     if name != path.parent.name:
         raise ProjectError(f"{path}: 'name' {name!r} must equal the folder name {path.parent.name!r}")
-    data["paths"] = _string_list(path, data, "paths")
+    data["paths"] = [entry.rstrip("/") or entry for entry in _string_list(path, data, "paths")]
     return data
 
 
@@ -86,16 +89,37 @@ def list_projects(home):
     return projects
 
 
+def _pattern_regex(entry):
+    """`*` matches any run of characters and `?` one character, both inside one path segment;
+    there is no `**` (it is two `*`). Everything else is literal."""
+    parts = []
+    for character in entry:
+        parts.append("[^/]*" if character == "*" else "[^/]" if character == "?" else re.escape(character))
+    return re.compile("".join(parts) + r"\Z")
+
+
+def is_pattern(entry):
+    return "*" in entry or "?" in entry
+
+
+def path_matches(entry, real_path):
+    """True when real_path equals the paths entry, or the entry is a pattern that matches it."""
+    if entry == real_path:
+        return True
+    return is_pattern(entry) and _pattern_regex(entry).match(real_path) is not None
+
+
 def _only_match(projects, path):
-    names = [project["name"] for project in projects if path in project["paths"]]
+    names = [project["name"] for project in projects
+             if any(path_matches(entry, path) for entry in project["paths"])]
     if len(names) > 1:
         raise ProjectError(f"path {path} is claimed by projects {' and '.join(names)}")
     return names[0] if names else None
 
 
 def resolve_with_root(start_dir, home):
-    """(project entry, the registered path that contains start_dir), or None. The nearest registered
-    ancestor of the real path of start_dir wins. The home itself is never a project."""
+    """(project entry, the nearest registered path or pattern match that contains start_dir), or None.
+    The nearest such ancestor of the real path of start_dir wins. The home itself is never a project."""
     if not (home / argani_home.PROJECTS_DIR).is_dir():
         return None
     real_home = os.path.realpath(home)

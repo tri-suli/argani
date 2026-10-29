@@ -416,3 +416,13 @@ def test_a_home_inside_a_project_path_is_never_a_project_directory(tmp_path, mon
     assert decision_of(run_hook("guard_artifacts.py", file_payload("Write", project, hub_file, None, content="x"))) == "allow"
     assert decision_of(write(project, "poetry.lock", "x")) == "deny"
     assert os.path.realpath(inner_home).startswith(os.path.realpath(project))
+
+
+def test_a_nested_checkout_listed_as_a_pattern_checks_protected_paths_against_its_own_root(tmp_path, register_project):
+    checkout = tmp_path / "outer"
+    nested = checkout / ".worktrees" / "job"
+    (nested / "brain" / "a" / "raw").mkdir(parents=True)
+    real = str(checkout.resolve())
+    register_project("shop", paths=[real, f"{real}/.worktrees/*"], protectedPaths=["brain/*/raw/**"])
+    assert decision_of(write(nested, "brain/a/raw/f.md", "x")) == "deny"
+    assert write(nested, "brain/a/notes.md", "x") is None

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-29
+
+### Added
+
+- An entry of `paths` in `project.json` may be a pattern (`*` and `?` stay inside one path segment; there is no `**`), for example `/p/app/.worktrees/*`. The nearest ancestor of a directory that equals or matches an entry is the project root. Patterns are added by hand.
+
+### Changed
+
+- `register_project.py` skips the inside/contains checks for pattern entries, so the literal parent can be registered while the project lists a pattern under it. It refuses a directory that a pattern of another project matches or whose subtree holds that pattern, naming the pattern and the project, and a directory whose own name holds `*` or `?`.
+- `read_project` strips a trailing `/` from each `paths` entry.
+
+### Fixed
+
+- In checkouts nested inside a registered path (for example worktrees under `.worktrees/`), `diffCommand` ran in the outer checkout and printed nothing, and `protectedPaths` were matched against the outer root. List the nested checkouts as a pattern in `paths`.
+
 ## [2.0.0] - 2026-10-29
 
 argani no longer runs git. It is a local board for every project (the argani home, `projects/<name>/project.json`, `tasks/<slug>/`, the factory loop, the agents, `/argani:board`); branches, worktrees, commits, pushes and merges are the project's own business, done with its own rules and skills.

@@ -256,3 +256,20 @@ def test_an_invalid_config_exits_two(job, hub):
 
 def test_wrong_usage_exits_two():
     assert subprocess.run([sys.executable, str(SCRIPT)], capture_output=True, text=True).returncode == 2
+
+
+def test_a_nested_checkout_listed_as_a_pattern_runs_the_diff_command_in_its_own_root(make_project, register_project, hub):
+    checkout = make_project("outer")
+    nested = checkout / ".worktrees" / "job"
+    nested.mkdir(parents=True)
+    (nested / "change.txt").write_text(DIFF)
+    real = str(checkout.resolve())
+    register_project("work", paths=[real, f"{real}/.worktrees/*"], verifyCommand="true", diffCommand="cat change.txt")
+    folder = hub / "projects" / "work" / "tasks" / "demo"
+    folder.mkdir(parents=True)
+    (folder / "intent.md").write_text(INTENT.format(status=APPROVED))
+    (folder / "spec.md").write_text(SPEC.format(status=APPROVED))
+    (folder / "build.md").write_text(BUILD_DONE)
+    result = run(nested)
+    assert result.returncode == 0, result.stderr
+    assert (folder / "review" / "round-1" / "change.diff").read_text() == DIFF

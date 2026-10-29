@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-29
+
+argani no longer runs git. It is a local board for every project (the argani home, `projects/<name>/project.json`, `tasks/<slug>/`, the factory loop, the agents, `/argani:board`); branches, worktrees, commits, pushes and merges are the project's own business, done with its own rules and skills.
+
+### Removed
+
+- The git guard: `hooks/guard_git.py`, its `hooks.json` entry and its four test files. argani no longer holds pushes or merges and has no per-agent Bash allowlist; the reviewer and the approver now have no `Bash` at all.
+- `scripts/git_cli.py`, `scripts/next_number.py`, `scripts/worktree_command.py` and `scripts/merge_command.py`, with their tests.
+- Config keys `defaultBranch`, `baseBranch`, `protectedBranches`, `branchPattern`, `branchTypes`, `baseBranchByType`, `branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`, `mergeCommand`, `commitTrailers` and `commitSkill`, their coercers and cross-key rules, and the `mrCommand` placeholders `{branch}` and `{base}` (only `{title}` and `{bodyFile}` remain). A leftover key in a `project.json` is ignored with a note on stderr.
+- The intent header lines `Type:` and `Number:` (and their template lines and checks): the intent check needs no config any more. `Risk:` stays.
+- Project identity by git remote: `project.json` keeps `name` and `paths` only (a leftover `remotes` key is tolerated and ignored). `normalize_remote`, `repository_remotes`, `main_checkout` and `toplevel` are gone; a project is found by the real path of a directory or of its nearest registered ancestor.
+- From the factory state: `branch`, `current_branch`, `on_job_branch`, `dirty`, `base_branch`, `type`, `number`, `worktree_*`, `checkout`, `main_checkout`, `record_dir`, `records_enabled`, `merge_policy`, `protected_branches`. The factory has no branch step, no record commits, no push and no merge: `done` is terminal. The builder prompt is `Plugin root`, `Slug folder`, `Verify command`, `Round` and `Findings to address` only.
+- The board no longer reads branches or checkouts: a finished task is Done only when `mr.md` has a valid `Merged: <date>` line. `import_jobs.py` reads the working tree only (a job that lives only on a branch must be checked out first) and no longer records the import in the home. `argani_home.py` no longer reports `git`.
+
+### Added
+
+- `diffCommand` (required by the factory and the review, like `verifyCommand`): the project's command that prints the change under review as a unified diff. It must match the project's commit rule for the builder: `git diff origin/main...HEAD` shows committed work only, `git diff origin/main` shows the working tree but not untracked files (a project that forbids agent commits needs a working-tree diff, and new files need `git add -N` to appear). `/argani:init` offers both.
+- `scripts/capture_change.py <slug> [dir]`: runs `diffCommand` (shell, with the project root as working directory, 120 s limit with the whole process group killed on timeout, stdin closed, output kept byte for byte as UTF-8) and writes it to `review/round-<N>/change.diff` for the next review round, printing `{"path", "bytes", "files"}`. It refuses to replace the `change.diff` of a round that already holds a review ("round N already has reviews; the change is fixed for that round"), warns on stderr above 1 MB and when nothing was printed (check `diffCommand` against the builder's commit rule). At `needs-decision` it fills a missing `change.diff` of a round reviewed before 2.0.0. The factory and `/argani:review` run it before spawning reviewers; the reviewer and the approver read `Change: <round folder>/change.diff`. An empty diff stops with "diffCommand printed nothing; nothing to review".
+- `reviewerPaths` now selects reviewers from the files named in the latest round's `change.diff`; without one, every reviewer runs.
+- `change.diff` is written by `capture_change.py` alone: the guard denies `Write` and `Edit` of it to every caller, the main session and other plugins' subagents included. Writes through `Bash` are not guarded (the builder has full `Bash` and is told not to touch the task folder except `plan.md` and `build.md`).
+- A round's reviewers are the ones `reviewerPaths` selects from its `change.diff` plus every reviewer that said `CHANGES` in the round before, so a finding is always checked again. `diff_files` gives up (every reviewer runs) when a `diff --git` line cannot be read with certainty (quoted paths, non-standard prefixes, `" b/"` inside a path).
+- `register_project.py` refuses a directory that is inside or contains a registered path of any project, the same project included.
+- `register_project.py <name> <dir>` registers `realpath(dir)` of any directory, no git needed, and appends the path when the same project is registered again from another directory.
+- `/argani:init` asks for `diffCommand` and proposes both the `gh` and the `glab` form for `mrCommand`; the project name comes from the folder name and is always confirmed.
+
+### Changed
+
+- `argani_config.load_config()` stays quiet about leftover keys of a `project.json` (hooks run it on every tool call): the names are in `config["ignoredKeys"]` and only `argani_config.py` on the command line prints the note.
+- The builder prompt lists the review files to address, one path per file (`Findings to address:` followed by one path per line), not a folder.
+- `argani_config.load_config()` returns `projectRoot` (the registered path that contains the directory) instead of `toplevel` and `currentBranch`; the artifact guard uses it for `protectedPaths`. `validate_overrides()` only checks that `reviewerPaths` names listed reviewers.
+- `read_legacy_file()` coerces `artifactRoot` only; removed keys of an old `.claude/argani.json` are dropped by `/argani:init` and reported in `legacyUnknownKeys`.
+- `mr_description.py` writes no branch lines; its argani section names the task only.
+- The approve steps of the intent, spec and plan skills take the approver's name from the user instead of `git config user.name`.
+- `/argani:review` takes the round number from the factory state and refuses a job that has no round waiting.
+- Docs rewritten: `config.md`, `argani.md` (with a "What argani does not do" section), `review-protocol.md`; the spec eval scaffold no longer runs `git init`.
+
+### Migration
+
+- Drop the removed keys from each `project.json` (they are ignored, but stale) and set `diffCommand`, for example `git diff origin/main...HEAD` for a project that works on branches off `main`.
+- Prepare branches and worktrees with your own tools (and commit with your own rules and skills) before `/argani:factory`, and start the session in the directory where the work is; the builder follows the project's `CLAUDE.md` for commits.
+- Open and merge merge requests yourself; add `Merged: <YYYY-MM-DD>` to `mr.md` when merged, which is what marks the task Done on the board.
+- Remove the `Type:` and `Number:` lines from existing intents if you like; they are no longer checked.
+- Rounds reviewed before 2.0.0 have no `change.diff`; at `needs-decision` run `python3 <plugin>/scripts/capture_change.py <slug>` to fill it (the factory does it before the approver), or the approver has no change to read.
+- Jobs merged under 1.x need a line `Merged: <YYYY-MM-DD>` in their `mr.md` to show Done on the board: argani no longer looks at branches.
+- `project.json` entries that have `remotes` but no `paths` can no longer be found: re-register the directory with `/argani:init`.
+
 ## [1.0.0] - 2026-10-29
 
 ### Removed

@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """The project registry of the argani home: which registered project a directory belongs to.
 
-Each project is `<home>/projects/<name>/project.json` with the identity keys `name`, `remotes`
-(normalized git remote URLs) and `paths` (real paths of checkouts without a shared remote).
+Each project is `<home>/projects/<name>/project.json` with the identity keys `name` and `paths`
+(real paths of the project's directories). A leftover `remotes` key from argani 1.x is ignored.
 
 Usage: python3 project_registry.py [dir]
 
-Prints JSON: project, file, remotes, paths of the project that `dir` (default: the current
-directory) belongs to. A repository matches by any of its remotes first, then by its real path.
-Exit 1 with a message when the repository is not registered or the registry is inconsistent.
+Prints JSON: project, file, paths, root of the project that `dir` (default: the current
+directory) belongs to. A directory belongs to the project that lists its real path or the real
+path of its nearest ancestor that any project lists.
+Exit 1 with a message when the directory is not registered or the registry is inconsistent.
 """
 import json
 import os
@@ -17,68 +18,13 @@ import sys
 from pathlib import Path
 
 import argani_home
-import git_cli
-from git_cli import git_output
-
-def toplevel(start_dir):
-    return git_cli.toplevel(start_dir)
-
 
 PROJECT_FILE = "project.json"
 PROJECT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-SCHEME = re.compile(r"^(ssh|git\+ssh|ssh\+git|https?|git|file)://", re.IGNORECASE)
-SCP_LIKE = re.compile(r"^[^/:]+:")
-PORT = re.compile(r":\d+$")
 
 
 class ProjectError(ValueError):
     pass
-
-
-def _is_local_path(text, scheme):
-    return text.startswith("/") or (scheme is not None and scheme.group(1).lower() == "file")
-
-
-def _is_remote_location(url):
-    """False for relative remotes such as `../up`, which name no host and no absolute path."""
-    text = url.strip()
-    return bool(SCHEME.match(text) or text.startswith("/") or SCP_LIKE.match(text))
-
-
-def normalize_remote(url):
-    """A comparable form of a git remote URL.
-
-    Network remotes become lowercase `host/path` without scheme, user, port or `.git`; local
-    path remotes keep their case, since paths are case-sensitive.
-    """
-    text = url.strip()
-    scheme = SCHEME.match(text)
-    text = text[scheme.end():] if scheme else text
-    if _is_local_path(text, scheme):
-        if text.lower().startswith("localhost/"):
-            text = text[len("localhost"):]
-        return text.rstrip("/").removesuffix(".git").rstrip("/") or "/"
-    if scheme:
-        authority, _, path = text.partition("/")
-        host = PORT.sub("", authority.rsplit("@", 1)[-1])
-    else:
-        authority, _, path = text.partition(":")
-        host = authority.rsplit("@", 1)[-1]
-    text = f"{host}/{path.lstrip('/')}".lower()
-    return text.rstrip("/").removesuffix(".git").rstrip("/")
-
-
-def repository_remotes(start_dir):
-    """Normalized, deduplicated remote URLs (fetch and push) of the repository around start_dir."""
-    listing = git_output(start_dir, "remote", "-v")
-    remotes = []
-    for line in (listing or "").splitlines():
-        fields = line.split()
-        if len(fields) >= 2 and _is_remote_location(fields[1]):
-            normalized = normalize_remote(fields[1])
-            if normalized not in remotes:
-                remotes.append(normalized)
-    return remotes
 
 
 def project_dir(home, name):
@@ -125,7 +71,6 @@ def read_project(path):
         raise ProjectError(f"{path}: 'name' must match {PROJECT_NAME.pattern}, got {name!r}")
     if name != path.parent.name:
         raise ProjectError(f"{path}: 'name' {name!r} must equal the folder name {path.parent.name!r}")
-    data["remotes"] = _string_list(path, data, "remotes")
     data["paths"] = _string_list(path, data, "paths")
     return data
 
@@ -141,72 +86,55 @@ def list_projects(home):
     return projects
 
 
-def _only_match(projects, label, value, key):
-    names = [project["name"] for project in projects if value in project[key]]
+def _only_match(projects, path):
+    names = [project["name"] for project in projects if path in project["paths"]]
     if len(names) > 1:
-        raise ProjectError(f"{label} {value} is claimed by projects {' and '.join(names)}")
+        raise ProjectError(f"path {path} is claimed by projects {' and '.join(names)}")
     return names[0] if names else None
 
 
-def _name_by_ancestor_path(projects, real_start_dir):
-    """The project whose `paths` lists start_dir or its nearest ancestor that any project lists."""
-    folder = Path(real_start_dir)
-    for candidate in [folder, *folder.parents]:
-        name = _only_match(projects, "path", str(candidate), "paths")
-        if name:
-            return name
-    return None
-
-
-def resolve(start_dir, home, top=None):
-    """The project entry that start_dir belongs to, or None. The home itself is never a project.
-    top is the repository toplevel when the caller already knows it. Without a toplevel (no git) the
-    project is found by the registered path of start_dir or of its nearest registered ancestor."""
+def resolve_with_root(start_dir, home):
+    """(project entry, the registered path that contains start_dir), or None. The nearest registered
+    ancestor of the real path of start_dir wins. The home itself is never a project."""
     if not (home / argani_home.PROJECTS_DIR).is_dir():
         return None
     real_home = os.path.realpath(home)
-    if os.path.commonpath([os.path.realpath(start_dir), real_home]) == real_home:
+    real_start = os.path.realpath(start_dir)
+    if os.path.commonpath([real_start, real_home]) == real_home:
         return None
-    top = top or toplevel(start_dir)
     projects = list_projects(home)
     by_name = {project["name"]: project for project in projects}
-    if top is None:  # git is missing or masked: the registered path of an ancestor folder is the only identity
-        name = _name_by_ancestor_path(projects, os.path.realpath(start_dir))
-        return by_name[name] if name else None
-    real_top = os.path.realpath(top)
-    remote_names = {
-        _only_match(projects, "remote", remote, "remotes") for remote in repository_remotes(start_dir)
-    } - {None}
-    if len(remote_names) > 1:
-        raise ProjectError(f"remotes of {real_top} match projects {' and '.join(sorted(remote_names))}")
-    if remote_names:
-        name = remote_names.pop()
-    else:  # a linked worktree belongs to the project registered by the path of its main checkout
-        main = git_cli.main_checkout(start_dir)
-        candidates = dict.fromkeys([real_top, os.path.realpath(main)] if main else [real_top])
-        path_names = {_only_match(projects, "path", path, "paths") for path in candidates} - {None}
-        if len(path_names) > 1:
-            raise ProjectError(f"{' and '.join(candidates)} match projects {' and '.join(sorted(path_names))}")
-        name = path_names.pop() if path_names else None
-    return by_name[name] if name else None
+    folder = Path(real_start)
+    for candidate in [folder, *folder.parents]:
+        name = _only_match(projects, str(candidate))
+        if name:
+            return by_name[name], str(candidate)
+    return None
+
+
+def resolve(start_dir, home):
+    """The project entry that start_dir belongs to, or None."""
+    found = resolve_with_root(start_dir, home)
+    return found[0] if found else None
 
 
 def main(argv):
     start_dir = argv[1] if len(argv) > 1 else "."
     try:
         home = argani_home.home_path()
-        project = resolve(start_dir, home)
+        found = resolve_with_root(start_dir, home)
     except (argani_home.HomeError, ProjectError) as error:
         print(error)
         return 1
-    if project is None:
-        print(f"This repository is not registered in the argani home {home}; run /argani:init.")
+    if found is None:
+        print(f"This directory is not registered in the argani home {home}; run /argani:init.")
         return 1
+    project, root = found
     print(json.dumps({
         "project": project["name"],
         "file": str(project_file(home, project["name"])),
-        "remotes": project["remotes"],
         "paths": project["paths"],
+        "root": root,
     }, indent=2))
     return 0
 

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Register the repository around a directory as a project on the argani board.
+"""Register a directory as a project on the argani board.
 
 Usage: python3 register_project.py <name> [dir] < config.json
 
 stdin is a JSON object with the argani config keys (may be {}). Creates the argani home when
 missing and writes <home>/projects/<name>/project.json with the identity keys and the config.
-When that project already exists and this repository already belongs to it, only the repository's
-real path and new remotes are added; the config keys stay as they are. Never writes into the
-repository. Prints the resulting project.json; exit 1 with one message on any error.
+The directory (default: the current one) may be any directory; its real path is registered.
+When that project already exists, the real path is appended to its paths (a project may span
+several directories); the config keys stay as they are. Never writes into the directory.
+Prints the resulting project.json; exit 1 with one message on any error.
 """
 import json
 import os
@@ -24,7 +25,7 @@ class RegistrationError(ValueError):
     pass
 
 
-def _validated_config(raw_text, top):
+def _validated_config(raw_text):
     try:
         data = json.loads(raw_text or "{}")
     except ValueError as error:
@@ -33,7 +34,7 @@ def _validated_config(raw_text, top):
         raise RegistrationError("stdin must be a JSON object")
     for key in data:
         if key in argani_config.IDENTITY_KEYS:
-            raise RegistrationError(f"stdin must not set {key}; it comes from the repository")
+            raise RegistrationError(f"stdin must not set {key}; it comes from the directory")
         if key in argani_config.LEGACY_ONLY_KEYS:
             raise RegistrationError(f"{key} does not apply to a board project")
         if key not in argani_config.DEFAULTS:
@@ -47,7 +48,7 @@ def _validated_config(raw_text, top):
         except ValueError as error:
             raise RegistrationError(f"key '{key}': {error}") from error
     try:
-        argani_config.validate_overrides(config, top)
+        argani_config.validate_overrides(config)
     except ValueError as error:
         raise RegistrationError(str(error)) from error
     return config
@@ -77,35 +78,49 @@ def _replace(file, entry):
     os.replace(_temporary_copy(file, entry), file)
 
 
+def refuse_overlap_with_registered_paths(real_dir, home):
+    """Raise RegistrationError when real_dir is inside or contains a registered path of any project,
+    the project being registered included. The same path again is fine (a repeated registration)."""
+    for project in project_registry.list_projects(home):
+        for registered in project["paths"]:
+            if registered == real_dir:
+                continue
+            if Path(real_dir).is_relative_to(registered):
+                raise RegistrationError(
+                    f"{real_dir} is inside the registered path {registered} of project {project['name']}")
+            if Path(registered).is_relative_to(real_dir):
+                raise RegistrationError(
+                    f"{real_dir} contains the registered path {registered} of project {project['name']}")
+
+
 def register(name, start_dir, raw_config):
     """Create or extend projects/<name>/project.json and return its content."""
     if not project_registry.PROJECT_NAME.match(name):
         raise RegistrationError(f"project name must match {project_registry.PROJECT_NAME.pattern}, got {name!r}")
-    top = project_registry.toplevel(start_dir)
-    if top is None:
-        raise RegistrationError("not inside a git repository")
-    real_top = os.path.realpath(top)
+    real_dir = os.path.realpath(start_dir)
+    if not os.path.isdir(real_dir):
+        raise RegistrationError(f"{real_dir} is not a directory")
     home = argani_home.home_path()
-    if os.path.commonpath([real_top, os.path.realpath(home)]) == os.path.realpath(home):
-        raise RegistrationError(f"{real_top} is inside the argani home; run this from a project repository")
-    remotes = project_registry.repository_remotes(top)
-    current = project_registry.resolve(top, home, top)
+    real_home = os.path.realpath(home)
+    if os.path.commonpath([real_dir, real_home]) == real_home:
+        raise RegistrationError(f"{real_dir} is inside the argani home; run this from a project directory")
+    refuse_overlap_with_registered_paths(real_dir, home)
+    current = project_registry.resolve(real_dir, home)
     if current and current["name"] != name:
-        raise RegistrationError(f"this repository already belongs to the project {current['name']}, not {name}")
+        raise RegistrationError(f"this directory already belongs to the project {current['name']}, not {name}")
     file = project_registry.project_file(home, name)
     if file.exists():
-        if not current:
-            raise RegistrationError(f"the project {name} already exists ({file}) and belongs to another repository")
         if raw_config.strip() not in ("", "{}"):
             print(f"argani: project {name} is already configured; the config on stdin is ignored", file=sys.stderr)
         entry = project_registry.read_project(file)
-        entry["paths"] += [real_top] if real_top not in entry["paths"] else []
-        entry["remotes"] += [remote for remote in remotes if remote not in entry["remotes"]]
+        entry.pop("remotes", None)
+        if real_dir not in entry["paths"]:
+            entry["paths"].append(real_dir)
         _replace(file, entry)
         return entry
-    config = _validated_config(raw_config, top)
+    config = _validated_config(raw_config)
     argani_home.ensure_home(home)
-    entry = {"name": name, "remotes": remotes, "paths": [real_top], **config}
+    entry = {"name": name, "paths": [real_dir], **config}
     _create(file, entry)
     return entry
 

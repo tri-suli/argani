@@ -3,7 +3,7 @@ name: factory
 description: Run an argani job end to end with fresh subagents (spec, build, review rounds, decision) and stop at a human gate or at the merge request. Also takes a human rework note. Slash form /argani:factory <slug> or /argani:factory rework <slug> <note>.
 argument-hint: "<slug> | rework <slug> <note>"
 disable-model-invocation: true
-allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(git *)
+allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
 
 # /argani:factory
@@ -11,17 +11,19 @@ allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUG
 This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/docs/argani.md` and
 `${CLAUDE_PLUGIN_ROOT}/docs/review-protocol.md`. It never edits code and never writes `intent.md`,
 `spec.md`, `plan.md`, `build.md`, `review-<checklist>.md` or `decision.md`; agents do. Its own files:
-`mr-body.md` (written by `mr_description.py`), `mr.md` and, for `rework`, `review-human.md`. Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
+`mr-body.md` (written by `mr_description.py`), `mr.md`, `review/round-<N>/change.diff` (written by
+`capture_change.py`) and, for `rework`, `review-human.md`. Plugin root below = the value of
+`${CLAUDE_PLUGIN_ROOT}`.
 
-Commits: invoking `/argani:factory` is the human's explicit instruction to make the commits this skill
-describes (the builder's commits on the job branch, and the orchestrator's record commits in the
-argani home when the home is under git), and no others. It never pushes without `mrCommand`, and merges only when the state's `merge_policy` is `agent` (the merge step below). Repositories whose rules forbid commits
-without a separate instruction per commit should use the manual loop (`/argani:spec`, `/argani:plan`,
-`/argani:review`) instead.
+Version control is the project's business, not argani's. Before `/argani:factory` the human (or the
+project's own skills) prepares the place where the work happens, for example the branch or the
+worktree, and starts this session in that directory. argani creates, switches, commits, pushes and
+merges nothing; the builder follows the project's `CLAUDE.md` for commits.
 
 Tools: the list above is the minimum, no `Bash(*)`. `mrCommand` runs through `Bash`, which the human
 permits when asked. Cost: one spec-writer, one builder per round, N reviewers per round, one approver;
-use it for jobs with clear acceptance criteria.
+use it for jobs with clear acceptance criteria. Projects that want a human at every step use the
+manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 
 ## Step 1
 
@@ -34,26 +36,19 @@ use it for jobs with clear acceptance criteria.
      then `/argani:intent approve <slug>`, then `/argani:factory <slug>`.
    If step 3 reports no job folder for a one-word argument, give the same advice with that word.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it exits non-zero, **stop** and show its
-   error. If `verifyCommand` is empty or `reviewers` is empty, **stop**, name the project's `project.json` in the argani
-   home and suggest `/argani:init` when the file does not exist yet.
+   error. If `verifyCommand`, `diffCommand` or `reviewers` is empty, **stop**, name the project's
+   `project.json` in the argani home and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
 3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
-   show its output. Print `stage` and `next`. Read `project`, `job_dir`,
-   `record_dir`, `records_enabled`, `worktree_mode`, `worktree_path`, `main_checkout` and `checkout` from it and use them below.
+   show its output. Print `stage` and `next`. Read `project` and `job_dir` from it and use them below.
 
-Worktree mode (`worktree_mode` true): the job runs in its own git worktree. `checkout` is the folder
-holding the branch (null until it exists) and replaces the repository everywhere below: every git
-command for the job (`git push`, diff checks) uses `git -C <checkout>`, `mr_description.py` gets
-`<checkout>` as its directory, and the agents get `Checkout: <checkout>` in their prompts. Without
-worktree mode `<checkout>` means the toplevel.
-
-Commands: run each command on its own. Never chain with `&&` or `;` and never `cd` first (use
-`git -C`), so the allowed-tools patterns match and the human is not prompted.
+Commands: run each command on its own, so the allowed-tools patterns match and the human is not
+prompted.
 
 ## Loop
 
 The state JSON is the only truth. Re-run `factory_state.py` after **every** agent returns and after every
-commit or file you write; never skip a stage from memory. **Stop (end the turn)** at every human gate and
+file you write; never skip a stage from memory. **Stop (end the turn)** at every human gate and
 terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at most twice per invocation
 (one retry when the state still shows it cut off or `partial`); after that, stop and say which seat failed.
 
@@ -61,42 +56,16 @@ terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at m
 |------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | `needs-intent-approval`, `needs-spec-approval` | Stop. Print `next`.                                                                                               |
 | `needs-spec`                                   | Spawn `argani:spec-writer`, then stop: "spec ready; `/argani:spec approve <slug>` then `/argani:factory <slug>`". |
-| `needs-build`, `needs-rework`                  | Branch, record, spawn a **new** builder (below), then re-run state.                                               |
-| `needs-review`                                 | Require `on_job_branch`, run review round `review_round`, record, re-run state.                                   |
-| `needs-decision`                               | Require `on_job_branch`, spawn `argani:approver`, record, re-run state.                                           |
-| `needs-mr`                                     | Require `on_job_branch`, create the MR (below), then stop.                                                        |
-| `done`                                         | Say the job is done. Nothing else, unless `merge_policy` is `agent` and `mr.merged` is false: run the merge step (below). |
+| `needs-build`, `needs-rework`                  | Spawn a **new** builder (below), then re-run state.                                                               |
+| `needs-review`                                 | Run review round `review_round` (below), then re-run state.                                                       |
+| `needs-decision`                               | Spawn `argani:approver` (below), then re-run state.                                                               |
+| `needs-mr`                                     | Create the MR (below), then stop.                                                                                 |
+| `done`                                         | Say the job is done and print `next`. Terminal: nothing else, argani never merges.                                |
 | `escalate`                                     | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3.                              |
 
-`<branch>` below is the state's `branch`: the repository's `branchPattern` (default `feature/{slug}`)
-with the slug and, for `{type}`, the intent's `Type:` filled in. `<base_branch>` is the state's
-`base_branch`: `baseBranchByType` for that type, else `baseBranch`. Never build either name yourself.
-"Require `on_job_branch`": if false, stop and say the session is on `<current_branch>`, not `<branch>`
-(in worktree mode: that the job has no checkout holding `<branch>`).
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
 overwrite the file completely". If `review:human` is partial, do not spawn anything: tell the human to
 fix or delete `review-human.md`.
-
-### Record (the orchestrator commits the job folder)
-
-Only paths under `<job_dir>` and the project's `project.json` are ever added.
-
-Only when `records_enabled` is true (the user keeps the argani home under git; argani never runs
-`git init` there): the job folder is recorded in the argani home's own git repository, `<record_dir>`
-(the state's `home`), never in the project repository, so it does not depend on the project
-repository's branch. If `git -C <record_dir> status --porcelain -- <job_dir>` is non-empty:
-`git -C <record_dir> add -- <job_dir> projects/<project>/project.json` then
-`git -C <record_dir> commit -q -m "argani: record <project>/<slug> <what>" -- <job_dir> projects/<project>/project.json`,
-with `<what>` one of `artifacts before build`, `build`, `round <N> reviews`, `decision`, `merge request`, `merged`. The message is fixed: no trailers, no `commitSkill` (the home has no commit
-rules); `commitTrailers` and `commitSkill` govern only the builder's code commits.
-Record before the push in `needs-mr` too, and right after the builder
-returns (`<what>` = `build`), since the builder does not commit `plan.md` and `build.md`.
-`<job_dir>` is absolute; the `project.json` pathspec is relative to `<record_dir>`. Unrelated changes
-in the home are left alone: `commit -- <paths>` commits only those paths. If add or commit fails (for
-example no git `user.name`/`user.email` in the home), stop and show the error.
-When `records_enabled` is false, do nothing: the artifacts stay as files in the job folder and nothing is committed.
-Every "Record" step below, the builder record after build and the merge request records included, means
-this conditional step.
 
 ### Models
 
@@ -106,7 +75,7 @@ Spawn every agent with `model` from the state's `models`: `models.spec-writer`, 
 `inherit`, leave `model` out.
 
 The reviewers of a job are the state's `reviewers`, not the config's: a checklist scoped by
-`reviewerPaths` runs only when the job's diff touches one of its paths.
+`reviewerPaths` runs only when the captured `change.diff` touches one of its paths.
 
 ### Spec-writer prompt
 
@@ -115,45 +84,40 @@ Plugin root: <plugin root>
 Intent: <job_dir>/intent.md
 Spec: <job_dir>/spec.md
 Config: <the config JSON>
-Language: <language of the repository's CLAUDE.md, else of the intent>
+Language: <language of the project's CLAUDE.md, else of the intent>
 ```
 
-### Branch and builder
+### Builder
 
-1. **Stop** if `current_branch` is `HEAD` (detached) or `dirty` is true (job-folder files do not count):
-   ask the human to switch branch or commit/stash. A `next` that says the worktree is stale: **stop** and
-   show it (the human prunes, then re-runs). (In worktree mode both describe the `checkout`; with
-   no checkout yet they are null and this check passes.)
-2. Worktree mode: never `git switch`. If `checkout` is null, run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/worktree_command.py <slug>`, which prints JSON `{"path", "toplevel", "command"}`,
-   then run `command` verbatim (it names the main checkout itself and does not depend on the working
-   directory); never rebuild or re-quote it. If the script exits non-zero (for example the path exists
-   and holds another branch) or the command fails, **stop** and show the output. Skip the next sentence.
-   Otherwise, if `on_job_branch` is false: `git switch <branch>` if `git rev-parse --verify <branch>` succeeds,
-   else `git switch -c <branch> <base_branch>`. If the switch fails, **stop** and show the error.
-3. Re-run state; if `on_job_branch` is still false (in worktree mode: `checkout` is still null), **stop**. Only then Record (`artifacts before build`), and spawn `argani:builder`:
+Spawn `argani:builder` with the prompt below. It works in the directory this session runs in.
 
 ```
 Plugin root: <plugin root>
 Slug folder: <job_dir>
-Branch: <branch>
-Checkout: <checkout, the toplevel without worktree mode>
 Verify command: <verifyCommand>
-Commit skill: <commitSkill, or "none">
-Commit trailers: <commitTrailers as configured, {model} left in, one per line, or "none">
 Round: <review_round>
-Findings to address: <job_dir>/review/round-<rework_from>/       (only when rework_from is not null;
-                                                                for a human rework this is the round folder holding review-human.md)
+Findings to address:                                              (only when rework_from is not null)
+- <job_dir>/review/round-<rework_from>/review-<checklist>.md      (one path per review file in that round
+- <job_dir>/review/round-<rework_from>/review-human.md             folder, from the state's rounds[].present;
+                                                                    a human rework has review-human.md)
 ```
 
-4. If its reply starts with `STOPPED wrong branch` or `STOPPED commit skill`, **stop** and show it. After it returns, re-run state:
-   if `dirty` is true, **stop** ("builder left uncommitted changes"). Otherwise Record (`build`), then continue the loop.
+After it returns, re-run state and continue the loop. Its reply is one line; if `build` is still not
+`complete`, the retry rule above applies.
 
 ### Review round
 
-Run steps 5 and 6 of `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` for `N = review_round` and slug folder
-`<job_dir>` (one message, all missing seats, wait for all, rerun a cut-off seat once). Seats already in
-`rounds[].complete` for that round are not spawned again. Do not print its table.
+1. If `rounds` has no entry for `review_round` with a `review-<checklist>.md` in its `present` (the
+   human note does not count), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug>`.
+   It runs `diffCommand` with the project root as working directory and writes
+   `<job_dir>/review/round-<review_round>/change.diff`. If it exits non-zero, **stop** and show its
+   output. If its `bytes` is 0, **stop** and say "diffCommand printed nothing; nothing to review.
+   Check diffCommand against the builder's commit rule" (committed work and a working tree need different commands). Re-run state, because the captured `files`
+   may narrow the `reviewers` (`reviewerPaths`). When the round already has a review file, the change
+   is fixed: do not capture again, the existing `change.diff` stays.
+2. Run steps 4 to 6 of `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` for `N = review_round` and slug
+   folder `<job_dir>` (one message, all missing seats, wait for all, rerun a cut-off seat once). Seats
+   already in `rounds[].complete` for that round are not spawned again. Do not print its table.
 
 ### Approver
 
@@ -161,49 +125,32 @@ Run steps 5 and 6 of `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` for `N = rev
 Plugin root: <plugin root>
 Slug folder: <job_dir>
 Round folder: <job_dir>/review/round-<review_round>/
-Base branch: <base_branch>
-Checkout: <checkout, the toplevel without worktree mode>
+Change: <job_dir>/review/round-<review_round>/change.diff
 Reviewers: <the state's reviewers, comma-separated>
 Protected paths: <protectedPaths, comma-separated, or "none">
 ```
 
+Before spawning the approver, check that `change.diff` exists in the round folder. If it is missing (a
+round reviewed before 2.0.0), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug>`:
+at `needs-decision` it writes the missing file and refuses to overwrite an existing one. Apply the
+same empty-output rule as above, then spawn the approver.
+
 ### Merge request (`needs-mr`)
 
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <checkout> --write`. If it exits non-zero, stop and
+1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> --write`. If it exits non-zero, stop and
    show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
    verification checklist of `decision.md`, where the task folder is) and prints JSON with `title`,
-   `bodyFile` and, when `mrCommand` is configured, `command`. `mr-body.md` is an artifact of the job
-   folder and is recorded with it.
-2. Record, so `mr-body.md` is recorded before the push.
-- `mrCommand` configured:
-  3. `git -C <checkout> push -u origin <branch>`.
-  4. Run the printed `command` verbatim; never rebuild or re-quote it.
-  If 3 or 4 fails, stop and show the error (no `mr.md`).
-  5. Write `<job_dir>/mr.md` (output or URL, branch, base, today's date).
-  6. Record again (`{what}` = `merge request`, local only). When `merge_policy` is `agent`, run the merge step
-     below; otherwise stop: "MR ready for human review".
-- Not configured: do **not** push. Print `title`, `bodyFile` and tell the human to push `<branch>`,
-  open a merge request from `<branch>` into `<base_branch>` with that description, then write `mr.md`
-  (URL and branch) or configure `mrCommand` and re-run.
+   `bodyFile` and, when `mrCommand` is configured, `command`.
+- `mrCommand` configured: run the printed `command` verbatim; never rebuild or re-quote it. If it
+  fails, stop and show the error (no `mr.md`). Otherwise write `<job_dir>/mr.md` (the command's
+  output or URL, and today's date) and stop: "MR ready for human review".
+- Not configured: print `title` and `bodyFile` and tell the human to open the merge request with
+  that description in their own way, then write `mr.md` (the URL) or configure `mrCommand` and re-run.
 
 In both cases, when `decision.md` has `## Human verification before merge`, copy that checklist into
-`mr.md` and into the final message: the human does those steps and ticks them before merging.
-
-### Merge step (`merge_policy` is `agent`)
-
-Only when `merge_policy` is `agent`, `mr.md` exists and has no `Merged: <date>` line (state `mr.merged` is false):
-
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_command.py <slug> <checkout>`. It prints JSON `{"mr", "command"}`;
-   exit 1 means the policy is not `agent`, the job is already merged, `mr.md` names no merge request (its URL, or
-   `!<n>` / `#<n>`) or `mergeCommand` is unset: stop and show its output.
-2. Run the printed `command` verbatim, from the working directory you are in (never rebuild or re-quote it). The
-   git guard reads `mergePolicy` from the project config of the working directory, so that directory must be
-   inside the project (the checkout or its worktree). If the command fails, stop, show the error and tell the
-   human to check the merge request; `mr.md` stays without `Merged:`. If the merge request turns out to be merged
-   already, the human appends `Merged: <date>` to `mr.md` by hand and re-runs.
-3. On success append the line `Merged: <today, YYYY-MM-DD>` to `<job_dir>/mr.md`, then
-   `git -C <checkout> fetch origin <base_branch>` (ignore a failure). Record
-   (`{what}` = `merged`, local only). Stop: "merged; the task is Done".
+`mr.md` and into the final message: the human does those steps and ticks them before merging. When the
+merge request is merged, the human adds a line `Merged: <YYYY-MM-DD>` to `mr.md`; the board then shows the
+task as Done. argani itself never pushes, merges or commits.
 
 ## `rework <slug> <note>`
 

@@ -8,7 +8,6 @@ import pytest
 
 import factory_state
 import import_jobs
-from conftest import git
 from test_factory_state import APPROVED, BUILD_DONE, INTENT, SPEC
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "import_jobs.py"
@@ -42,17 +41,9 @@ def run_import(repo, *arguments):
     return result, plan
 
 
-def sources(job):
-    return [candidate["source"] for candidate in job["candidates"]]
-
-
-def porcelain(repo):
-    return subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], capture_output=True, text=True).stdout
-
-
 @pytest.fixture
-def project(make_repo, hub, register_project):
-    repo = make_repo()
+def project(make_project, hub, register_project):
+    repo = make_project()
     register_project("demo", paths=[str(repo)], **PROJECT_CONFIG)
     return repo
 
@@ -62,43 +53,31 @@ def tasks(hub, project):
     return hub / "projects" / "demo" / "tasks"
 
 
-def commit_job_on_branch(repo, branch, slug, files=None, date="2024-01-01T00:00:00"):
-    git(repo, "checkout", "-q", "-b", branch)
-    write_job(repo, slug, files)
-    git(repo, "add", "argani")
-    environment = {**os.environ, "GIT_AUTHOR_DATE": date, "GIT_COMMITTER_DATE": date}
-    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", slug],
-                   check=True, capture_output=True, env=environment)
-    git(repo, "checkout", "-q", "main")
-
-
-def test_unregistered_repository_exits_one(make_repo):
-    repo = make_repo()
+def test_unregistered_directory_exits_one(make_project):
+    repo = make_project()
     result, plan = run_import(repo)
     assert result.returncode == 1
     assert "not registered; run /argani:init first, then /argani:import." in result.stderr
     assert plan is None
 
 
-def test_worktree_job_dry_run_writes_nothing(project, tasks):
+def test_job_dry_run_writes_nothing(project, tasks):
     write_job(project, "demo-job")
-    before = porcelain(project)
+    before = sorted(project.rglob("*"))
     result, plan = run_import(project)
     assert result.returncode == 0
     assert plan["applied"] is False
     assert plan["artifactRoot"] == "argani"
     job = plan["jobs"][0]
-    assert job["slug"] == "demo-job" and job["source"] == "worktree" and job["status"] == "new"
+    assert job["slug"] == "demo-job" and job["source"] == "working tree" and job["status"] == "new"
     assert sorted(job["files"]) == sorted(job_files())
     assert not tasks.exists()
-    assert porcelain(project) == before
+    assert sorted(project.rglob("*")) == before
 
 
-def test_apply_copies_worktree_job_byte_for_byte(project, tasks):
+def test_apply_copies_the_job_byte_for_byte(project, tasks):
     write_job(project, "demo-job")
-    git(project, "add", "argani")
-    git(project, "commit", "-q", "-m", "job")
-    before = porcelain(project)
+    before = sorted(project.rglob("*"))
     result, plan = run_import(project, "--apply")
     assert result.returncode == 0, result.stderr
     assert plan["applied"] is True
@@ -106,38 +85,8 @@ def test_apply_copies_worktree_job_byte_for_byte(project, tasks):
         assert (tasks / "demo-job" / name).read_bytes() == (project / "argani" / "demo-job" / name).read_bytes()
     reported = factory_state.build_state("demo-job", str(project))["stage"]
     assert plan["jobs"][0]["stage_after"] == reported == "needs-mr"
-    assert porcelain(project) == before
+    assert sorted(project.rglob("*")) == before
     assert (project / "argani" / "demo-job" / "intent.md").exists()
-
-
-def test_job_only_on_branch_is_read_with_git_show(project, tasks):
-    commit_job_on_branch(project, "feature/branch-job", "branch-job")
-    assert not (project / "argani").exists()
-    result, plan = run_import(project, "--apply")
-    assert result.returncode == 0, result.stderr
-    job = plan["jobs"][0]
-    assert job["source"] == "feature/branch-job" and sources(job) == ["feature/branch-job"]
-    assert (tasks / "branch-job" / "review/round-1/review-code.md").read_text() == job_files()["review/round-1/review-code.md"]
-    assert job["stage_after"] == "needs-mr"
-
-
-def test_job_branch_named_ref_wins_over_newer_ref(project):
-    commit_job_on_branch(project, "feature/two-refs", "two-refs", date="2020-01-01T00:00:00")
-    other = {**job_files(), "build.md": "# Build\n\nother\n\n=== END OF BUILD ==="}
-    commit_job_on_branch(project, "scratch/copy", "two-refs", other, date="2026-01-01T00:00:00")
-    result, plan = run_import(project, "--slug", "two-refs")
-    job = plan["jobs"][0]
-    assert sorted(sources(job)) == ["feature/two-refs", "scratch/copy"]
-    assert job["source"] == "feature/two-refs"
-
-
-def test_newest_ref_wins_when_no_ref_matches_the_pattern(project):
-    commit_job_on_branch(project, "old/one", "pick-newest", date="2020-01-01T00:00:00")
-    commit_job_on_branch(project, "new/two", "pick-newest", date="2026-01-01T00:00:00")
-    result, plan = run_import(project)
-    job = plan["jobs"][0]
-    assert sorted(sources(job)) == ["new/two", "old/one"]
-    assert job["source"] == "new/two"
 
 
 def test_custom_artifact_root_from_legacy_file(project, tasks):
@@ -197,15 +146,6 @@ def test_skill_describes_the_import_without_write_tools():
     assert "Write" not in allowed and "Edit" not in allowed and "git" not in allowed
 
 
-def test_tag_named_like_the_branch_does_not_hide_the_job(project, tasks):
-    commit_job_on_branch(project, "feature/tagged", "tagged")
-    git(project, "tag", "feature/tagged", "main")
-    result, plan = run_import(project, "--apply")
-    assert result.returncode == 0, result.stderr
-    assert plan["jobs"][0]["source"] == "feature/tagged"
-    assert (tasks / "tagged" / "intent.md").is_file()
-
-
 def test_rerun_after_apply_is_already_imported(project, tasks):
     write_job(project, "again")
     first, plan = run_import(project, "--apply")
@@ -252,7 +192,7 @@ def test_failure_at_a_later_slug_keeps_earlier_imports(project, tasks, monkeypat
     assert not (tasks / "bbb-bad").exists()
 
 
-def test_symlinks_are_skipped_in_worktree(project, tasks, tmp_path):
+def test_symlinks_are_skipped(project, tasks, tmp_path):
     write_job(project, "linked")
     outside = tmp_path / "outside.txt"
     outside.write_text("secret")
@@ -263,42 +203,6 @@ def test_symlinks_are_skipped_in_worktree(project, tasks, tmp_path):
     job = plan["jobs"][0]
     assert sorted(job["skipped"]) == ["dangling.md", "leak.md"]
     assert not (tasks / "linked" / "leak.md").exists() and not (tasks / "linked" / "dangling.md").is_symlink()
-
-
-def test_symlinks_are_skipped_on_a_ref(project, tasks):
-    git(project, "checkout", "-q", "-b", "feature/ref-link")
-    write_job(project, "ref-link")
-    (project / "argani" / "ref-link" / "link.md").symlink_to("intent.md")
-    git(project, "add", "argani")
-    git(project, "commit", "-q", "-m", "job")
-    git(project, "checkout", "-q", "main")
-    result, plan = run_import(project, "--apply")
-    assert result.returncode == 0, result.stderr
-    assert plan["jobs"][0]["skipped"] == ["link.md"]
-    assert not (tasks / "ref-link" / "link.md").exists()
-
-
-def test_ignored_files_are_left_out(project, tasks):
-    write_job(project, "ignoring")
-    (project / ".gitignore").write_text("*.log\n")
-    (project / "argani" / "ignoring" / "debug.log").write_text("noise")
-    result, plan = run_import(project, "--apply")
-    assert "debug.log" not in plan["jobs"][0]["files"]
-    assert not (tasks / "ignoring" / "debug.log").exists()
-
-
-def test_non_utf8_filename_on_a_ref(project, tasks):
-    git(project, "checkout", "-q", "-b", "feature/odd-name")
-    write_job(project, "odd-name")
-    odd = os.fsencode(project / "argani" / "odd-name") + b"/caf\xff.md"
-    with open(odd, "wb") as handle:
-        handle.write(b"odd")
-    git(project, "add", "argani")
-    git(project, "commit", "-q", "-m", "job")
-    git(project, "checkout", "-q", "main")
-    result, plan = run_import(project, "--apply")
-    assert result.returncode == 0, result.stderr
-    assert (tasks / "odd-name" / os.fsdecode(b"caf\xff.md")).read_bytes() == b"odd"
 
 
 def test_unreadable_worktree_file_fails_that_slug_without_traceback(project, tasks):
@@ -312,37 +216,6 @@ def test_unreadable_worktree_file_fails_that_slug_without_traceback(project, tas
         pytest.skip("root reads unreadable files")
     assert result.returncode == 1 and "Traceback" not in result.stderr
     assert plan["jobs"][0]["status"] == "failed" and not (tasks / "locked").exists()
-
-
-def test_branch_with_a_prefix_before_the_slug_is_not_the_job_branch(project):
-    commit_job_on_branch(project, "feature/pattern-job", "pattern-job", date="2020-01-01T00:00:00")
-    commit_job_on_branch(project, "anything/pattern-job", "pattern-job", date="2026-01-01T00:00:00")
-    (project / ".claude").mkdir()
-    (project / ".claude" / "argani.json").write_text(json.dumps({"branchPattern": "{slug}"}))
-    result, plan = run_import(project)
-    assert plan["jobs"][0]["source"] == "anything/pattern-job"  # neither matches '{slug}': the newest wins
-    (project / ".claude" / "argani.json").write_text(json.dumps({"branchPattern": "anything/{slug}"}))
-    result, plan = run_import(project)
-    assert plan["jobs"][0]["source"] == "anything/pattern-job"
-    assert plan["jobs"][0]["reason"] == "the branch named like the job branch"
-
-
-def test_differing_worktree_copy_loses_to_the_job_branch(project):
-    commit_job_on_branch(project, "feature/drift", "drift")
-    write_job(project, "drift", {**job_files(), "build.md": "# Build\n\nedited\n\n=== END OF BUILD ==="})
-    result, plan = run_import(project)
-    job = plan["jobs"][0]
-    assert job["source"] == "feature/drift"
-    assert "differs from the job branch" in job["reason"]
-    assert {c["source"]: c["differs"] for c in job["candidates"]} == {"worktree": True, "feature/drift": False}
-
-
-def test_worktree_equal_to_the_job_branch_stays_the_source(project):
-    commit_job_on_branch(project, "feature/same", "same")
-    write_job(project, "same")
-    result, plan = run_import(project)
-    assert plan["jobs"][0]["source"] == "worktree"
-    assert not any(c["differs"] for c in plan["jobs"][0]["candidates"])
 
 
 def test_artifact_root_source_and_argument(project):
@@ -370,42 +243,6 @@ def test_invalid_legacy_file_warns_once(project):
     assert plan["artifactRootSource"] == "default"
 
 
-def test_unreadable_commit_time_drops_the_candidate(project, monkeypatch, capsys):
-    commit_job_on_branch(project, "one/ref", "timed", date="2020-01-01T00:00:00")
-    commit_job_on_branch(project, "two/ref", "timed", date="2026-01-01T00:00:00")
-    original = import_jobs.git_bytes
-
-    def failing_log(toplevel, *args):
-        return None if args[0] == "log" and "refs/heads/two/ref" in args else original(toplevel, *args)
-
-    monkeypatch.setattr(import_jobs, "git_bytes", failing_log)
-    assert import_jobs.main(["import_jobs.py", str(project)]) == 0
-    captured = capsys.readouterr()
-    plan = json.loads(captured.out)
-    assert "two/ref" in captured.err
-    assert plan["jobs"][0]["source"] == "one/ref" and sources(plan["jobs"][0]) == ["one/ref"]
-
-
-def test_apply_records_the_import_in_a_home_that_is_a_git_repository(project, hub):
-    git(hub, "init", "-q", "-b", "main")
-    git(hub, "config", "user.name", "t")
-    git(hub, "config", "user.email", "t@t")
-    write_job(project, "recorded-job")
-    result, plan = run_import(project, "--apply")
-    assert result.returncode == 0, result.stderr
-    assert plan["recorded"] is True
-    log = subprocess.run(["git", "-C", str(hub), "log", "--format=%s"], capture_output=True, text=True).stdout
-    assert "argani: import demo/recorded-job" in log
-    again, plan = run_import(project, "--apply")
-    assert plan["recorded"] is False
-
-
-def test_home_without_git_is_not_recorded(project):
-    write_job(project, "plain-home")
-    result, plan = run_import(project, "--apply")
-    assert plan["recorded"] is False
-
-
 def test_rollback_removes_the_folders_it_created(project, tasks, monkeypatch, capsys):
     write_job(project, "nested")
 
@@ -416,3 +253,39 @@ def test_rollback_removes_the_folders_it_created(project, tasks, monkeypatch, ca
     monkeypatch.setattr(import_jobs, "write_job_file", corrupting_write)
     assert import_jobs.main(["import_jobs.py", str(project), "--apply"]) == 1
     assert not (tasks / "nested").exists()
+
+
+def test_a_job_that_lives_only_on_a_branch_is_not_found(project):
+    result, plan = run_import(project, "--slug", "branch-only")
+    assert result.returncode == 1 and plan["jobs"][0]["status"] == "missing"
+
+
+def test_a_symlinked_folder_inside_a_job_is_not_followed(project, tasks, tmp_path):
+    write_job(project, "linked-folder")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.md").write_text("secret")
+    (project / "argani" / "linked-folder" / "folder-link").symlink_to(outside, target_is_directory=True)
+    result, plan = run_import(project, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert plan["jobs"][0]["skipped"] == ["folder-link"]
+    assert not (tasks / "linked-folder" / "folder-link").exists()
+
+
+def test_nested_files_of_the_working_tree_are_found(project):
+    write_job(project, "nested-job")
+    result, plan = run_import(project)
+    assert "review/round-1/review-code.md" in plan["jobs"][0]["files"]
+
+
+def test_a_folder_without_intent_is_not_a_job(project):
+    write_job(project, "no-intent", {"spec.md": "x"})
+    result, plan = run_import(project)
+    assert plan["jobs"] == []
+
+
+def test_the_plan_names_no_branch_candidates_or_records(project):
+    write_job(project, "plain-job")
+    result, plan = run_import(project, "--apply")
+    assert "recorded" not in plan
+    assert not {"candidates", "reason"} & set(plan["jobs"][0])

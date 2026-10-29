@@ -1,31 +1,26 @@
 #!/usr/bin/env python3
-"""Propose the project.json config for the repository containing a directory.
+"""Propose the project.json config for the project in a directory.
 
 Usage: python3 init_config.py [dir]
 
-Prints JSON: toplevel, project (proposed name), remotes, realPath, home, projectFile, registered
-(the project this repository already belongs to, or null), nameTaken, homeError or registryError,
-legacyConfig, legacyExists (and
-legacyKeys when it exists), defaultBranch, proposal (config keys to register), and questions (what
-a human must decide first). Reads files and git only, never writes. Exit 0 when inside a git
-repository, exit 1 otherwise. The /argani:init skill asks the questions and runs register_project.py.
+Prints JSON: project (proposed name), realPath (the directory to register), home, projectFile,
+registered (the project this directory already belongs to, or null), nameTaken, homeError or
+registryError, legacyConfig, legacyExists (and legacyKeys when it exists, legacyUnknownKeys for
+keys argani no longer uses), proposal (config keys to register), and questions (what a human must
+decide first). Reads files only, never writes. Exit 0 when the directory exists, exit 1 otherwise.
+The /argani:init skill asks the questions and runs register_project.py.
 """
 import json
 import os
 import re
-import subprocess
 import sys
-from collections import Counter
 from pathlib import Path
 
 import argani_config
 import argani_home
-import git_cli
 import project_registry
 
 NPM_DEFAULT_TEST = 'echo "Error: no test specified"'
-NUMBERED_BRANCH = re.compile(r"^(?P<prefix>.+?[/_-])(?P<n>[0-9]+)-")  # feat/common-56-receipt
-BRANCH_PREFIX_MINIMUM = 2  # branches sharing a prefix before it becomes the proposed pattern
 
 
 def _read_json(path):
@@ -65,7 +60,7 @@ def _has_pytest(top):
 
 
 def verify_candidates(top):
-    """Commands that look like this repository's test entry point, most specific first."""
+    """Commands that look like this project's test entry point, most specific first."""
     candidates = []
     package = _read_json(top / "package.json")
     test_script = ((package or {}).get("scripts") or {}).get("test")
@@ -87,66 +82,14 @@ def verify_candidates(top):
     return candidates
 
 
-def _git_lines(top, *args):
-    result = subprocess.run(["git", "-C", str(top), *args], capture_output=True, text=True)
-    return result.stdout.split() if result.returncode == 0 else []
-
-
-def branch_names(top):
-    """Local branches plus remote-tracking branches without their remote name."""
-    local = _git_lines(top, "for-each-ref", "--format=%(refname:lstrip=2)", "refs/heads")
-    remote = _git_lines(top, "for-each-ref", "--format=%(refname:lstrip=3)", "refs/remotes")
-    return set(local + remote) - {"HEAD"}
-
-
-def branch_prefixes(names):
-    """`<prefix>/` values shared by at least two branches, most common first."""
-    prefixes = Counter(name.split("/", 1)[0] for name in names if "/" in name)
-    return [prefix for prefix, count in prefixes.most_common() if count >= BRANCH_PREFIX_MINIMUM]
-
-
-def numbered_branch_patterns(names):
-    """`<prefix>{n}-{slug}` for each prefix shared by at least two branches like `feat/common-56-receipt`,
-    most common first, then by name."""
-    prefixes = Counter(match.group("prefix") for match in map(NUMBERED_BRANCH.match, names) if match)
-    shared = sorted((item for item in prefixes.items() if item[1] >= BRANCH_PREFIX_MINIMUM),
-                    key=lambda item: (-item[1], item[0]))
-    return [f"{prefix}{argani_config.NUMBER_PLACEHOLDER}-{argani_config.SLUG_PLACEHOLDER}" for prefix, _ in shared]
-
-
-def worktree_path_candidates(top):
-    """worktreePath candidates when the repository already uses worktrees (another worktree or a
-    .worktrees/ or .claude/worktrees/ folder), else an empty list."""
-    listing = git_cli.git_output(top, "worktree", "list", "--porcelain") or ""
-    has_other_worktree = sum(line.startswith("worktree ") for line in listing.splitlines()) > 1
-    existing_claude_folder = (top / ".claude" / "worktrees").is_dir()
-    if not (has_other_worktree or existing_claude_folder or (top / ".worktrees").is_dir()):
-        return []
-    return [".worktrees/{branch}", *([".claude/worktrees/{branch}"] if existing_claude_folder else [])]
-
-
-def remote_host(top):
-    urls = _git_lines(top, "remote", "get-url", "origin")
-    url = urls[0] if urls else ""
-    if "github" in url:
-        return "github"
-    if "gitlab" in url:
-        return "gitlab"
-    return None
-
-
 def sanitize_project_name(text):
     """Lowercase text with every run of other characters replaced by one dash; None if empty."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or None
 
 
-def proposed_project_name(top, remotes):
-    """Last path segment of the origin remote (else the first), else the folder name."""
-    origin = git_cli.git_output(top, "remote", "get-url", "origin")
-    origin = project_registry.normalize_remote(origin) if origin else None
-    source = origin if origin in remotes else (remotes[0] if remotes else None)
-    from_remote = sanitize_project_name(source.rsplit("/", 1)[-1]) if source else None
-    return from_remote or sanitize_project_name(top.name) or "project"
+def proposed_project_name(top):
+    """The folder name as a project name."""
+    return sanitize_project_name(top.name) or "project"
 
 
 def _hub_target(top, name):
@@ -159,7 +102,7 @@ def _hub_target(top, name):
     file = project_registry.project_file(home, name)
     target = {"home": str(home), "projectFile": str(file), "registered": None, "nameTaken": False}
     try:
-        entry = project_registry.resolve(top, home, str(top))
+        entry = project_registry.resolve(top, home)
     except project_registry.ProjectError as error:
         return {**target, "registryError": str(error)}
     if entry:
@@ -181,26 +124,22 @@ def _legacy_report(config_path):
                                   and key not in argani_config.LEGACY_ONLY_KEYS]}
 
 
-def _ambiguous_default_branch(top):
-    """Candidates for the default branch when git cannot tell it, else None."""
-    if git_cli.git_output(top, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"):
-        return None
-    local = [name for name in ("main", "master") if argani_config.branch_exists(top, name)]
-    if len(local) == 2:
-        return local
-    if not local and "origin" in argani_config.remote_names(top):
-        return [argani_config.detect_default_branch(top)]
-    return None
+MR_COMMAND_CANDIDATES = [
+    "gh pr create --title {title} --body-file {bodyFile}",
+    "glab mr create --title {title} --description-file {bodyFile}",
+]
+DIFF_COMMAND_CANDIDATES = ["git diff origin/main...HEAD", "git diff origin/main"]
+DIFF_COMMAND_NOTE = ("`git diff origin/main...HEAD` shows committed work only; `git diff origin/main` shows the "
+                     "working tree but not untracked files. Pick the one that matches how the builder keeps its "
+                     "work: a project that forbids agent commits needs a working-tree diff, and new files then "
+                     "need `git add -N <path>` (intent to add) to appear in it.")
 
 
 def propose(start_dir="."):
-    toplevel = argani_config.toplevel(start_dir)
-    if not toplevel:
+    top = Path(os.path.realpath(start_dir))
+    if not top.is_dir():
         return None
-    top = Path(toplevel)
-    default_branch = argani_config.detect_default_branch(top)
-    remotes = project_registry.repository_remotes(top)
-    name = proposed_project_name(top, remotes)
+    name = proposed_project_name(top)
     hub = _hub_target(top, name)
     legacy_path = top / ".claude" / "argani.json"
     legacy = _legacy_report(legacy_path)
@@ -208,19 +147,12 @@ def propose(start_dir="."):
 
     if hub["nameTaken"]:
         questions.append({"key": "project", "candidates": [name],
-                          "ask": "projects/<name> already belongs to another repository; choose another name."})
-    elif not remotes:
+                          "ask": "A project with this name already exists in the argani home. Add this directory "
+                                 "to it (answer with the same name) or choose another name."})
+    elif not hub["registered"]:
         questions.append({"key": "project", "candidates": [name],
                           "ask": "Name of the project on the board (folder projects/<name> in the argani home). "
-                                 "It was guessed from the folder name; lowercase letters, digits and dashes."})
-
-    uncertain_branches = _ambiguous_default_branch(top)
-    if uncertain_branches:
-        questions.append({"key": "defaultBranch", "candidates": uncertain_branches,
-                          "ask": "Git cannot tell which branch is the default one (there is no origin/HEAD). "
-                                 "Which branch do jobs merge into by default? The board reads it without a checkout."})
-    else:
-        proposal["defaultBranch"] = default_branch
+                                 "It was taken from the folder name; lowercase letters, digits and dashes."})
 
     candidates = verify_candidates(top)
     if len(candidates) == 1:
@@ -229,83 +161,24 @@ def propose(start_dir="."):
         questions.append({"key": "verifyCommand", "candidates": candidates,
                           "ask": "Which command proves a job's work (tests, linters)? Required by factory mode."})
 
-    names = branch_names(top)
-    prefixes = branch_prefixes(names)
-    number_patterns = numbered_branch_patterns(names)[:3]
-    if prefixes or number_patterns:
-        typed = ["{type}/{slug}"] if prefixes else []
-        questions.append({"key": "branchPattern",
-                          "candidates": typed + [f"{prefix}/{{slug}}" for prefix in prefixes[:3]] + number_patterns,
-                          "types": prefixes,
-                          "ask": "Existing branches use these prefixes. Should the job branch take its prefix "
-                                 "from the job's type ({type}/{slug}, with these prefixes as branchTypes), or "
-                                 "use one fixed prefix? {slug} is required; the default is feature/{slug}. "
-                                 "A candidate with {n} puts a running job number in the branch name."})
-
-    if "develop" in names:
-        questions.append({"key": "baseBranch", "candidates": ["develop", default_branch],
-                          "ask": "A develop branch exists. Do jobs branch from and merge into develop (Git Flow)?"})
-
-    worktree_candidates = worktree_path_candidates(top)
-    if worktree_candidates:
-        questions.append({"key": "worktreePath", "candidates": worktree_candidates,
-                          "ask": "Jobs run in their own worktree? The factory then creates <pattern> per job "
-                                 "branch and never switches branches in the main checkout. Add the folder to "
-                                 ".gitignore. "
-                                 "A worktreeCommand must not depend on the working directory; it can use {toplevel} "
-                                 "and {path}."})
-
-    questions.append({"key": "commitTrailers",
-                      "candidates": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
-                      "ask": "Which trailers should commits carry? {model} becomes the committing agent's "
-                             "model name; the default is the candidate, [] means none."})
-    commit_skills = sorted(path.parent.name for path in (top / ".claude" / "skills").glob("*commit*/SKILL.md"))
-    if commit_skills:
-        questions.append({"key": "commitSkill", "candidates": commit_skills,
-                          "ask": "The repository has its own commit skill. Should the builder's "
-                                 "commits go through it instead of a plain git commit?"})
-    host = remote_host(top)
-    mr_candidates = {
-        "github": ["gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"],
-        "gitlab": ["glab mr create --target-branch {base} --source-branch {branch} --title {title} --description-file {bodyFile}"],
-    }.get(host, [])
-    questions.append({"key": "mrCommand", "candidates": mr_candidates,
-                      "ask": "Should the factory push and open the merge request itself? Without mrCommand "
-                             "nothing is pushed. The factory fills {branch} with the job branch, {base} with "
-                             "its base branch, {title} with the shell-quoted merge request title and "
-                             "{bodyFile} with the path of the generated description."})
-    questions.append({"key": "mergePolicy", "candidates": list(argani_config.MERGE_POLICIES),
-                      "ask": "Who merges the merge request after APPROVE? human (default) keeps merging a "
-                             "human step; agent lets the factory merge with mergeCommand."})
-    merge_candidates = {
-        "github": ["gh pr merge {mr} --rebase --delete-branch"],
-        "gitlab": ["glab mr merge {mr} --rebase --remove-source-branch --yes"],
-    }.get(host, [])
-    questions.append({"key": "mergeCommand", "candidates": merge_candidates,
-                      "ask": "Ask only when mergePolicy is agent: which command merges the merge request? "
-                             "{mr} is the merge request URL or number written in mr.md, {branch} the job "
-                             "branch and {base} its base branch."})
+    questions.append({"key": "diffCommand", "candidates": DIFF_COMMAND_CANDIDATES,
+                      "ask": "Which command prints the change under review as a unified diff, run in the "
+                             "project root? Required by factory mode and the review. " + DIFF_COMMAND_NOTE})
+    questions.append({"key": "mrCommand", "candidates": MR_COMMAND_CANDIDATES,
+                      "ask": "Should the factory open the merge request itself? Without mrCommand it only "
+                             "prints the description. {title} is the shell-quoted merge request title and "
+                             "{bodyFile} the path of the generated description."})
 
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)
     questions = [item for item in questions if item["key"] == "project" or item["key"] not in carried]
-    offered = [candidate for item in questions if item["key"] == "branchPattern" for candidate in item["candidates"]]
-    carried_pattern = carried.get("branchPattern", "")
-    if ("branchNumberCommand" not in carried
-            and any(argani_config.NUMBER_PLACEHOLDER in text for text in [*offered, carried_pattern])):
-        questions.append({"key": "branchNumberCommand", "candidates": [],
-                          "ask": "Which command prints the next job number? Leave empty to let argani count "
-                                 "from the existing intents."})
 
     return {
-        "toplevel": str(top),
         "project": name,
-        "remotes": remotes,
-        "realPath": os.path.realpath(top),
+        "realPath": str(top),
         **hub,
         "legacyConfig": str(legacy_path),
         **legacy,
-        "defaultBranch": default_branch,
         "proposal": proposal,
         "questions": questions,
     }
@@ -314,7 +187,7 @@ def propose(start_dir="."):
 def main(argv):
     result = propose(argv[1] if len(argv) > 1 else ".")
     if result is None:
-        print("Not inside a git repository.")
+        print("Not a directory.")
         return 1
     print(json.dumps(result, indent=2))
     return 0

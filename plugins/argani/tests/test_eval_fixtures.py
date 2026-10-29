@@ -46,7 +46,7 @@ def test_scaffolded_artifacts_are_valid(case_name, tmp_path):
 
 @pytest.mark.parametrize("case_name", CASES_WITH_SCAFFOLD)
 @pytest.mark.parametrize("home_from_runner", [False, True])
-def test_scaffold_registers_the_sandbox_repository_in_the_home(case_name, home_from_runner, tmp_path, monkeypatch):
+def test_scaffold_registers_the_sandbox_directory_in_the_home(case_name, home_from_runner, tmp_path, monkeypatch):
     sandbox = tmp_path / "sandbox"
     sandbox.mkdir()
     runner_home = tmp_path / "runner-home"
@@ -60,8 +60,7 @@ def test_scaffold_registers_the_sandbox_repository_in_the_home(case_name, home_f
     assert (sandbox / ".argani-home").resolve() == home.resolve()
     project_file = home / "projects" / "demo" / "project.json"
     assert json.loads(project_file.read_text())["paths"] == [str(sandbox.resolve())]
-    status = subprocess.run(["git", "-C", str(sandbox), "status", "--porcelain"], capture_output=True, text=True)
-    assert status.stdout == ""  # the home link and its path file are excluded, so the repository stays clean
+    assert sorted(path.name for path in sandbox.iterdir()) == [".argani-home", ".argani-home-path"]  # no git, no other files
     environment = {key: value for key, value in os.environ.items() if key != "ARGANI_HOME"}
     environment.update(HOME=str(tmp_path / "user-home"), **({"ARGANI_HOME": str(runner_home)} if home_from_runner else {}))
     config = subprocess.run([sys.executable, str(PLUGIN_ROOT / "scripts" / "argani_config.py"), str(sandbox)],

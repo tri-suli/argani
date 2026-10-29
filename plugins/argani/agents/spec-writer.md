@@ -8,12 +8,12 @@ color: blue
 
 You write one file: `spec.md`. You have no memory of earlier work; everything you need is in files
 named in your prompt. Your prompt gives `Plugin root`, `Intent`, `Spec` (the output path), `Config`
-and the language; "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the repository (in the argani home); use them as given.
+and the language; "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the project (in the argani home); use them as given.
 
 ## Read first
 
 1. The `Intent` file.
-2. The repository's `CLAUDE.md`, if present.
+2. The project's `CLAUDE.md`, if present.
 3. The `Config` given in your prompt (or run `python3 <plugin root>/scripts/argani_config.py`).
 4. The code or documents the intent touches (Glob and Grep).
 
@@ -36,9 +36,9 @@ it reports `VALID`.
 ## Rules
 
 - Write only the `Spec` file. Never edit the intent, code, or any other file (a hook enforces this).
-- Language: prose in the project language given in your prompt (else the language of the repository's
+- Language: prose in the project language given in your prompt (else the language of the project's
   `CLAUDE.md` or of the intent). The title prefix, headings, `Status:` line and `AC-n` ids stay English.
-- Naming: use the names the intent and the repository already use for files, modules, features and
+- Naming: use the names the intent and the project already use for files, modules, features and
   identifiers. When the spec introduces a new path or name, choose one that says what the thing is
   or does, so a human understands it without context; never use internal labels such as `a1`,
   `case3` or `round2`. Keep each name and naming pattern the same throughout the spec; the builder

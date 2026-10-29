@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the fixture repository in the current directory and registers it as the project "demo" in the
+# Builds the fixture project in the current directory and registers it as the project "demo" in the
 # argani home: $ARGANI_HOME when set, else ~/.argani (the plugin's own default, so the model run finds
 # it without any variable). The home's path is written to .argani-home-path and linked as .argani-home,
 # the fixed path the graders read.
@@ -14,13 +14,6 @@ case "$ARGANI_HOME_PATH" in /*) ;; *) echo "scaffold: the argani home must be an
 printf '%s\n' "$ARGANI_HOME_PATH" > .argani-home-path
 mkdir -p "$ARGANI_HOME_PATH"
 ln -s "$ARGANI_HOME_PATH" .argani-home
-git init -q -b main
-git config commit.gpgsign false
-git config core.hooksPath /dev/null
-git config user.name eval
-git config user.email eval@example.com
-printf '%s\n' ".argani-home" ".argani-home-path" >> .git/info/exclude
-git commit -q --allow-empty -m "chore: initial commit"
 echo '{}' | python3 "$PLUGIN_ROOT/scripts/register_project.py" demo . > /dev/null
 mkdir -p "$ARGANI_HOME_PATH/projects/demo/tasks/demo-login"
 cat > "$ARGANI_HOME_PATH/projects/demo/tasks/demo-login/intent.md" <<'INTENT'

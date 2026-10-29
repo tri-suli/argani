@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 import board
-from conftest import git
 from test_factory_state import APPROVED, BUILD_DONE, INTENT, REVIEW_END, SPEC
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "board.py"
@@ -14,9 +13,9 @@ JOB_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code"]}
 
 
 @pytest.fixture
-def project(make_repo, hub, register_project):
-    """A registered project `demo` with a checkout; task(slug) returns a writer for its task folder."""
-    repo = make_repo()
+def project(make_project, hub, register_project):
+    """A registered project `demo`; task(slug) returns a writer for its task folder."""
+    repo = make_project()
     register_project("demo", paths=[str(repo)], **JOB_CONFIG)
 
     class Project:
@@ -51,7 +50,10 @@ def project(make_repo, hub, register_project):
 
                 def finish(self):
                     self.advance_to_mr()
-                    self.write("mr.md", "https://example.test/mr/1\nfeature/login\n")
+                    self.write("mr.md", "https://example.test/mr/1\n")
+
+                def merge(self):
+                    self.write("mr.md", "https://example.test/mr/1\n\nMerged: 2026-10-29\n")
 
             return Task()
 
@@ -101,24 +103,38 @@ def test_ready_for_mr(project, hub):
     assert columns_of(hub) == {"login": "Ready for MR"}
 
 
-def test_in_review_when_branch_not_merged(project, hub):
+def test_in_review_while_mr_md_has_no_merged_line(project, hub):
     project.task().finish()
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["column"], task["merged"]) == ("In review", None)
+    assert (task["stage"], task["column"], task["merged"]) == ("done", "In review", False)
 
 
-def test_done_when_branch_merged(project, hub):
-    project.task().finish()
-    git(project.root, "checkout", "-q", "-b", "feature/login")
-    git(project.root, "commit", "-q", "--allow-empty", "-m", "work")
+def test_done_only_through_the_merged_line_of_mr_md(project, hub):
+    task = project.task()
+    task.finish()
     assert columns_of(hub) == {"login": "In review"}
-    git(project.root, "checkout", "-q", "main")
-    git(project.root, "merge", "-q", "--no-ff", "feature/login", "-m", "merge")
-    task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["column"], task["merged"]) == ("Done", True)
+    task.merge()
+    row = board.board(hub)["projects"][0]["tasks"][0]
+    assert (row["column"], row["merged"]) == ("Done", True)
 
 
-def test_in_review_when_project_has_no_checkout(make_repo, hub, register_project):
+def test_done_column_omits_next(project, hub):
+    project.task().finish()
+    assert "next:" in board.render_markdown(board.board(hub))
+    project.task().merge()
+    markdown = board.render_markdown(board.board(hub))
+    assert "### Done" in markdown
+    assert "next:" not in markdown
+
+
+def test_rows_and_json_carry_no_git_fields(project, hub):
+    project.task()
+    data = board.board(hub)
+    assert set(data["projects"][0]) == {"name", "tasks"}
+    assert "branch" not in data["projects"][0]["tasks"][0]
+
+
+def test_in_review_without_any_directory_registered(make_project, hub, register_project):
     register_project("remote-only", **JOB_CONFIG)
     folder = hub / "projects" / "remote-only" / "tasks" / "login"
     folder.mkdir(parents=True)
@@ -130,7 +146,7 @@ def test_in_review_when_project_has_no_checkout(make_repo, hub, register_project
     (folder / "decision.md").write_text("APPROVE ok\n\n=== END OF DECISION ===\n")
     (folder / "mr.md").write_text("url\nfeature/login\n")
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["stage"], task["column"], task["merged"]) == ("done", "In review", None)
+    assert (task["stage"], task["column"], task["merged"]) == ("done", "In review", False)
 
 
 def test_needs_human_on_escalate(project, hub):
@@ -158,17 +174,6 @@ def test_project_without_tasks(project, hub):
     assert "###" not in markdown
 
 
-def test_done_column_omits_next(project, hub):
-    project.task().finish()
-    git(project.root, "checkout", "-q", "-b", "feature/login")
-    git(project.root, "commit", "-q", "--allow-empty", "-m", "work")
-    git(project.root, "checkout", "-q", "main")
-    git(project.root, "merge", "-q", "--no-ff", "feature/login", "-m", "merge")
-    markdown = board.render_markdown(board.board(hub))
-    assert "### Done" in markdown
-    assert "next:" not in markdown
-
-
 def test_invalid_intent_still_listed(project, hub):
     project.task(intent="not an intent\n")
     assert columns_of(hub) == {"login": "Backlog"}
@@ -186,8 +191,8 @@ def test_folder_not_matching_slug_pattern_ignored(project, hub):
     assert list(columns_of(hub)) == ["ok"]
 
 
-def test_broken_config_is_needs_human(make_repo, hub, register_project):
-    register_project("broken", branchPattern=42)
+def test_broken_config_is_needs_human(make_project, hub, register_project):
+    register_project("broken", reviewers=42)
     (hub / "projects" / "broken" / "tasks" / "login").mkdir(parents=True)
     task = board.board(hub)["projects"][0]["tasks"][0]
     assert (task["stage"], task["column"]) == ("error", "Needs human")
@@ -213,8 +218,8 @@ def test_cli_single_project(project, hub, register_project):
     assert "## demo" in result.stdout and "## other" not in result.stdout
 
 
-def test_cli_unregistered_repository(make_repo, hub):
-    result = run_board(str(make_repo("loose")))
+def test_cli_unregistered_directory(make_project, hub):
+    result = run_board(str(make_project("loose")))
     assert result.returncode == 1
     assert "not registered" in result.stdout and "--all" in result.stdout
 
@@ -230,16 +235,6 @@ def test_json_output_parses(project, hub):
     project.task()
     data = json.loads(run_board("--json", str(project.root)).stdout)
     assert data["projects"][0]["tasks"][0]["column"] == "Design"
-
-
-def test_tasks_listed_under_own_project_when_remote_is_claimed_by_another(project, hub, register_project):
-    git(project.root, "remote", "add", "origin", "https://example.test/team/demo.git")
-    register_project("rival", remotes=["example.test/team/demo"], **JOB_CONFIG)
-    project.task()
-    by_project = {item["name"]: item["tasks"] for item in board.board(hub)["projects"]}
-    assert [task["slug"] for task in by_project["demo"]] == ["login"]
-    assert by_project["demo"][0]["stage"] == "needs-spec"
-    assert by_project["rival"] == []
 
 
 def test_unreadable_intent_is_error_row_and_board_renders(project, hub):
@@ -271,43 +266,6 @@ def test_unreadable_tasks_folder_is_empty_with_warning(project, hub, capsys):
         folder.chmod(0o755)
 
 
-def test_branch_merged_known_and_unknown(project):
-    root = project.root
-    git(root, "checkout", "-q", "-b", "feature/x")
-    git(root, "commit", "-q", "--allow-empty", "-m", "work")
-    git(root, "checkout", "-q", "main")
-    assert board.branch_merged(root, "feature/x", "main") is False
-    git(root, "merge", "-q", "--no-ff", "feature/x", "-m", "merge")
-    assert board.branch_merged(root, "feature/x", "main") is True
-    assert board.branch_merged(root, "feature/missing", "main") is None
-    assert board.branch_merged(None, "feature/x", "main") is None
-
-
-def test_branch_merged_uses_remote_tracking_branch(project):
-    root = project.root
-    git(root, "checkout", "-q", "-b", "feature/x")
-    git(root, "commit", "-q", "--allow-empty", "-m", "work")
-    git(root, "update-ref", "refs/remotes/origin/feature/x", "HEAD")
-    git(root, "checkout", "-q", "main")
-    git(root, "merge", "-q", "--no-ff", "feature/x", "-m", "merge")
-    git(root, "branch", "-q", "-D", "feature/x")
-    assert board.branch_merged(root, "feature/x", "main") is True
-
-
-def test_board_skips_working_tree_git_calls(project, hub, monkeypatch):
-    project.task()
-    commands = []
-    real_run = subprocess.run
-
-    def spy(command, *args, **kwargs):
-        commands.append(command)
-        return real_run(command, *args, **kwargs)
-
-    monkeypatch.setattr(subprocess, "run", spy)
-    board.board(hub)
-    assert not any("status" in command for command in commands)
-
-
 def test_unknown_flag_or_second_directory_is_usage_error(project):
     for arguments in (["--bogus"], [str(project.root), "extra"]):
         result = run_board(*arguments)
@@ -335,13 +293,13 @@ def test_json_with_write_prints_json_and_writes_markdown(project, hub):
     assert (hub / "board.md").read_text().startswith("# argani board")
 
 
-def test_all_from_unregistered_directory(project, hub, make_repo):
+def test_all_from_unregistered_directory(project, hub, make_project):
     project.task()
-    result = run_board("--all", str(make_repo("loose")))
+    result = run_board("--all", str(make_project("loose")))
     assert result.returncode == 0 and "## demo" in result.stdout
 
 
-def test_merged_line_in_mr_md_is_done_without_a_local_checkout(make_repo, hub, register_project):
+def test_merged_line_in_mr_md_is_done_without_any_directory(make_project, hub, register_project):
     register_project("remote-only", **JOB_CONFIG)
     folder = hub / "projects" / "remote-only" / "tasks" / "login"
     folder.mkdir(parents=True)

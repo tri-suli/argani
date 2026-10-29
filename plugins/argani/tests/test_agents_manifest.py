@@ -6,8 +6,7 @@ import pytest
 AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
 AGENT_FILES = sorted(AGENTS_DIR.glob("*.md"))
 EXPECTED = {"spec-writer", "builder", "reviewer", "approver"}
-READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write", "Bash(git diff *)", "Bash(git log *)",
-                    "Bash(git -C *)"}  # git -C <Checkout>; the git guard hook still allows only read-only subcommands
+READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write"}  # no shell: they read change.diff, never run anything
 CLOSING_LINES = {
     "builder": "=== END OF BUILD ===",
     "reviewer": "=== END OF REVIEW ===",
@@ -27,7 +26,7 @@ def parse_frontmatter(path):
 
 
 def tool_names(fields):
-    # Split on commas outside parentheses so "Bash(git diff *)" stays one entry.
+    # Split on commas outside parentheses so "Bash(python3 ...)" stays one entry.
     return [t.strip() for t in re.split(r",\s*(?![^()]*\))", fields["tools"]) if t.strip()]
 
 
@@ -65,3 +64,23 @@ def test_reviewer_and_approver_have_exact_tool_set(name):
 def test_agent_body_contains_its_closing_line(name):
     body = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
     assert CLOSING_LINES[name] in body
+
+
+GIT_WORD = re.compile(r"\bgit\b", re.IGNORECASE)
+
+
+@pytest.mark.parametrize("path", AGENT_FILES, ids=lambda p: p.stem)
+def test_agents_never_mention_git(path):
+    assert not GIT_WORD.search(path.read_text(encoding="utf-8")), path.name
+
+
+def test_the_builder_prompt_carries_no_branch_or_commit_inputs():
+    body = (AGENTS_DIR / "builder.md").read_text(encoding="utf-8")
+    for removed in ("Branch:", "Checkout", "Commit skill", "Commit trailers", "STOPPED"):
+        assert removed not in body, removed
+
+
+@pytest.mark.parametrize("name", ["reviewer", "approver"])
+def test_reviewer_and_approver_read_the_captured_change(name):
+    body = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
+    assert "`Change`" in body and "change.diff" in body

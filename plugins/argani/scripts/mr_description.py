@@ -7,7 +7,7 @@ Prints JSON {"title", "body"}. The title is the intent's heading; the body lists
 acceptance criteria of intent.md, the human verification checklist of decision.md (when it has
 one) and where the job's artifacts live. With --write the body is saved to <job_dir>/mr-body.md
 and the JSON also has "bodyFile" (that path) and, when the config has mrCommand, "command": the
-mrCommand with {branch}, {base}, {title} and {bodyFile} replaced by shell-quoted values, to be
+mrCommand with {title} and {bodyFile} replaced by shell-quoted values, to be
 run verbatim. Reads files only (plus the --write file). Exit 1 when the job folder is missing or
 the slug is invalid; exit 2 for an invalid config or wrong usage.
 """
@@ -82,7 +82,7 @@ def argani_section(state):
     task = (f"Task `{state['project']}/{state['slug']}` on the argani board; artifacts in "
             f"`projects/{state['project']}/tasks/{state['slug']}` of the argani home "
             "(nothing argani-related is in this diff).")
-    return [task, f"Job branch `{state['branch']}` into `{state['base_branch']}`."]
+    return [task]
 
 
 def build_description(state, intent_text, decision_text):
@@ -127,7 +127,7 @@ def main(argv):
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
-        print("This repository is not registered; run /argani:init" if not config["project"]
+        print("This directory is not registered; run /argani:init" if not config["project"]
               else f"No job folder for slug '{slug}' under {config['tasksDir']}.")
         return 1
     job_dir = Path(state["job_dir"])
@@ -138,7 +138,6 @@ def main(argv):
         body_file.write_text(description["body"], encoding="utf-8")
         description["bodyFile"] = str(body_file)
         command = argani_config.mr_command_for(config, {
-            "branch": str(state["branch"]), "base": state["base_branch"],
             "title": description["title"], "bodyFile": str(body_file)})
         if command:
             description["command"] = command

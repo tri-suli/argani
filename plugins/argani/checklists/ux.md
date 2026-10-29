@@ -2,7 +2,7 @@
 
 ## Scope
 
-How a person moves through the user-facing behaviour changed in the diff `<baseBranch>...HEAD`,
+How a person moves through the user-facing behaviour changed in `change.diff`,
 judged from the code and from the flows described in `spec.md`: every state a screen or command
 can reach (loading, empty, error, success, partial data), feedback after an action, form
 validation and its messages, destructive actions and how they are confirmed or undone, keyboard

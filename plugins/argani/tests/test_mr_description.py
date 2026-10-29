@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from conftest import git
 from test_factory_state import APPROVED, INTENT, job  # noqa: F401
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "mr_description.py"
@@ -78,14 +77,14 @@ def test_no_checklist_section_without_one_in_the_decision(job):
     assert "Human verification" not in description(job)["body"]
 
 
-def test_job_points_at_the_task_folder_and_claims_a_clean_diff(job):
+def test_job_points_at_the_task_folder_and_claims_a_clean_diff_and_names_no_branch(job):
     job.intent()
     body = description(job)["body"]
     assert ("Task `demo/demo` on the argani board; artifacts in `projects/demo/tasks/demo` "
             "of the argani home") in body
     assert str(job.hub) not in body
     assert "nothing argani-related is in this diff" in body
-    assert "Job branch `feature/demo` into `main`." in body
+    assert "branch" not in body.lower()
 
 
 def test_write_saves_the_body_in_the_job_folder_and_still_prints_json(job):
@@ -105,13 +104,12 @@ NASTY_TITLE = 'Say "hi" $HOME `id` back\\slash'
 
 
 def test_command_quotes_every_value_for_the_shell(job):
-    job.set_config(mrCommand="gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}")
+    job.set_config(mrCommand="gh pr create --title {title} --body-file {bodyFile}")
     job.write("intent.md", INTENT.format(status=APPROVED).replace("Demo", NASTY_TITLE, 1))
     printed = description(job, "--write")
     words = shlex.split(printed["command"])
     assert words[words.index("--title") + 1] == NASTY_TITLE
     assert words[words.index("--body-file") + 1] == printed["bodyFile"]
-    assert words[words.index("--base") + 1] == "main"
 
 
 def test_fence_first_desired_outcome_uses_the_next_paragraph(job):
@@ -156,17 +154,11 @@ def test_missing_job_folder_exits_one(job):
     assert "nope" in result.stdout
 
 
-def test_diff_contains_no_argani_path(job):
+def test_the_project_directory_is_never_written(job):
     job.intent()
-    git(job.root, "switch", "-q", "-c", "feature/demo")
-    (job.root / "code.txt").write_text("code\n")
-    git(job.root, "add", "code.txt")
-    git(job.root, "commit", "-q", "-m", "code")
+    before = sorted(job.root.rglob("*"))
     description(job, "--write")
-    changed = subprocess.run(
-        ["git", "-C", str(job.root), "diff", "--name-only", "main...feature/demo"],
-        capture_output=True, text=True, check=True).stdout.splitlines()
-    assert changed == ["code.txt"]
+    assert sorted(job.root.rglob("*")) == before
 
 
 def test_factory_skill_uses_the_generated_description():

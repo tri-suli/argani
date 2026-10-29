@@ -6,11 +6,9 @@ copy is replaced on every release, and outside the project repositories.
 
 Usage: python3 argani_home.py [--create]
 
-The home is a plain folder. The user may put it under git; argani never initialises a repository
-there, and records job folders with git only when the user has done so.
+The home is a plain folder; what the user does with it (backup, sync, version control) is theirs.
 
-Prints JSON: home, projects (the folder of project entries), exists, git (informational: the home
-is a git repository of its own, not a folder inside another repository). With --create, makes the
+Prints JSON: home, projects (the folder of project entries), exists. With --create, makes the
 missing folders first and reports what it made; existing files are never touched. Exit 1 with a
 message when ARGANI_HOME is not usable.
 """
@@ -18,8 +16,6 @@ import json
 import os
 import sys
 from pathlib import Path
-
-import git_cli
 
 ENV_VAR = "ARGANI_HOME"
 DEFAULT_HOME = "~/.argani"
@@ -51,8 +47,7 @@ def layout(home):
 
 
 def ensure_home(home):
-    """Create the missing layout folders; return what was created (empty when all existed).
-    Never runs git."""
+    """Create the missing layout folders; return what was created (empty when all existed)."""
     created = []
     for folder in layout(home):
         if folder.is_dir():
@@ -64,18 +59,11 @@ def ensure_home(home):
     return created
 
 
-def is_own_repository(home):
-    """True when the home is the toplevel of a git repository, not a folder inside another one."""
-    top = git_cli.toplevel(home) if home.is_dir() else None
-    return top is not None and os.path.realpath(top) == os.path.realpath(home)
-
-
 def report(home, created=None):
     result = {
         "home": str(home),
         "projects": str(home / PROJECTS_DIR),
         "exists": all(folder.is_dir() for folder in layout(home)),
-        "git": is_own_repository(home),
     }
     if created is not None:
         result["created"] = [str(folder) for folder in created]

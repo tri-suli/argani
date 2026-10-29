@@ -16,7 +16,7 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 Commits: invoking `/argani:factory` is the human's explicit instruction to make the commits this skill
 describes (the builder's commits on the job branch, and the orchestrator's record commits: in the
 argani home for a registered project whose home is under git, on the job branch for a legacy job),
-and no others. It never pushes without `mrCommand` and never merges. Repositories whose rules forbid commits
+and no others. It never pushes without `mrCommand`, and merges only when the state's `merge_policy` is `agent` (the merge step below). Repositories whose rules forbid commits
 without a separate instruction per commit should use the manual loop (`/argani:spec`, `/argani:plan`,
 `/argani:review`) instead.
 
@@ -66,7 +66,7 @@ terminal stage. Each seat (builder, one reviewer seat, approver) is spawned at m
 | `needs-review`                                 | Require `on_job_branch`, run review round `review_round`, record, re-run state.                                   |
 | `needs-decision`                               | Require `on_job_branch`, spawn `argani:approver`, record, re-run state.                                           |
 | `needs-mr`                                     | Require `on_job_branch`, create the MR (below), then stop.                                                        |
-| `done`                                         | Say the job is done. Nothing else.                                                                                |
+| `done`                                         | Say the job is done. Nothing else, unless `merge_policy` is `agent` and `mr.merged` is false: run the merge step (below). |
 | `escalate`                                     | Say `needs-human` and print `next`. A human decides; `rework` is refused at round 3.                              |
 
 `<branch>` below is the state's `branch`: the repository's `branchPattern` (default `feature/{slug}`)
@@ -88,7 +88,7 @@ git repository, `<record_dir>` (the state's `home`), never in the project reposi
 on the project repository's branch. If `git -C <record_dir> status --porcelain -- <job_dir>` is non-empty:
 `git -C <record_dir> add -- <job_dir> projects/<project>/project.json` then
 `git -C <record_dir> commit -q -m "argani: record <project>/<slug> <what>" -- <job_dir> projects/<project>/project.json`,
-with `<what>` one of `artifacts before build`, `build`, `round <N> reviews`, `decision`, `merge request`. The message is fixed: no trailers, no `commitSkill` (the home has no commit
+with `<what>` one of `artifacts before build`, `build`, `round <N> reviews`, `decision`, `merge request`, `merged`. The message is fixed: no trailers, no `commitSkill` (the home has no commit
 rules); `recordCommitMessage`, `commitTrailers` and `commitSkill` govern only the legacy record below
 and the builder's code commits. Record before the push in `needs-mr` too, and right after the builder
 returns (`<what>` = `build`), since the builder does not commit `plan.md` and `build.md` here.
@@ -105,7 +105,7 @@ non-empty: `git -C <toplevel> add -- <job_dir>` then
 per entry of `commitTrailers`, `{model}` replaced by your own model name (for example
 `Claude Opus 5.5`), and no other trailer or footer. `<message>` is `recordCommitMessage` with
 `{slug}` replaced by the slug and `{what}` by `artifacts before build`, `round <N> reviews`,
-`decision` or `merge request` (default `chore(argani): record <slug> <what>`). Also record before the
+`decision`, `merge request` or `merged` (default `chore(argani): record <slug> <what>`). Also record before the
 push in `needs-mr`, only while `on_job_branch` is true. The builder commits code, and `plan.md` and
 `build.md` too when `job_dir_in_repo` is true; otherwise the Record step above covers them.
 
@@ -198,13 +198,32 @@ Protected paths: <protectedPaths, comma-separated, or "none">
   4. Run the printed `command` verbatim; never rebuild or re-quote it.
   If 3 or 4 fails, stop and show the error (no `mr.md`).
   5. Write `<job_dir>/mr.md` (output or URL, branch, base, today's date).
-  6. Record again (`{what}` = `merge request`, local only) and stop: "MR ready for human review".
+  6. Record again (`{what}` = `merge request`, local only). When `merge_policy` is `agent`, run the merge step
+     below; otherwise stop: "MR ready for human review".
 - Not configured: do **not** push. Print `title`, `bodyFile` and tell the human to push `<branch>`,
   open a merge request from `<branch>` into `<base_branch>` with that description, then write `mr.md`
   (URL and branch) or configure `mrCommand` and re-run.
 
 In both cases, when `decision.md` has `## Human verification before merge`, copy that checklist into
 `mr.md` and into the final message: the human does those steps and ticks them before merging.
+
+### Merge step (`merge_policy` is `agent`)
+
+Only when `merge_policy` is `agent`, `mr.md` exists and has no `Merged: <date>` line (state `mr.merged` is false):
+
+1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/merge_command.py <slug> <checkout>`. It prints JSON `{"mr", "command"}`;
+   exit 1 means the policy is not `agent`, the job is already merged, `mr.md` names no merge request (its URL, or
+   `!<n>` / `#<n>`) or `mergeCommand` is unset: stop and show its output.
+2. Run the printed `command` verbatim, from the working directory you are in (never rebuild or re-quote it). The
+   git guard reads `mergePolicy` from the project config of the working directory, so that directory must be
+   inside the project (the checkout or its worktree). If the command fails, stop, show the error and tell the
+   human to check the merge request; `mr.md` stays without `Merged:`. If the merge request turns out to be merged
+   already, the human appends `Merged: <date>` to `mr.md` by hand and re-runs.
+3. On success append the line `Merged: <today, YYYY-MM-DD>` to `<job_dir>/mr.md`, then
+   `git -C <checkout> fetch origin <base_branch>` (ignore a failure). For a registered project Record
+   (`{what}` = `merged`, local only); for a legacy job skip the record: the branch is gone after the merge and
+   `mr.md` sits in the job folder of the repository, so the `Merged:` line stays uncommitted. Stop: "merged; the
+   task is Done".
 
 ## `rework <slug> <note>`
 

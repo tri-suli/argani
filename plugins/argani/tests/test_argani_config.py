@@ -163,3 +163,44 @@ def test_worktree_command_accepts_its_placeholders(command):
 def test_worktree_command_rejects_other_placeholders_quotes_and_lines(command):
     with pytest.raises(ValueError):
         argani_config._worktree_command(command)
+
+
+def test_merge_policy_defaults_to_human_without_merge_command(tmp_path):
+    config = argani_config.load_config(tmp_path)
+    assert config["mergePolicy"] == "human"
+    assert config["mergeCommand"] is None
+
+
+@pytest.mark.parametrize("policy", ["human", "agent"])
+def test_merge_policy_accepts_human_and_agent(policy):
+    assert argani_config._merge_policy(policy) == policy
+
+
+@pytest.mark.parametrize("policy", ["Agent", "bot", "", True])
+def test_merge_policy_rejects_anything_else(policy):
+    with pytest.raises(ValueError):
+        argani_config._merge_policy(policy)
+
+
+def test_agent_merge_policy_needs_a_merge_command():
+    with pytest.raises(ValueError, match="mergePolicy agent needs mergeCommand"):
+        argani_config.validate_overrides({"mergePolicy": "agent"}, ".")
+    argani_config.validate_overrides({"mergePolicy": "agent", "mergeCommand": "gh pr merge {mr}"}, ".")
+    argani_config.validate_overrides({"mergePolicy": "human"}, ".")
+
+
+@pytest.mark.parametrize("command", ["gh pr merge {mr}", "tool {branch} {base} {mr}", "tool merge"])
+def test_merge_command_accepts_its_placeholders(command):
+    assert argani_config._merge_command(command) == command
+
+
+@pytest.mark.parametrize("command", ["tool {title}", "tool '{mr}'", "tool\nmerge", "  ", "tool {bodyFile}"])
+def test_merge_command_rejects_other_placeholders_quotes_and_lines(command):
+    with pytest.raises(ValueError):
+        argani_config._merge_command(command)
+
+
+def test_merge_command_for_quotes_the_values():
+    config = {"mergeCommand": "tool {mr}"}
+    assert argani_config.merge_command_for(config, {"mr": "a b"}) == "tool 'a b'"
+    assert argani_config.merge_command_for({"mergeCommand": None}, {"mr": "1"}) is None

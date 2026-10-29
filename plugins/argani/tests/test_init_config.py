@@ -304,3 +304,25 @@ def test_worktree_keys_are_carried_over_from_a_legacy_file(make_repo):
     assert result["proposal"]["worktreePath"] == ".wt/{branch}"
     assert result["proposal"]["worktreeCommand"] == "mk {path}"
     assert question(result, "worktreePath") is None
+
+
+def test_merge_policy_question_offers_human_and_agent(make_repo):
+    assert question(propose(make_repo()), "mergePolicy")["candidates"] == ["human", "agent"]
+
+
+@pytest.mark.parametrize("url, expected", [
+    ("git@github.com:o/r.git", "gh pr merge {mr} --rebase --delete-branch"),
+    ("https://gitlab.example.com/o/r.git", "glab mr merge {mr} --rebase --remove-source-branch --yes"),
+])
+def test_merge_command_follows_the_remote_host(make_repo, url, expected):
+    repo = make_repo()
+    git(repo, "remote", "add", "origin", url)
+    assert question(propose(repo), "mergeCommand")["candidates"] == [expected]
+
+
+def test_merge_keys_are_carried_over_from_a_legacy_file(make_repo):
+    repo = make_repo(config={"mergePolicy": "agent", "mergeCommand": "merge-tool {mr}"})
+    result = propose(repo)
+    assert result["proposal"]["mergePolicy"] == "agent"
+    assert result["proposal"]["mergeCommand"] == "merge-tool {mr}"
+    assert question(result, "mergePolicy") is None and question(result, "mergeCommand") is None

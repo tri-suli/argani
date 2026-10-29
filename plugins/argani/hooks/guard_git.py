@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse(Bash) guard: merging stays a human step.
+"""PreToolUse(Bash) guard: merging stays a human step unless the project's mergePolicy is agent.
 
 Held: a push that lands on a protected branch, a `git merge` while on a protected branch, and a
 PR/MR merge (`gh pr merge`, `glab mr merge`, a merge through `gh api` / `glab api`). Protected
@@ -7,6 +7,12 @@ branches are `protectedBranches` from the config, which always include `defaultB
 and the `baseBranchByType` branches. Main session -> ask; subagent (agent_type present) -> deny.
 Everything else, including pushing and pulling job branches and merging into them, is left to the
 repository's own rules.
+
+With `mergePolicy: agent` in the config of the repository acted on, a PR/MR merge and a
+`git merge` on a protected branch are not held, for the main session and subagents alike. A direct
+push to a protected branch stays held under both policies: the merge request is the audited path.
+The remote's own branch protection still applies. The read-only agent allowlist below is checked
+first and does not depend on the policy.
 
 The harness does not enforce the `Bash(...)` scoping in an agent's `tools`, so this guard does:
 reviewer and approver may only run read-only git; spec-writer may also run the plugin's scripts.
@@ -28,12 +34,18 @@ Scope and known limits (also in docs/review-protocol.md):
 import os
 import re
 import shlex
+from urllib.parse import unquote
 
 from hook_common import emit, run_guard, argani_config
+import project_registry
 
 KEYWORDS = ("push", "merge", "gh ", "glab ")
 # `gh api repos/o/r/pulls/1/merge`, `glab api projects/1/merge_requests/2/merge`
 API_MERGE_PATH = re.compile(r"/(pulls|merge_requests)/[^/\s]+/merge/?$")
+# a merge request URL (GitHub /pull/N, GitLab /-/merge_requests/N): group 1 is the repository URL
+MERGE_REQUEST_URL = re.compile(r"^(https?://.+?)(?:/-)?/(?:pull|pulls|merge_requests)/")
+GITHUB_API_REPO = re.compile(r"^/?repos/([^/]+/[^/]+)/pulls/")
+GITLAB_API_PROJECT = re.compile(r"^/?projects/([^/]+)/merge_requests/")
 SEPARATOR_CHARS = set("();|&<>")
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 PUSH_OPTIONS_WITH_VALUE = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
@@ -134,6 +146,29 @@ def _branch_target(config, branch):
     return None
 
 
+def _merge_outside_policy(tokens, remotes):
+    """Why a gh/glab merge is not covered by mergePolicy agent, else None: another repository
+    (`-R`, `--repo`, a URL or API path that is not this checkout's remote) or `--admin`, which
+    bypasses the remote's own protection. A bare number or `!N` is this repository's."""
+    for token in tokens:
+        if token == "--admin":
+            return "a merge with --admin, which bypasses the remote's branch protection"
+        if token in ("-R", "--repo") or token.startswith("--repo=") or (
+                token.startswith("-R") and not token.startswith("--")):
+            return "a merge in another repository (-R / --repo)"
+        if token.startswith(("http://", "https://")):
+            url = MERGE_REQUEST_URL.match(token)
+            if not url or project_registry.normalize_remote(url.group(1)) not in remotes:
+                return "a merge request that is not in this repository's remotes"
+        github = GITHUB_API_REPO.match(token)
+        gitlab = GITLAB_API_PROJECT.match(token)
+        repository = github.group(1) if github else unquote(gitlab.group(1)) if gitlab else None
+        if repository and not repository.isdigit() and not any(
+                remote.endswith("/" + repository.lower()) for remote in remotes):
+            return "an API merge in another repository"
+    return None
+
+
 def _push_target(args, config, current_branch):
     """How a violation names the protected branch this push writes to, else None."""
     positional, index = [], 0
@@ -217,7 +252,8 @@ class ChainAnalyzer:
         self.simulated = None  # (toplevel, branch) set by checkout/switch earlier in the chain
 
     def analyse(self, command):
-        """Return (description of the target, offending segment text) for the first violation."""
+        """Return (description of the target, offending segment text, whether mergePolicy is agent)
+        for the first violation."""
         for tokens in split_segments(command):
             match = self._check(_command_start(tokens))
             if match:
@@ -242,7 +278,12 @@ class ChainAnalyzer:
             pair = ["pr", "merge"] if program == "gh" else ["mr", "merge"]
             api_merge = "api" in tokens and any(API_MERGE_PATH.search(token) for token in tokens)
             if api_merge or any(tokens[i:i + 2] == pair for i in range(len(tokens) - 1)):
-                return _protected_names(argani_config.load_config(self.directory)), text
+                config = argani_config.load_config(self.directory)
+                if config["mergePolicy"] != argani_config.AGENT_MERGE_POLICY:
+                    return _protected_names(config), text, False
+                outside = _merge_outside_policy(
+                    tokens, project_registry.repository_remotes(self.directory))
+                return (outside, text, True) if outside else None
             return None
         if program == "git":
             return self._check_git(tokens[1:], text)
@@ -272,12 +313,15 @@ class ChainAnalyzer:
             # Without a valid config the protected branches are unknown, so every push and merge
             # is held, as the artifact guard does for writes.
             return (f"a branch that cannot be checked because .claude/argani.json is invalid "
-                    f"({config_error})"), text
+                    f"({config_error})"), text, False
+        agent_policy = config["mergePolicy"] == argani_config.AGENT_MERGE_POLICY
         if subcommand == "push":
             target = _push_target(args, config, current)
+        elif agent_policy:
+            return None
         else:
             target = _branch_target(config, current)
-        return (target, text) if target else None
+        return (target, text, agent_policy) if target else None
 
 
 def _is_read_only_git(tokens):
@@ -340,9 +384,11 @@ def guard(payload):
              "pushes or merges to a protected branch. Simplify the command or run it yourself.")
         return
     if match:
-        target, segment = match
-        emit(payload, "ask", f"argani guard: `{segment}` would merge into {target}. Merging is a human "
-             "step: push the job branch and open a merge request; a human merges it.")
+        target, segment, agent_policy = match
+        advice = ("push the job branch and merge through the merge request" if agent_policy
+                  else "push the job branch and open a merge request; a human merges it")
+        emit(payload, "ask", f"argani guard: `{segment}` would merge into {target}. "
+             f"Merging is a human step unless mergePolicy is agent: {advice}.")
 
 
 if __name__ == "__main__":

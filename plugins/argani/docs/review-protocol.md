@@ -73,7 +73,7 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
   `decision.md` and ignored for the verdict.
 - `human` is reserved: a configured reviewer may not be named `human`.
 - `ESCALATE` in `decision.md` stops the job and marks it as needing a human.
-- `APPROVE` still ends in a merge request, never a merge.
+- `APPROVE` still ends in a merge request, never a merge by an agent; with `mergePolicy: agent` the factory orchestrator merges it.
 
 ## One writer per file
 
@@ -191,7 +191,10 @@ The hooks are a guard against mistakes, not a sandbox. These are known and accep
 - The git guard holds only merging into a protected branch: a push whose destination is
   protected, a `git merge` while on a protected branch, and a PR/MR merge (`gh pr merge`,
   `glab mr merge`, or a merge through `gh api` / `glab api`). The main session is asked; every
-  subagent is denied. Pushing and pulling job branches, and merging into them, are left to the
+  subagent is denied. With `mergePolicy: agent` the PR/MR merges and `git merge` are not held (a push to a
+  protected branch still is). That includes `git merge` on a protected branch outside the factory flow;
+  "only the orchestrator merges" is then a rule of the skills. A merge with `--admin`, `-R`/`--repo`, or a
+  URL or API path of another repository is still held. Pushing and pulling job branches, and merging into them, are left to the
   repository's own rules, for the main session and every subagent alike. The branch is simulated
   through the command chain; shell expansions, aliases, `git -c` settings, `cd` to a directory
   that does not exist, repositories created inside the command, refspecs such as `:`, and encoded

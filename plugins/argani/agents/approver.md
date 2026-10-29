@@ -51,7 +51,7 @@ Write only `<Slug folder>/decision.md`:
   with one `- [ ] AC-n: <step>` per item, copied from it.
 - The last line is exactly `=== END OF DECISION ===`.
 
-`APPROVE` still ends in a merge request that a human merges.
+`APPROVE` still ends in a merge request that a human merges, or that the factory merges when the project's mergePolicy is agent.
 
 ## Rules
 

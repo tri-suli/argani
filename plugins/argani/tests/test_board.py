@@ -339,3 +339,18 @@ def test_all_from_unregistered_directory(project, hub, make_repo):
     project.task()
     result = run_board("--all", str(make_repo("loose")))
     assert result.returncode == 0 and "## demo" in result.stdout
+
+
+def test_merged_line_in_mr_md_is_done_without_a_local_checkout(make_repo, hub, register_project):
+    register_project("remote-only", **JOB_CONFIG)
+    folder = hub / "projects" / "remote-only" / "tasks" / "login"
+    folder.mkdir(parents=True)
+    (folder / "intent.md").write_text(INTENT.format(status=APPROVED))
+    (folder / "spec.md").write_text(SPEC.format(status=APPROVED))
+    (folder / "build.md").write_text(BUILD_DONE)
+    (folder / "review" / "round-1").mkdir(parents=True)
+    (folder / "review" / "round-1" / "review-code.md").write_text(f"PASS ok\n\n{REVIEW_END}\n")
+    (folder / "decision.md").write_text("APPROVE ok\n\n=== END OF DECISION ===\n")
+    (folder / "mr.md").write_text("url\nfeature/login\nMerged: 2026-10-29\n")
+    task = board.board(hub)["projects"][0]["tasks"][0]
+    assert (task["stage"], task["column"], task["merged"]) == ("done", "Done", True)

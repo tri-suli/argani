@@ -344,7 +344,7 @@ def test_mr_exists_is_done(job):
     job.write("mr.md", "https://example.test/mr/1\nargani/demo\n")
     state = job.state()
     assert state["stage"] == "done"
-    assert state["mr"] == {"exists": True}
+    assert state["mr"] == {"exists": True, "merged": False}
 
 
 def test_decision_escalate(job):
@@ -796,3 +796,42 @@ def test_the_folder_before_the_branch_never_makes_the_main_checkout_dirty(hub_jo
     assert hub_job.state()["dirty"] is False
     (hub_job.root / "stray.txt").write_text("x")
     assert hub_job.state()["dirty"] is True
+
+
+def finished_job(job, mr_text):
+    job.intent()
+    job.spec()
+    job.build()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    job.decision("APPROVE")
+    job.write("mr.md", mr_text)
+    return job.state()
+
+
+def test_merged_line_in_mr_md_marks_the_merge_request_merged(job):
+    state = finished_job(job, "https://example.test/mr/1\n\nMerged: 2026-10-29\n")
+    assert state["mr"] == {"exists": True, "merged": True}
+    assert state["stage"] == "done"
+
+
+@pytest.mark.parametrize("text", ["Merged: 2026-13-45\n", "Merged: soon\n", "not Merged: 2026-10-29\n", "Merged:\n"])
+def test_a_merged_line_needs_a_date_at_the_start_of_a_line(job, text):
+    assert finished_job(job, "https://example.test/mr/1\n" + text)["mr"]["merged"] is False
+
+
+def test_merge_policy_is_reported_and_defaults_to_human(job):
+    job.intent()
+    assert job.state()["merge_policy"] == "human"
+    job.set_config(mergePolicy="agent", mergeCommand="gh pr merge {mr}")
+    assert job.state()["merge_policy"] == "agent"
+
+
+def test_next_step_after_the_merge_request_depends_on_the_merge_policy(job):
+    human = finished_job(job, "https://example.test/mr/1\n")["next"]
+    assert "awaits human review" in human
+    job.set_config(mergePolicy="agent", mergeCommand="gh pr merge {mr}")
+    agent = job.state()
+    assert agent["stage"] == "done"
+    assert "mergeCommand" in agent["next"] and "Merged: <date>" in agent["next"]
+    job.write("mr.md", "https://example.test/mr/1\nMerged: 2026-10-29\n")
+    assert job.state()["next"] == "Nothing to do: the merge request is merged."

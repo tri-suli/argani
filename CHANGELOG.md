@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-29
+
+### Added
+
+- `mergePolicy` (`human` default, or `agent`) and `mergeCommand` (placeholders `{branch}`, `{base}`, `{mr}`; required by `agent`). With `agent`, the git guard no longer holds a merge request merge (`gh pr merge`, `glab mr merge`, the API merge paths) or a `git merge` on a protected branch, for the main session and subagents; a direct push to a protected branch stays held under both policies and the reviewer, approver and spec-writer allowlist is unchanged. After `APPROVE` the factory opens the merge request, runs the command printed by the new `scripts/merge_command.py <slug> [dir]` (the merge request URL or `!n`/`#n` is read from `mr.md`) and appends `Merged: <date>` to `mr.md`. The factory state reports `merge_policy` and `mr.merged`. `/argani:init` asks for both keys.
+
+### Changed
+
+- A task is Done on the board when `mr.md` has a `Merged: <YYYY-MM-DD>` line, or when its branch is merged in a local checkout as before. The `done` stage under `agent` with an unmerged `mr.md` tells the factory to run the merge step.
+
 ## [0.19.0] - 2026-10-28
 
 ### Added

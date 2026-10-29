@@ -107,7 +107,9 @@ def task_row(home, name, slug, checkout, config):
     except (ValueError, OSError) as error:
         return {**base, "stage": "error", "column": "Needs human", "branch": None,
                 "merged": None, "next": str(error)}
-    merged = branch_merged(checkout, state["branch"], state["base_branch"]) if state["stage"] == "done" else None
+    merged = None
+    if state["stage"] == "done":
+        merged = True if state["mr"]["merged"] else branch_merged(checkout, state["branch"], state["base_branch"])
     return {**base, "stage": state["stage"], "column": column(state["stage"], merged),
             "branch": state["branch"], "merged": merged, "next": state["next"]}
 

@@ -9,6 +9,7 @@ folder exists; exit 1 with a message for a bad slug or a missing folder; exit 2 
 config (including a reviewer named 'human', which is reserved). The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
 """
+import datetime
 import json
 import re
 import subprocess
@@ -24,10 +25,22 @@ CLOSING_REVIEW = "=== END OF REVIEW ==="
 CLOSING_DECISION = "=== END OF DECISION ==="
 MAX_ROUNDS = 2
 SLUG_PATTERN = argani_config.SLUG_PATTERN
+MERGED_LINE = re.compile(r"^Merged:\s*(\d{4}-\d{2}-\d{2})\s*$", re.MULTILINE)
 
 
 def read_text(path):
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def merged_date(mr_text):
+    """The date of the first valid `Merged: <YYYY-MM-DD>` line of mr.md, else None."""
+    for match in MERGED_LINE.finditer(mr_text):
+        try:
+            datetime.date.fromisoformat(match.group(1))
+        except ValueError:
+            continue
+        return match.group(1)
+    return None
 
 
 def read_lines(path):
@@ -197,6 +210,11 @@ def decide_stage(slug, config, intent, spec, build, rounds, decision, mr, build_
     reviewers = config["reviewers"]
     approve_spec = f"/argani:spec approve {slug} then /argani:factory {slug}"
     if mr["exists"]:
+        if mr["merged"]:
+            return "done", "Nothing to do: the merge request is merged.", None, None
+        if config["mergePolicy"] == argani_config.AGENT_MERGE_POLICY:
+            return ("done", "Merge the merge request with mergeCommand, then append `Merged: <date>` "
+                    "to mr.md and record.", None, None)
         return "done", "Nothing to do: mr.md exists and the merge request awaits human review.", None, None
     if intent["status"] != "approved":
         return ("needs-intent-approval",
@@ -326,7 +344,8 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
     rounds = collect_rounds(job_dir, reviewers)
     decision = decision_state(job_dir / "decision.md")
-    mr = {"exists": (job_dir / "mr.md").is_file()}
+    mr_file = job_dir / "mr.md"
+    mr = {"exists": mr_file.is_file(), "merged": mr_file.is_file() and merged_date(read_text(mr_file)) is not None}
 
     partial = []
     if build["exists"] and not build["complete"]:
@@ -369,6 +388,7 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
             "reviewers": {name: argani_config.agent_model(config, "reviewer", risk, name) for name in reviewers},
         },
         "protected_branches": config["protectedBranches"],
+        "merge_policy": config["mergePolicy"],
         "intent": intent,
         "spec": spec,
         "build": build,

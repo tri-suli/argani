@@ -33,6 +33,8 @@ DEFAULTS = {
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
+    "mergePolicy": "human",  # who merges the merge request after APPROVE: human or agent
+    "mergeCommand": None,  # merges the merge request when mergePolicy is agent
     "worktreePath": None,  # folder with {branch} for each job's own git worktree; None = work in the main checkout
     "worktreeCommand": None,  # creates the worktree; else argani runs git worktree add
     "branchPattern": "feature/{slug}",
@@ -133,6 +135,9 @@ QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
 MR_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{title}", "{bodyFile}")
 
 
+MERGE_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{mr}")
+MERGE_POLICIES = ("human", "agent")
+AGENT_MERGE_POLICY = "agent"
 WORKTREE_COMMAND_PLACEHOLDERS = ("{branch}", "{base}", "{path}", "{toplevel}")
 BRANCH_PLACEHOLDER = "{branch}"
 
@@ -153,6 +158,17 @@ def _command_with_placeholders(value, allowed):
 
 def _mr_command(value):
     return _command_with_placeholders(value, MR_COMMAND_PLACEHOLDERS)
+
+
+def _merge_command(value):
+    return _command_with_placeholders(value, MERGE_COMMAND_PLACEHOLDERS)
+
+
+def _merge_policy(value):
+    policy = _optional_string(value)
+    if policy not in MERGE_POLICIES:
+        raise ValueError(f"'{policy}' is not a merge policy; use {' or '.join(MERGE_POLICIES)}")
+    return policy
 
 
 def _worktree_command(value):
@@ -349,8 +365,10 @@ def glob_to_regex(pattern):
 
 
 def _check_cross_keys(config):
-    """Rules between keys ({type}, baseBranchByType, reviewerPaths); raises ValueError."""
+    """Rules between keys (mergePolicy, {type}, baseBranchByType, reviewerPaths); raises ValueError."""
     types = config["branchTypes"]
+    if config["mergePolicy"] == AGENT_MERGE_POLICY and not config["mergeCommand"]:
+        raise ValueError("mergePolicy agent needs mergeCommand, the command that merges the merge request")
     if TYPE_PLACEHOLDER in config["branchPattern"] and not types:
         raise ValueError(f"branchPattern uses {TYPE_PLACEHOLDER} but branchTypes is empty")
     unknown = [name for name in config["baseBranchByType"] if name not in types]
@@ -453,6 +471,8 @@ COERCERS = {
     "protectedBranches": _protected_branches,
     "verifyCommand": _optional_string,
     "mrCommand": _mr_command,
+    "mergePolicy": _merge_policy,
+    "mergeCommand": _merge_command,
     "worktreePath": _worktree_path,
     "worktreeCommand": _worktree_command,
     "branchPattern": _branch_pattern,
@@ -625,6 +645,11 @@ def fill_command(template, values):
 def mr_command_for(config, values):
     """The configured mrCommand filled by fill_command, or None when there is no mrCommand."""
     return fill_command(config["mrCommand"], values) if config["mrCommand"] else None
+
+
+def merge_command_for(config, values):
+    """The configured mergeCommand filled by fill_command, or None when there is no mergeCommand."""
+    return fill_command(config["mergeCommand"], values) if config["mergeCommand"] else None
 
 
 def worktree_folder(config):

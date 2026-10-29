@@ -49,6 +49,10 @@ into the repository.
    - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
      job branch and its base branch. Leave it out when the human wants to push and open merge
      requests themselves.
+   - `mergePolicy`: `human` (default, omit the key) keeps merging a human step; `agent` lets the factory
+     merge the merge request after APPROVE and then needs `mergeCommand` (candidates by host; keep `{mr}`
+     as it is, the factory fills it with the merge request URL or number from `mr.md`). Ask `mergeCommand`
+     only when the human picks `agent`. Branch protection on the remote still applies.
    - `worktreePath`: when asked, jobs run in their own git worktree under that pattern (`{branch}`
      stays as it is) and the factory never switches branches in the main checkout; remind the human to
      add the folder to `.gitignore`. `worktreeCommand` is optional (see `docs/config.md`).

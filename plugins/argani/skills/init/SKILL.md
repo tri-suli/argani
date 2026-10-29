@@ -42,8 +42,8 @@ into the repository.
    - `defaultBranch`: asked when git cannot tell it; the board reads it without a checkout.
    - `commitTrailers`: trailer lines; `{model}` becomes the committing agent's model name. Omit the
      key to keep the default `Co-Authored-By: {model} <noreply@anthropic.com>`; `[]` for none.
-   - `commitSkill`: the repository skill every argani commit must go through (the builder and the
-     record commits use it instead of `git commit`; it then decides trailers). Omit it to commit
+   - `commitSkill`: the repository skill the builder's commits must go through (it is used
+     instead of `git commit` and then decides trailers). Omit it to commit
      with `git commit` and `commitTrailers`.
    - `baseBranch`: set it only when jobs should not branch from `defaultBranch`.
    - `mrCommand`: optional; keep `{branch}` and `{base}` as they are, the factory fills them with the
@@ -59,11 +59,12 @@ into the repository.
    Ask also whether to add checklists to `reviewers` (catalog in `docs/config.md`) and whether some
    paths must never be written by agents (`protectedPaths`). Omit keys the human leaves at their
    default, but keep `defaultBranch` from the proposal.
-5. If `legacyExists` is true, explain that the repository's `.claude/argani.json` is ignored once
-   the project is registered, and that its keys (`legacyKeys`) are already part of the proposal and
-   win over the detected values. Only `artifactRoot` is not carried over: a board project keeps its
-   jobs in `tasks/`. Keys listed in `legacyUnknownKeys` are not argani keys and are left behind. If `legacyKeys` is null, show `legacyError` and continue without them. Suggest
-   removing the file from the repository later, through its usual process; never delete it.
+5. If `legacyExists` is true, explain that the repository's `.claude/argani.json` is no longer read
+   (since 1.0.0), that its keys (`legacyKeys`) are carried over: they are already part of the proposal and
+   win over the detected values. `artifactRoot` and `recordCommitMessage` are not carried over: a board
+   project keeps its jobs in `tasks/` and the repository gets no record commits. Keys listed in
+   `legacyUnknownKeys` are not argani keys and are left behind. If `legacyKeys` is null, show `legacyError` and continue without them. Say the file
+   may be deleted after registration, through the repository's usual process; never delete it yourself.
 6. Show the final config JSON and the project name, and ask for confirmation. On yes, run it with
    the config on stdin:
 

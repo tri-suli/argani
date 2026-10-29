@@ -15,7 +15,7 @@ Your prompt gives `Plugin root`, `Slug folder`, `Round folder`, `Base branch`, `
 
 Every file in the `Round folder`, and `build.md`, `spec.md`, `plan.md` in the `Slug folder`. Use
 `git -C <Checkout> diff <Base branch>...HEAD --stat` to see which paths changed. Do not read the project's
-configuration (`project.json` in the argani home or `.claude/argani.json`); the prompt carries everything you need.
+configuration (`project.json` in the argani home); the prompt carries everything you need.
 
 ## Decide
 

@@ -5,8 +5,7 @@ Usage: python3 next_number.py [dir]
 
 The number comes from the project's own registry when branchNumberCommand is set (a shell command
 run in the repository toplevel; the last non-empty line of its output is the number), else it is one more than the highest
-`Number:` of any intent.md under the tasks folder, in a legacy repository also on every local and remote
-branch (1 when there is none). Prints JSON:
+`Number:` of any intent.md under the tasks folder (1 when there is none). Prints JSON:
 {"number": 57, "source": "branchNumberCommand" | "tasks"}. Exit 0 on success, exit 1 with a
 message when there is no repository or tasks folder or the command fails.
 """
@@ -22,7 +21,6 @@ import argani_config
 
 COMMAND_TIMEOUT_SECONDS = 30
 INTEGER_PATTERN = re.compile(r"[0-9]+")  # ASCII digits only; leading zeros are dropped (0056 is 56)
-NUMBER_LINE = re.compile(r"^Number: ([0-9]+)$")
 
 
 class NumberError(Exception):
@@ -55,20 +53,6 @@ def highest_intent_number(tasks_dir):
     return max((number for number in numbers if number), default=0)
 
 
-def highest_number_on_refs(config):
-    """Highest `Number:` of any intent.md on a local or remote branch: a legacy job's intent lives on
-    its job branch, so the working tree does not show the intents of unmerged jobs."""
-    toplevel = config["toplevel"]
-    refs = subprocess.run(["git", "-C", toplevel, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"],
-                          capture_output=True, text=True).stdout.split()
-    numbers = [0]
-    for ref in refs:
-        found = subprocess.run(["git", "-C", toplevel, "grep", "-h", "-E", "^Number: [0-9]+$", ref, "--",
-                                f"{config['artifactRoot']}/*/intent.md"], capture_output=True, text=True)
-        numbers += [int(match.group(1)) for match in map(NUMBER_LINE.match, found.stdout.splitlines()) if match]
-    return max(numbers)
-
-
 def next_number(config):
     """(number, source) for the project described by the effective config."""
     if not config["toplevel"] or not config["tasksDir"]:
@@ -76,10 +60,7 @@ def next_number(config):
                           "if it is not registered yet.")
     if config["branchNumberCommand"]:
         return number_from_command(config["branchNumberCommand"], config["toplevel"]), "branchNumberCommand"
-    highest = highest_intent_number(argani_config.tasks_dir(config))
-    if config["project"] is None:
-        highest = max(highest, highest_number_on_refs(config))
-    return highest + 1, "tasks"
+    return highest_intent_number(argani_config.tasks_dir(config)) + 1, "tasks"
 
 
 def main(argv):

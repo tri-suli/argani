@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-29
+
+### Removed
+
+- The per-repository mode: `.claude/argani.json` is no longer read as a config source, so a repository without a registered project has no job folder. The keys `artifactRoot` and `recordCommitMessage` and `argani_config.record_commit_message()` are gone; record commits in the repository and the `job_dir_in_repo` field of the factory state are gone with them (the job folder is always in the argani home, `record_dir` is always the home and the orchestrator records only when the home is a git repository of its own). The builder never commits `plan.md` or `build.md`. `next_number.py` no longer scans branches for intents: the tasks source is the project's task folders. The artifact guard no longer knows artifact paths inside a repository: there it applies only `protectedPaths` and the one-writer rule (the reviewer, approver and spec-writer may write nothing in a repository).
+
+### Changed
+
+- An unregistered repository gets the default config plus the detected branches, `tasksDir` is `null`, and any script that loads the config prints one stderr line when `.claude/argani.json` exists: `argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init to register this repository (its keys are carried over)`. `factory_state.py` and `mr_description.py` exit 1 with `This repository is not registered; run /argani:init`, and `/argani:intent`, `/argani:spec` and `/argani:plan` stop. `worktreePath` no longer needs a registered project check, since every job has one.
+- `argani_config.read_legacy_file(path)` validates an old `.claude/argani.json` (the current keys plus `artifactRoot` and `recordCommitMessage`); only `/argani:init` (carry-over) and `/argani:import` (`artifactRoot`) still read it.
+- Hooks in a repository that is not registered: `protectedPaths`, `protectedBranches`, `baseBranch` and `mergePolicy` from `.claude/argani.json` are no longer enforced until `/argani:init` runs (only the detected default branch stays protected), and a broken `.claude/argani.json` no longer holds pushes or asks on writes, because it is ignored.
+- The spec eval case was updated to the hub layout and passes in the sandbox (its scaffold registers the repository in `$ARGANI_HOME`, else `~/.argani` of the sandbox, writes that path to `.argani-home-path` and links it as `.argani-home` for the graders). The `intent-produces-artifact` eval case is removed: the sandbox home is read-only outside the working directory, so a case that writes into the argani home cannot run there.
+- Without git (missing or masked), a folder is matched to a project by the registered `paths` of itself or its nearest registered ancestor; `argani_config.py` then reports the project and `tasksDir` with `toplevel` and `currentBranch` null.
+
+### Migration
+
+Run `/argani:init` in each repository that used `.claude/argani.json` (its keys are carried over) before relying on the upgraded plugin there, in particular where `protectedPaths` or `protectedBranches` were set; then `/argani:import` to move the old job folders (`argani/<slug>`) into the argani home, and afterwards delete the old folders and `.claude/argani.json` through the repository's normal process (a branch, a commit, a merge request). argani never deletes them.
+
 ## [0.21.0] - 2026-10-29
 
 ### Added

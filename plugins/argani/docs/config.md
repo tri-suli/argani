@@ -2,34 +2,37 @@
 
 Settings for the `argani` plugin. They live in the project's `project.json` in the [argani
 home](#argani-home), beside its identity keys (`name`, `remotes`, `paths`); the keys are the ones
-documented below. `.claude/argani.json` in the repository still works as a fallback for a
-repository that is not registered as a project, and 1.0.0 removes it. When a repository has both,
-the project wins and scripts print `argani: <toplevel>/.claude/argani.json is ignored; the project
-<name> is configured in <project file>` on stderr. A broken home or project registry never blocks
-a repository: it is ignored with a note on stderr, even in strict mode.
+documented below. A repository that is not registered as a project gets the defaults; the old
+per-repository `.claude/argani.json` is no longer read since 1.0.0, and scripts print `argani:
+.claude/argani.json is no longer read since 1.0.0; run /argani:init to register this repository
+(its keys are carried over)` on stderr when the file exists. When a registered repository still has
+the file, scripts print `argani: <toplevel>/.claude/argani.json is ignored; the project <name> is
+configured in <project file>`. A broken home or project registry never blocks a repository: it is
+ignored with a note on stderr, even in strict mode.
 
-The rest of this page says `.claude/argani.json` where it applies to either file. The file is
-optional; every key has a default, except that factory mode needs `verifyCommand`. `/argani:init` proposes the file from what the
-repository already uses (test command, branch prefixes, commitlint scopes, remote host), asks for
-the rest, writes it and validates it; it never overwrites an existing file and never commits.
+Every key is optional and has a default, except that factory mode needs `verifyCommand`.
+`/argani:init` proposes the config from what the repository already uses (test command, branch
+prefixes, commitlint scopes, remote host), asks for the rest, validates it and registers the
+project; it carries over the keys of an old `.claude/argani.json`, never overwrites an existing
+project and never commits.
 
 ## Location
 
-The file is `<repository toplevel>/.claude/argani.json`. The toplevel is found with
-`git -C <current working directory> rev-parse --show-toplevel`, **not** from `CLAUDE_PROJECT_DIR`,
-so the right file is used in worktrees and inside subagents. Scripts and hooks must resolve it
-through `scripts/argani_config.py`. Outside a git repository the defaults apply and `toplevel` is `null`.
+The file is `<home>/projects/<name>/project.json` (see [argani home](#argani-home)). The repository
+of a directory is found with `git -C <current working directory> rev-parse --show-toplevel`,
+**not** from `CLAUDE_PROJECT_DIR`, so the right project is used in worktrees and inside subagents.
+Scripts and hooks must resolve it through `scripts/argani_config.py`. Outside a git repository, and
+in a repository without a project, the defaults apply and `tasksDir` is `null`.
 
-If the file is unreadable, not valid JSON, or has a wrongly typed key, scripts and the git guard use
-the defaults (with a note on stderr) and keep checking: the default-branch guard still works. The
-artifact guard cannot check `protectedPaths` or a custom `artifactRoot` then, so it asks (main
-session) or denies (subagent) for every write inside the repository until the file is fixed.
+If the project file is unreadable, not valid JSON, or has a wrongly typed key, scripts and the git
+guard use the defaults (with a note on stderr) and keep checking: the default-branch guard still
+works. The artifact guard cannot check `protectedPaths` then, so it asks (main session) or denies
+(subagent) for every write inside the repository until the file is fixed.
 
 ## Keys
 
 | Key                   | Default                                               | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                           |
 |-----------------------|-------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `artifactRoot` ¹ | `"argani"`                                            | Folder (relative to the toplevel) holding the `<slug>/` job folders, for example `"docs/tasks"`. Must be relative, must not contain `..` and must not be under `.git`; surrounding slashes and `./` are dropped.                                                                                                                                                                                                                  |
 | `defaultBranch`       | detected                                              | The repository's main branch; always protected. Detected from `git symbolic-ref refs/remotes/origin/HEAD` (leading `origin/` removed), else a local `main`, else a local `master`, else `git config init.defaultBranch`, else `"main"`. A repository with both `main` and `master` and no `origin/HEAD` needs an explicit `defaultBranch`.                                                                                        |
 | `baseBranch`          | `defaultBranch`                                       | Branch the job branch is created from, the target of the merge request, and the base of every review diff (`<baseBranch>...HEAD`). Always protected.                                                                                                                                                                                                                                                                              |
 | `protectedBranches`   | `[]`                                                  | Further branches the git guard protects: pushing to them, merging into them and PR/MR merges are asked in the main session and denied for subagents; everything else follows the repository's own rules. Entries may be globs (`"release/*"`, matched with `fnmatch`, where `*` also matches `/`). The effective list always includes `defaultBranch` and `baseBranch`, so a repository can only add protection, never remove it. |
@@ -39,19 +42,16 @@ session) or denies (subagent) for every write inside the repository until the fi
 | `mrCommand`           | none                                                  | Command that opens the merge request. `{branch}` is the job branch, `{base}` its base branch (see `baseBranchByType`), `{title}` the title and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, nothing is pushed.                                                                                                                                                                                                                                                           |
 | `mergePolicy`         | `"human"`                                             | Who merges the merge request after `APPROVE`: `human` (merging stays a human step, held by the git guard) or `agent` (the factory merges with `mergeCommand`). `agent` requires `mergeCommand`; see Merge policy below. |
 | `mergeCommand`        | none                                                  | Command that merges the merge request when `mergePolicy` is `agent`. `{mr}` is the merge request URL or number written in `mr.md`, `{branch}` the job branch, `{base}` its base branch; all are shell-quoted by argani, so write them without quotes. Example: `gh pr merge {mr} --rebase --delete-branch` or `glab mr merge {mr} --rebase --remove-source-branch --yes`. |
-| `worktreePath`        | none                                                  | Worktree mode: a folder relative to the toplevel with `{branch}` exactly once, for example `".worktrees/{branch}"`. Each job runs in its own git worktree there; `{branch}` is the job branch with every `/` replaced by `-`. Must be relative, without `..`, not under `.git`, and its first segment must not hold `{branch}` (a folder like `.worktrees/` comes first). Only for a registered project. See "Worktree mode". |
+| `worktreePath`        | none                                                  | Worktree mode: a folder relative to the toplevel with `{branch}` exactly once, for example `".worktrees/{branch}"`. Each job runs in its own git worktree there; `{branch}` is the job branch with every `/` replaced by `-`. Must be relative, without `..`, not under `.git`, and its first segment must not hold `{branch}` (a folder like `.worktrees/` comes first). See "Worktree mode". |
 | `worktreeCommand`     | none                                                  | Command that creates the worktree. Runs in the session's working directory, so it must not depend on it: use `{toplevel}` (the main checkout) and `{path}` (the worktree), both absolute, for example `git -C {toplevel} worktree add -b {branch} {path} {base}`. Placeholders `{branch}`, `{base}`, `{path}` and `{toplevel}` (all optional), shell-quoted by argani like `mrCommand`. Without it argani runs `git -C <main checkout> worktree add -b <branch> <path> <base>`; `git worktree add <path> <branch>` when the branch exists; `git worktree add --track -b <branch> <path> origin/<branch>` when only the remote has it. Used with `worktreePath`. |
 | `branchPattern`       | `"feature/{slug}"`                                    | Name of the job branch; `{slug}` is replaced by the job's slug and must appear exactly once. The result must be a valid git branch name and must not be a protected branch. Set the prefix or structure your repository uses, for example `"feat/{slug}"` or `"{slug}"`. It may also contain `{type}` once, filled from the intent's `Type:` line; that needs `branchTypes`. It may contain `{n}` at most once, filled from the intent's `Number:` line (see Job numbers).                                                      |
-| `recordCommitMessage` | `"chore(argani): record {slug} {what}"`               | Legacy only¹: subject of the commits the factory orchestrator makes to record the job folder in the repository. `{what}` must appear exactly once and becomes `artifacts before build`, `round <N> reviews`, `decision` or `merge request`; `{slug}` is optional. Set it to a type and scope your commit rules accept, for example `"chore(repo): record {slug} {what}"`.                                                                                         |
-| `commitTrailers`   | `["Co-Authored-By: {model} <noreply@anthropic.com>"]` | Git trailers added to the builder's code commits and to legacy record commits in the repository; record commits in the argani home carry none. `{model}` is replaced by the name of the model that makes the commit (for example `Claude Sonnet 5.5`), so the trailer stays right when sessions or agents use different models; it is the only placeholder. Each entry must look like `Key: value`. `[]` means no trailer at all.                                                                      |
+| `commitTrailers`   | `["Co-Authored-By: {model} <noreply@anthropic.com>"]` | Git trailers added to the builder's code commits; record commits in the argani home carry none. `{model}` is replaced by the name of the model that makes the commit (for example `Claude Sonnet 5.5`), so the trailer stays right when sessions or agents use different models; it is the only placeholder. Each entry must look like `Key: value`. `[]` means no trailer at all.                                                                      |
 | `branchNumberCommand` | none                                                  | A one-line shell command, run in the repository toplevel, that prints the next job number (the first integer on stdout); used with `{n}` in `branchPattern`. Without it argani counts from the existing intents. |
 | `branchTypes`         | `[]`                                                  | Job types an intent may name in its `Type:` header line, for example `["feature", "bugfix", "hotfix"]`. Required when `branchPattern` contains `{type}`; when set, every intent needs a `Type:` from this list. Letters, digits, `.`, `_` and `-` only.                                                                                                                                                                           |
 | `baseBranchByType`    | `{}`                                                  | Base branch per job type, for types that do not start from `baseBranch`, for example `{"hotfix": "main"}`. Keys must be listed in `branchTypes`; every value is protected like `baseBranch`.                                                                                                                                                                                                                                      |
-| `commitSkill`         | none                                                  | A repository skill (for example `"git-commit"`) through which every argani commit is made: the builder's commits and the orchestrator's record commits use it instead of `git commit`, and it decides staging, scope and trailers, so `commitTrailers` is not added on top. Without it, argani commits with `git commit`.                                                                                                         |
+| `commitSkill`         | none                                                  | A repository skill (for example `"git-commit"`) through which every argani commit is made: the builder's commits use it instead of `git commit`, and it decides staging, scope and trailers, so `commitTrailers` is not added on top. Without it, argani commits with `git commit`.                                                                                                         |
 | `agentModels`         | see below                                             | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"|"medium"|"high": ...}`. Keys are `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below).                                  |
 | `reviewerPaths`       | `{}`                                                  | Path globs per checklist (same syntax as `protectedPaths`), for example `{"security": ["src/auth/**"]}`. A checklist listed here runs only when the job's diff touches one of its globs; the others always run. Keys must be listed in `reviewers`.                                                                                                                                                                               |
-
-¹ Legacy only: `artifactRoot` and `recordCommitMessage` apply to the per-repository `.claude/argani.json`. A project registered in the argani home keeps its jobs in `tasks/` and the factory records them in the home's git repository with a fixed message, so `register_project.py` refuses both keys and `/argani:init` does not carry them over. `/argani:import` moves existing legacy jobs to the project's task folder.
 
 Branch names in `defaultBranch`, `baseBranch` and `protectedBranches` are trimmed and lose a
 `refs/heads/` prefix. A name that git rejects, a glob outside `protectedBranches`, or a name that
@@ -119,14 +119,12 @@ covered.
 
 ```json
 {
-  "artifactRoot": "argani",
   "defaultBranch": "main",
   "verifyCommand": "npm test",
   "reviewers": ["code", "security", "compliance"],
   "protectedPaths": ["raw/**", "archive/**"],
   "mrCommand": "gh pr create --base main --head {branch} --title {title} --body-file {bodyFile}",
   "branchPattern": "feature/{slug}",
-  "recordCommitMessage": "chore(argani): record {slug} {what}",
   "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"]
 }
 ```
@@ -176,8 +174,8 @@ in the branch. `/argani:intent` assigns it once, when the intent is written, wit
 afterwards. `next_number.py` prints `{"number": 57, "source": ...}`: it runs `branchNumberCommand`
 when set (the project's own registry), else it is one more than the highest `Number:` of the
 intents in the tasks folder; the last non-empty line the command prints must be a positive integer
-(`0056` is 56). The `tasks` source counts only intents that exist: for a registered project the
-project's task folders, for a legacy repository the working tree and every local and remote branch.
+(`0056` is 56). The `tasks` source counts only intents that exist: the
+project's task folders.
 Two intents written at the same time can get the same number, so a registry command is the safe
 choice for teams. argani never reuses a number, but deleting an intent frees its number. Adding `{n}`
 to an existing project makes running jobs invalid until their intent gets a `Number:` line, and their
@@ -199,9 +197,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py [dir]
 ```
 
 Prints the merged configuration as JSON, plus `toplevel` and `currentBranch`, the `project` name
-(`null` for a legacy repository), the `home`, and `tasksDir`, the folder of the job folders:
-`<home>/projects/<name>/tasks` for a project, `<toplevel>/<artifactRoot>` for a legacy repository,
-`null` outside git. The identity keys are never part of it. `load_project_config()` reads a project
+(`null` for a repository without a project), the `home`, and `tasksDir`, the folder of the job folders:
+`<home>/projects/<name>/tasks` for a project, `null` without a project or outside git. The identity keys are never part of it. `load_project_config()` reads a project
 without git, so it cannot reject remote-prefixed branch names such as `origin/develop`; write plain
 branch names. `null` values are
 ignored and types are checked (`reviewers` and `protectedPaths` must be lists of strings, the other

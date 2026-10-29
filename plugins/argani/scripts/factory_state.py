@@ -3,9 +3,9 @@
 
 Usage: python3 factory_state.py <slug> [dir]
 
-The job folder is found through the config of the repository in dir: the project's task folder
-in the argani home, or (legacy) the artifact root of the repository. Prints JSON. Reads files and git only, never writes. Exit 0 whenever the slug
-folder exists; exit 1 with a message for a bad slug or a missing folder; exit 2 for an invalid
+The job folder is found through the config of the repository in dir: the task folder of its
+project in the argani home. Prints JSON. Reads files and git only, never writes. Exit 0 whenever the
+slug folder exists; exit 1 with a message for a bad slug, an unregistered repository or a missing folder; exit 2 for an invalid
 config (including a reviewer named 'human', which is reserved). The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
 """
@@ -138,9 +138,8 @@ def stale_worktree(entries, branch):
 
 
 def is_dirty(toplevel, excluded_folders):
-    """Uncommitted changes outside the excluded folders (the job folder and, for a registered
-    project, the argani home: their files are expected to be untracked); folders outside the
-    repository need no exclusion."""
+    """Uncommitted changes outside the excluded folders (the job folder and the argani home: their
+    files are expected to be untracked); folders outside the repository need no exclusion."""
     command = ["git", "--no-optional-locks", "-C", str(toplevel), "status", "--porcelain"]
     excludes = [f":(exclude){folder.relative_to(toplevel)}" for folder in excluded_folders
                 if is_inside(folder, toplevel)]
@@ -167,7 +166,7 @@ def excluded_folders(config, job_dir, main_checkout=None):
     registered project and the folder holding the worktrees (an unignored worktree folder)."""
     folder = argani_config.worktree_folder(config)
     worktrees = [Path(main_checkout) / folder] if folder and main_checkout else []
-    return [job_dir, *([Path(config["home"]).resolve()] if config["project"] else []), *worktrees]
+    return [job_dir, Path(config["home"]).resolve(), *worktrees]
 
 
 def review_plan(rounds, reviewers, build_text):
@@ -277,11 +276,9 @@ def spawn_builder(create_worktree, new=False):
 
 
 def records_enabled(config):
-    """True when the orchestrator records the job folder with git: legacy always (the repository
-    itself); a registered project only when the user keeps the argani home under git as a
-    repository of its own (argani never runs git init there), not as a folder inside another one."""
-    if not config["project"]:
-        return True
+    """True when the orchestrator records the job folder with git: only when the user keeps the
+    argani home under git as a repository of its own (argani never runs git init there), not as a
+    folder inside another one."""
     return argani_home.is_own_repository(Path(config["home"]))
 
 
@@ -300,9 +297,6 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     if job_dir is None or not job_dir.is_dir():
         return None
     toplevel = Path(config["toplevel"]).resolve() if config["toplevel"] else None
-    if config["worktreePath"] and config["project"] is None:
-        raise ValueError("worktreePath is only supported for a registered project "
-                         "(legacy jobs keep their artifacts on the branch)")
     intent = document_state(job_dir / "intent.md", "Intent", config["branchTypes"],
                            argani_config.NUMBER_PLACEHOLDER in config["branchPattern"])
     intent_path = job_dir / "intent.md"
@@ -363,11 +357,10 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     return {
         "slug": slug,
         "project": config["project"],
-        "home": config["home"] if config["project"] else None,
+        "home": config["home"],
         "job_dir": str(job_dir),
-        "job_dir_in_repo": config["project"] is None and bool(toplevel) and is_inside(job_dir, toplevel),
         "records_enabled": records_enabled(config) if with_working_tree else None,
-        "record_dir": config["home"] if config["project"] else (str(toplevel) if toplevel else None),
+        "record_dir": config["home"],
         "type": job_type,
         "number": number,
         "branch": branch,
@@ -404,14 +397,6 @@ def build_state(slug, start_dir=".", config=None, with_working_tree=True):
     }
 
 
-def missing_job_branch_hint(config, slug):
-    """The job branch to suggest when the job folder is missing; `<type>` when the type is unknown."""
-    try:
-        return argani_config.job_branch(config, slug)
-    except ValueError:
-        return config["branchPattern"].replace("{slug}", slug).replace("{type}", "<type>").replace("{n}", "<n>")
-
-
 def main(argv):
     if len(argv) not in (2, 3):
         print(__doc__.strip(), file=sys.stderr)
@@ -427,15 +412,10 @@ def main(argv):
         print(f"argani: invalid config: {error}")
         return 2
     if state is None:
-        if not config["tasksDir"]:
-            print("Not inside a project repository; open the repository and run /argani:init "
-                  "if it is not registered yet.")
-            return 1
-        message = f"No job folder for slug '{argv[1]}' under {config['tasksDir']}."
         if not config["project"]:
-            branch = missing_job_branch_hint(config, argv[1])
-            message += f" After the first build the artifacts live on the job branch: try 'git switch {branch}'."
-        print(message)
+            print("This repository is not registered; run /argani:init")
+            return 1
+        print(f"No job folder for slug '{argv[1]}' under {config['tasksDir']}.")
         return 1
     print(json.dumps(state, indent=2))
     return 0

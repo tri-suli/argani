@@ -26,7 +26,7 @@ Scope and known limits (also in docs/review-protocol.md):
   <remote>/<branch>`; a branch that exists only on one remote). `checkout <tree-ish> -- <paths>`
   does not move HEAD. A switch whose result cannot be determined (`-`, a commit) makes any later
   push or merge in the chain held.
-- An invalid `.claude/argani.json` holds every push and merge, since the protected branches are
+- An invalid project configuration (project.json in the argani home) holds every push and merge, since the protected branches are
   unknown.
 - `bash|sh|zsh -c "<cmd>"` is analysed recursively. `xargs`, `eval`, `git branch -f`,
   `git update-ref` and heredoc writes are not caught.
@@ -312,7 +312,7 @@ class ChainAnalyzer:
         if config_error:
             # Without a valid config the protected branches are unknown, so every push and merge
             # is held, as the artifact guard does for writes.
-            return (f"a branch that cannot be checked because .claude/argani.json is invalid "
+            return (f"a branch that cannot be checked because the project configuration is invalid "
                     f"({config_error})"), text, False
         agent_policy = config["mergePolicy"] == argani_config.AGENT_MERGE_POLICY
         if subcommand == "push":

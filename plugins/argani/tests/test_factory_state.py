@@ -77,28 +77,12 @@ REVIEW_END = "=== END OF REVIEW ==="
 JOB_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code", "security"]}
 
 
-@pytest.fixture(params=["legacy", "hub"])
-def job(request, make_repo, hub, register_project):
-    """A repo with a helper for writing artifacts: under argani/demo/ (legacy) or in the task
-    folder of the registered project demo (hub)."""
-    return build_job(request.param, make_repo, hub, register_project)
-
-
 @pytest.fixture
-def hub_job(make_repo, hub, register_project):
-    return build_job("hub", make_repo, hub, register_project)
-
-
-def build_job(mode, make_repo, hub, register_project):
-    if mode == "legacy":
-        repo = make_repo(config=JOB_CONFIG)
-        git(repo, "add", ".claude")
-        git(repo, "commit", "-q", "-m", "config")
-        folder = repo / "argani" / "demo"
-    else:
-        repo = make_repo()
-        register_project("demo", paths=[str(repo)], **JOB_CONFIG)
-        folder = hub / "projects" / "demo" / "tasks" / "demo"
+def job(make_repo, hub, register_project):
+    """A repo registered as the project demo, with a helper for writing artifacts in its task folder."""
+    repo = make_repo()
+    register_project("demo", paths=[str(repo)], **JOB_CONFIG)
+    folder = hub / "projects" / "demo" / "tasks" / "demo"
     folder.mkdir(parents=True)
 
     class Job:
@@ -106,13 +90,11 @@ def build_job(mode, make_repo, hub, register_project):
         root = repo
 
         def __init__(self):
-            self.mode = mode
             self.hub = hub
 
         def set_config(self, **changes):
-            """Change the config in the file that holds it in this mode."""
-            file = (repo / ".claude" / "argani.json" if mode == "legacy"
-                    else hub / "projects" / "demo" / "project.json")
+            """Change the config in the project.json of the project."""
+            file = hub / "projects" / "demo" / "project.json"
             file.write_text(json.dumps({**json.loads(file.read_text()), **changes}))
 
         def write(self, name, text):
@@ -358,7 +340,7 @@ def test_decision_escalate(job):
 
 def test_config_reviewers_override(make_repo):
     repo = make_repo(config={"reviewers": ["compliance"]})
-    folder = repo / "argani" / "demo"
+    folder = Path(argani_config.load_config(repo)["tasksDir"]) / "demo"
     (folder / "review" / "round-1").mkdir(parents=True)
     (folder / "intent.md").write_text(INTENT.format(status=APPROVED))
     (folder / "spec.md").write_text(SPEC.format(status=APPROVED))
@@ -547,22 +529,17 @@ def test_reserved_human_reviewer_exits_two(job):
     assert "human" in result.stdout
 
 
-def test_missing_folder_suggests_job_branch(job):
+def test_missing_folder_names_the_tasks_folder(job):
     result = job.run("other")
     assert result.returncode == 1
     assert str(job.path.parent) in result.stdout
-    assert ("git switch feature/other" in result.stdout) == (job.mode == "legacy")
+    assert "git switch" not in result.stdout
 
 
 def test_state_names_the_project_and_where_the_job_is_recorded(job):
     state = job.state()
-    if job.mode == "hub":
-        assert (state["project"], state["home"], state["record_dir"]) == ("demo", str(job.hub), str(job.hub))
-        assert state["job_dir_in_repo"] is False
-    else:
-        assert (state["project"], state["home"]) == (None, None)
-        assert state["record_dir"] == str(job.root.resolve())
-        assert state["job_dir_in_repo"] is True
+    assert (state["project"], state["home"], state["record_dir"]) == ("demo", str(job.hub), str(job.hub))
+    assert "job_dir_in_repo" not in state
     assert state["job_dir"] == str(job.path)
 
 
@@ -573,8 +550,7 @@ def test_hub_artifacts_do_not_make_the_repository_dirty_and_repo_changes_still_d
     assert job.state()["dirty"] is True
 
 
-def test_recording_the_job_folder_in_the_hub_leaves_the_repository_clean(hub_job):
-    job = hub_job
+def test_recording_the_job_folder_in_the_hub_leaves_the_repository_clean(job):
     git(job.hub, "init", "-q")  # recording is opt-in: the user makes the home a repository
     prepare(job)
     git(job.hub, "add", "--", str(job.path))
@@ -586,8 +562,7 @@ def test_recording_the_job_folder_in_the_hub_leaves_the_repository_clean(hub_job
                           capture_output=True, text=True).stdout == ""
 
 
-def test_state_without_a_checkout_uses_the_project_config(hub_job):
-    job = hub_job
+def test_state_without_a_checkout_uses_the_project_config(job):
     prepare(job)
     job.round(1, {"code": "PASS", "security": "PASS"})
     config = argani_config.load_project_config(job.hub, "demo")
@@ -599,8 +574,7 @@ def test_state_without_a_checkout_uses_the_project_config(hub_job):
     assert state["record_dir"] == str(job.hub)
 
 
-def test_state_without_a_checkout_and_without_a_job_folder_is_none(hub_job):
-    job = hub_job
+def test_state_without_a_checkout_and_without_a_job_folder_is_none(job):
     config = argani_config.load_project_config(job.hub, "demo")
     assert factory_state.build_state("other", config=config) is None
 
@@ -609,8 +583,7 @@ def git_in_home(job, *args):
     return subprocess.run(["git", "-C", str(job.hub), *args], capture_output=True, text=True, check=True).stdout
 
 
-def test_the_skills_hub_record_commits_exactly_the_job_folder_and_project_json(hub_job):
-    job = hub_job
+def test_the_skills_hub_record_commits_exactly_the_job_folder_and_project_json(job):
     git(job.hub, "init", "-q")  # recording is opt-in: the user makes the home a repository
     prepare(job)
     (job.hub / "unrelated.txt").write_text("left alone")
@@ -626,8 +599,7 @@ def test_the_skills_hub_record_commits_exactly_the_job_folder_and_project_json(h
     assert job.state()["dirty"] is False
 
 
-def test_records_are_enabled_only_when_the_user_made_the_home_a_repository_of_its_own(hub_job, tmp_path):
-    job = hub_job
+def test_records_are_enabled_only_when_the_user_made_the_home_a_repository_of_its_own(job, tmp_path):
     assert job.state()["records_enabled"] is False  # argani never runs git init in the home
     git(job.hub, "init", "-q")
     assert job.state()["records_enabled"] is True
@@ -643,12 +615,6 @@ def test_records_are_enabled_only_when_the_user_made_the_home_a_repository_of_it
     assert factory_state.build_state("demo", config=config)["records_enabled"] is True
 
 
-def test_legacy_records_are_always_enabled(make_repo):
-    repo = make_repo(config=JOB_CONFIG)
-    (repo / "argani" / "demo").mkdir(parents=True)
-    assert factory_state.build_state("demo", str(repo))["records_enabled"] is True
-
-
 def test_a_home_inside_the_repository_neither_dirties_it_nor_counts_as_the_job_folder(make_repo, monkeypatch):
     repo = make_repo()
     inner = repo / ".argani"
@@ -659,19 +625,10 @@ def test_a_home_inside_the_repository_neither_dirties_it_nor_counts_as_the_job_f
         json.dumps({"name": "demo", "remotes": [], "paths": [str(repo)], **JOB_CONFIG}))
     (inner / "projects" / "demo" / "tasks" / "demo").mkdir(parents=True)
     state = factory_state.build_state("demo", str(repo))
-    assert state["job_dir_in_repo"] is False
+    assert state["job_dir"] == str(inner / "projects" / "demo" / "tasks" / "demo")
     assert state["dirty"] is False
     (repo / "stray.txt").write_text("x")
     assert factory_state.build_state("demo", str(repo))["dirty"] is True
-
-
-def test_a_symlinked_artifact_root_is_reported_as_configured(make_repo):
-    repo = make_repo(config={**JOB_CONFIG, "artifactRoot": "link"})
-    target = repo / "real"
-    (target / "demo").mkdir(parents=True)
-    (repo / "link").symlink_to(target)
-    state = factory_state.build_state("demo", str(repo))
-    assert state["job_dir"] == str(repo / "link" / "demo")
 
 
 def test_outside_a_repository_the_message_points_to_init(tmp_path):
@@ -683,8 +640,17 @@ def test_outside_a_repository_the_message_points_to_init(tmp_path):
     assert "None" not in result.stdout and "git switch" not in result.stdout
 
 
-def test_without_working_tree_skips_status_and_branch_calls(hub_job, monkeypatch):
-    hub_job.intent()
+def test_an_unregistered_repository_exits_one_with_the_init_hint(make_repo):
+    repo = make_repo()
+    (repo / "argani" / "demo").mkdir(parents=True)  # an old job folder is not a job any more
+    result = subprocess.run([sys.executable, str(SCRIPT), "demo", str(repo)], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert result.stdout.strip() == "This repository is not registered; run /argani:init"
+    assert factory_state.build_state("demo", str(repo)) is None
+
+
+def test_without_working_tree_skips_status_and_branch_calls(job, monkeypatch):
+    job.intent()
     calls = []
     real_run = subprocess.run
 
@@ -693,9 +659,9 @@ def test_without_working_tree_skips_status_and_branch_calls(hub_job, monkeypatch
         return real_run(command, *args, **kwargs)
 
     monkeypatch.setattr(subprocess, "run", spy)
-    config = argani_config.load_project_config(hub_job.hub, "demo")
-    config["toplevel"] = str(hub_job.root)
-    state = factory_state.build_state("demo", str(hub_job.root), config=config, with_working_tree=False)
+    config = argani_config.load_project_config(job.hub, "demo")
+    config["toplevel"] = str(job.root)
+    state = factory_state.build_state("demo", str(job.root), config=config, with_working_tree=False)
     assert state["dirty"] is None and state["current_branch"] is None and state["records_enabled"] is None
     assert not any("status" in command for command in calls)
 
@@ -708,94 +674,87 @@ def add_worktree(repo, branch="feature/demo", folder="feature-demo"):
     return (repo / ".worktrees" / folder).resolve()
 
 
-def test_worktree_mode_without_a_worktree_asks_to_create_it(hub_job):
-    hub_job.set_config(**WORKTREE_CONFIG)
-    hub_job.intent()
-    hub_job.spec()
-    state = hub_job.state()
+def test_worktree_mode_without_a_worktree_asks_to_create_it(job):
+    job.set_config(**WORKTREE_CONFIG)
+    job.intent()
+    job.spec()
+    state = job.state()
     assert state["worktree_mode"] is True
-    assert state["worktree_path"] == str(hub_job.root.resolve() / ".worktrees" / "feature-demo")
+    assert state["worktree_path"] == str(job.root.resolve() / ".worktrees" / "feature-demo")
     assert (state["checkout"], state["on_job_branch"], state["current_branch"], state["dirty"]) == (None, False, None, None)
     assert state["next"].startswith(f"Create the worktree {state['worktree_path']} for feature/demo, then spawn argani:builder")
 
 
-def test_worktree_mode_evaluates_the_worktree_not_the_main_checkout(hub_job):
-    hub_job.set_config(**WORKTREE_CONFIG)
-    hub_job.intent()
-    hub_job.spec()
-    worktree = add_worktree(hub_job.root)
-    state = hub_job.state()
+def test_worktree_mode_evaluates_the_worktree_not_the_main_checkout(job):
+    job.set_config(**WORKTREE_CONFIG)
+    job.intent()
+    job.spec()
+    worktree = add_worktree(job.root)
+    state = job.state()
     assert state["checkout"] == str(worktree)
     assert (state["on_job_branch"], state["current_branch"], state["dirty"]) == (True, "feature/demo", False)
     assert state["next"].startswith("Spawn argani:builder")
-    (hub_job.root / "stray.txt").write_text("x")
-    assert hub_job.state()["dirty"] is False
+    (job.root / "stray.txt").write_text("x")
+    assert job.state()["dirty"] is False
     (worktree / "stray.txt").write_text("x")
-    assert hub_job.state()["dirty"] is True
+    assert job.state()["dirty"] is True
 
 
-def test_the_main_checkout_holding_the_branch_is_the_checkout(hub_job):
-    hub_job.set_config(**WORKTREE_CONFIG)
-    hub_job.intent()
-    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
-    (hub_job.root / ".worktrees").mkdir()
-    (hub_job.root / ".worktrees" / "note.txt").write_text("x")
-    state = hub_job.state()
-    assert state["checkout"] == str(hub_job.root.resolve())
+def test_the_main_checkout_holding_the_branch_is_the_checkout(job):
+    job.set_config(**WORKTREE_CONFIG)
+    job.intent()
+    git(job.root, "switch", "-q", "-c", "feature/demo")
+    (job.root / ".worktrees").mkdir()
+    (job.root / ".worktrees" / "note.txt").write_text("x")
+    state = job.state()
+    assert state["checkout"] == str(job.root.resolve())
     assert state["dirty"] is False  # the unignored worktree folder does not count
 
 
-def test_without_worktree_mode_the_checkout_is_the_toplevel_on_the_job_branch(hub_job):
-    hub_job.intent()
-    assert hub_job.state()["checkout"] is None
-    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
-    state = hub_job.state()
-    assert (state["worktree_mode"], state["worktree_path"], state["checkout"]) == (False, None, str(hub_job.root.resolve()))
+def test_without_worktree_mode_the_checkout_is_the_toplevel_on_the_job_branch(job):
+    job.intent()
+    assert job.state()["checkout"] is None
+    git(job.root, "switch", "-q", "-c", "feature/demo")
+    state = job.state()
+    assert (state["worktree_mode"], state["worktree_path"], state["checkout"]) == (False, None, str(job.root.resolve()))
 
 
-def test_worktree_mode_needs_a_registered_project(make_repo):
-    repo = make_repo(config={**JOB_CONFIG, **WORKTREE_CONFIG})
-    (repo / "argani" / "demo").mkdir(parents=True)
-    with pytest.raises(ValueError, match="only supported for a registered project"):
-        factory_state.build_state("demo", str(repo))
-
-
-def test_the_state_is_the_same_from_any_worktree(hub_job):
-    hub_job.set_config(**WORKTREE_CONFIG)
-    hub_job.intent()
-    add_worktree(hub_job.root)
-    other = add_worktree(hub_job.root, "other", "other")
-    from_main = hub_job.state()
+def test_the_state_is_the_same_from_any_worktree(job):
+    job.set_config(**WORKTREE_CONFIG)
+    job.intent()
+    add_worktree(job.root)
+    other = add_worktree(job.root, "other", "other")
+    from_main = job.state()
     from_other = json.loads(subprocess.run([sys.executable, str(SCRIPT), "demo", str(other)],
                                            capture_output=True, text=True).stdout)
     keys = ("worktree_path", "checkout", "main_checkout", "on_job_branch", "dirty")
     assert {key: from_other[key] for key in keys} == {key: from_main[key] for key in keys}
-    assert from_main["main_checkout"] == str(hub_job.root.resolve())
+    assert from_main["main_checkout"] == str(job.root.resolve())
 
 
-def test_a_stale_worktree_is_reported_not_used(hub_job):
-    hub_job.set_config(**WORKTREE_CONFIG)
-    hub_job.intent()
-    hub_job.spec()
-    worktree = add_worktree(hub_job.root)
+def test_a_stale_worktree_is_reported_not_used(job):
+    job.set_config(**WORKTREE_CONFIG)
+    job.intent()
+    job.spec()
+    worktree = add_worktree(job.root)
     shutil.rmtree(worktree)
-    state = hub_job.state()
+    state = job.state()
     assert (state["checkout"], state["on_job_branch"]) == (None, False)
     assert state["next"] == (f"Stop: the worktree {worktree} is stale; run `git worktree prune` in "
-                             f"{hub_job.root.resolve()}, then re-run.")
+                             f"{job.root.resolve()}, then re-run.")
 
 
 @pytest.mark.parametrize("pattern, folder", [(".worktrees/{branch}", ".worktrees"),
                                              (".claude/worktrees/{branch}", ".claude/worktrees")])
-def test_the_folder_before_the_branch_never_makes_the_main_checkout_dirty(hub_job, pattern, folder):
-    hub_job.set_config(worktreePath=pattern)
-    hub_job.intent()
-    git(hub_job.root, "switch", "-q", "-c", "feature/demo")
-    (hub_job.root / folder).mkdir(parents=True)
-    (hub_job.root / folder / "note.txt").write_text("x")
-    assert hub_job.state()["dirty"] is False
-    (hub_job.root / "stray.txt").write_text("x")
-    assert hub_job.state()["dirty"] is True
+def test_the_folder_before_the_branch_never_makes_the_main_checkout_dirty(job, pattern, folder):
+    job.set_config(worktreePath=pattern)
+    job.intent()
+    git(job.root, "switch", "-q", "-c", "feature/demo")
+    (job.root / folder).mkdir(parents=True)
+    (job.root / folder / "note.txt").write_text("x")
+    assert job.state()["dirty"] is False
+    (job.root / "stray.txt").write_text("x")
+    assert job.state()["dirty"] is True
 
 
 def finished_job(job, mr_text):

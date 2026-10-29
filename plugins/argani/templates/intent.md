@@ -7,8 +7,7 @@ Number: {{n}}
 Risk: {{low | medium | high}}
 Date: {{YYYY-MM-DD}}
 
-<!-- Type is one of branchTypes in the project's configuration (project.json in the argani home,
-     or .claude/argani.json for a repository without a project). It fills {type} in the job
+<!-- Type is one of branchTypes in the project's configuration (project.json in the argani home). It fills {type} in the job
      branch and picks the base branch. Delete the Type line when no branchTypes are set.
      Number is the job number that fills {n} in the job branch; it comes from next_number.py, is
      assigned once and never changed. Delete the Number line when branchPattern has no {n}.

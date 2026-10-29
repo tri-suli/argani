@@ -40,6 +40,7 @@ import factory_state
 import git_cli
 
 LEGACY_CONFIG = Path(".claude") / "argani.json"
+DEFAULT_ARTIFACT_ROOT = "argani"  # the artifactRoot every legacy repository had without its own setting
 INTENT_FILE = "intent.md"
 FILE_MODES = ("100644", "100755")
 BRANCH_KEYS = ("branchPattern", "branchTypes", "protectedBranches")
@@ -93,7 +94,7 @@ def read_legacy_file(toplevel):
     if not path.is_file():
         return None, None
     try:
-        return argani_config.read_config_file(path), None
+        return argani_config.read_legacy_file(path), None
     except ValueError as error:
         return None, f"ignoring the legacy config, using defaults: {error}"
 
@@ -344,10 +345,10 @@ def parse_arguments(argv):
 
 def resolve_artifact_root(arguments, legacy_overrides):
     if arguments.artifact_root:
-        return argani_config.COERCERS["artifactRoot"](arguments.artifact_root), "argument"
+        return argani_config.LEGACY_COERCERS["artifactRoot"](arguments.artifact_root), "argument"
     if legacy_overrides and "artifactRoot" in legacy_overrides:
         return legacy_overrides["artifactRoot"], "legacy file"
-    return argani_config.DEFAULTS["artifactRoot"], "default"
+    return DEFAULT_ARTIFACT_ROOT, "default"
 
 
 def main(argv):

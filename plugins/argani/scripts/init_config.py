@@ -172,13 +172,13 @@ def _legacy_report(config_path):
     if not config_path.exists():
         return {"legacyExists": False}
     try:
-        overrides = argani_config.read_config_file(config_path)
+        overrides = argani_config.read_legacy_file(config_path)
     except ValueError as error:
         return {"legacyExists": True, "legacyKeys": None, "legacyError": str(error)}
-    carried = {key: value for key, value in overrides.items()
-               if key in argani_config.DEFAULTS and key not in argani_config.LEGACY_ONLY_KEYS}
+    carried = {key: value for key, value in overrides.items() if key in argani_config.DEFAULTS}
     return {"legacyExists": True, "legacyKeys": carried,
-            "legacyUnknownKeys": [key for key in overrides if key not in argani_config.DEFAULTS]}
+            "legacyUnknownKeys": [key for key in overrides if key not in argani_config.DEFAULTS
+                                  and key not in argani_config.LEGACY_ONLY_KEYS]}
 
 
 def _ambiguous_default_branch(top):
@@ -262,8 +262,8 @@ def propose(start_dir="."):
     commit_skills = sorted(path.parent.name for path in (top / ".claude" / "skills").glob("*commit*/SKILL.md"))
     if commit_skills:
         questions.append({"key": "commitSkill", "candidates": commit_skills,
-                          "ask": "The repository has its own commit skill. Should every argani commit (builder "
-                                 "and record commits) go through it instead of a plain git commit?"})
+                          "ask": "The repository has its own commit skill. Should the builder's "
+                                 "commits go through it instead of a plain git commit?"})
     host = remote_host(top)
     mr_candidates = {
         "github": ["gh pr create --base {base} --head {branch} --title {title} --body-file {bodyFile}"],

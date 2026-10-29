@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Effective argani configuration for the repository containing a directory.
 
-Config lives in the project.json of the repository's project in the argani home, else (legacy,
-removed in 1.0.0) at <repository toplevel>/.claude/argani.json. The toplevel is
-resolved from the given directory, never from CLAUDE_PROJECT_DIR, so the
+Config lives in the project.json of the repository's project in the argani home. A repository
+without a project gets the defaults plus the detected branches; its .claude/argani.json is no
+longer read (removed in 1.0.0). The toplevel is resolved from the given directory, never from CLAUDE_PROJECT_DIR, so the
 result is correct in worktrees and subagents.
 
 Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
@@ -21,11 +21,12 @@ import git_cli
 import project_registry
 
 IDENTITY_KEYS = ("name", "remotes", "paths")  # project.json keys that identify a project, not config
-LEGACY_ONLY_KEYS = ("artifactRoot", "recordCommitMessage")  # per-repository keys with no meaning for a project in the argani home
+LEGACY_ONLY_KEYS = ("artifactRoot", "recordCommitMessage")  # keys of the removed per-repository file; read only to migrate it
+UNREGISTERED_FILE_NOTE = ("argani: .claude/argani.json is no longer read since 1.0.0; run /argani:init to "
+                          "register this repository (its keys are carried over)")
 TASKS_DIR = "tasks"  # folder of a project's job folders inside its hub entry
 
 DEFAULTS = {
-    "artifactRoot": "argani",
     "defaultBranch": None,  # detected when not configured
     "baseBranch": None,  # defaults to defaultBranch
     "protectedBranches": [],  # defaultBranch and baseBranch are always added
@@ -39,7 +40,6 @@ DEFAULTS = {
     "worktreeCommand": None,  # creates the worktree; else argani runs git worktree add
     "branchPattern": "feature/{slug}",
     "branchNumberCommand": None,  # prints the next job number for {n} in branchPattern; else argani counts the intents
-    "recordCommitMessage": "chore(argani): record {slug} {what}",
     "commitTrailers": ["Co-Authored-By: {model} <noreply@anthropic.com>"],
     "branchTypes": [],  # job types allowed in intent.md `Type:`, required when branchPattern has {type}
     "baseBranchByType": {},  # job type -> base branch, for types that do not branch from baseBranch
@@ -78,7 +78,10 @@ GLOB_CHARS = "*?["
 
 
 _git = git_cli.git_output  # re-exported: hooks and tests use these names
-toplevel = git_cli.toplevel
+
+
+def toplevel(start_dir):
+    return git_cli.toplevel(start_dir)
 
 
 def branch_exists(start_dir, name):
@@ -407,11 +410,6 @@ def commit_trailers(config, model):
     return [trailer.replace(MODEL_PLACEHOLDER, model) for trailer in config["commitTrailers"]]
 
 
-def record_commit_message(config, slug, what):
-    """Subject of an orchestrator record commit, such as 'chore(argani): record login decision'."""
-    return config["recordCommitMessage"].replace(SLUG_PLACEHOLDER, slug).replace(WHAT_PLACEHOLDER, what)
-
-
 def protected_match(config, branch):
     """The protectedBranches entry (name or glob) that branch matches, else None."""
     return next((entry for entry in config["protectedBranches"]
@@ -457,7 +455,7 @@ def _reject_remote_prefixes(overrides, start_dir):
 
 def validate_overrides(overrides, start_dir):
     """Raise ValueError when config keys break a rule of the repository around start_dir or a
-    rule between keys, as the keys of a project.json or .claude/argani.json would."""
+    rule between keys, as the keys of a project.json would."""
     _reject_remote_prefixes(overrides, start_dir)
     _check_cross_keys({**DEFAULTS, **overrides})
 
@@ -465,7 +463,6 @@ def validate_overrides(overrides, start_dir):
 COERCERS = {
     "reviewers": _reviewer_names,
     "protectedPaths": _string_list,
-    "artifactRoot": _artifact_root,
     "defaultBranch": _branch,
     "baseBranch": _branch,
     "protectedBranches": _protected_branches,
@@ -477,7 +474,6 @@ COERCERS = {
     "worktreeCommand": _worktree_command,
     "branchPattern": _branch_pattern,
     "branchNumberCommand": _branch_number_command,
-    "recordCommitMessage": _record_commit_message,
     "commitTrailers": _commit_trailers,
     "branchTypes": _branch_types,
     "baseBranchByType": _base_branch_by_type,
@@ -487,8 +483,14 @@ COERCERS = {
 }
 
 
-def read_config_file(path):
-    """Return the validated overrides from a config file. Raises ValueError when unusable."""
+LEGACY_COERCERS = {
+    "artifactRoot": _artifact_root,
+    "recordCommitMessage": _record_commit_message,
+}
+
+
+def _read_overrides(path, coercers):
+    """Return the overrides of a JSON config file validated by coercers. Raises ValueError when unusable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -500,18 +502,21 @@ def read_config_file(path):
         if value is None:
             continue
         try:
-            overrides[key] = COERCERS[key](value) if key in COERCERS else value
+            overrides[key] = coercers[key](value) if key in coercers else value
         except ValueError as error:
             raise ValueError(f"{path}: key '{key}': {error}") from error
     return overrides
 
 
-def _config_file_exists(path):
-    """An unreadable .claude directory counts as an unusable config, never as no config."""
-    try:
-        return path.is_file()
-    except OSError as error:
-        raise ValueError(f"{path}: {error}") from error
+def read_config_file(path):
+    """Return the validated overrides from a project.json. Raises ValueError when unusable."""
+    return _read_overrides(path, COERCERS)
+
+
+def read_legacy_file(path):
+    """Return the validated overrides from a removed per-repository .claude/argani.json, including
+    its two legacy keys. Only the migration (init, import) reads it. Raises ValueError when unusable."""
+    return _read_overrides(path, {**COERCERS, **LEGACY_COERCERS})
 
 
 def project_overrides(project_file):
@@ -559,27 +564,25 @@ def _resolve_project(start_dir, root):
     home = None
     try:
         home = argani_home.home_path()
-        return home, (project_registry.resolve(start_dir, home, root) if root else None)
+        return home, project_registry.resolve(start_dir, home, root)
     except Exception as error:  # the contract is never to raise, whatever the registry holds
         print(f"argani: ignoring the argani home: {error}", file=sys.stderr)
         return home, None
 
 
-def _note_ignored_repo_file(repo_file, name, source):
-    """Say that the repository's own file is not read; an unreadable .claude never matters here."""
+def _file_present(repo_file):
+    """True when the repository still has its old config file; an unreadable .claude never matters here."""
     try:
-        exists = _config_file_exists(repo_file)
-    except ValueError:
-        return
-    if exists:
-        print(f"argani: {repo_file} is ignored; the project {name} is configured in {source}", file=sys.stderr)
+        return repo_file.is_file()
+    except OSError:
+        return False
 
 
 def load_config(start_dir=".", strict=False):
     """Effective config. Never raises unless strict=True; a bad file falls back to defaults.
 
     The config of a registered project comes from its project.json in the argani home; a
-    repository without a project reads .claude/argani.json (legacy, removed in 1.0.0)."""
+    repository without a project gets the defaults, and its .claude/argani.json is not read."""
     config = _fresh_defaults()
     root = toplevel(start_dir)
     home, project = _resolve_project(start_dir, root)
@@ -587,27 +590,22 @@ def load_config(start_dir=".", strict=False):
     try:
         if project:
             source = project_registry.project_file(home, project["name"])
+            if repo_file and _file_present(repo_file):
+                print(f"argani: {repo_file} is ignored; the project {project['name']} is configured in {source}",
+                      file=sys.stderr)
             overrides = project_overrides(source)
-            _note_ignored_repo_file(repo_file, project["name"], source)
-        elif root and _config_file_exists(repo_file):
-            overrides = read_config_file(repo_file)
-        else:
-            overrides = None
-        if overrides is not None:
             validate_overrides(overrides, start_dir)
             config.update(overrides)
+        elif root and _file_present(repo_file):
+            print(UNREGISTERED_FILE_NOTE, file=sys.stderr)
     except ValueError as error:
         if strict:
             raise
         print(f"argani: ignoring config, using defaults: {error}", file=sys.stderr)
     _derive_branches(config, lambda: detect_default_branch(start_dir) if root else "main")
-    if project:
-        job_root = _project_tasks_dir(home, project["name"])
-    else:
-        job_root = Path(root) / config["artifactRoot"] if root else None
     config.update(project=project["name"] if project else None, home=str(home) if home else None,
-                  tasksDir=str(job_root) if job_root else None, toplevel=root,
-                  currentBranch=current_branch(start_dir) if root else None)
+                  tasksDir=str(_project_tasks_dir(home, project["name"])) if project else None,
+                  toplevel=root, currentBranch=current_branch(start_dir) if root else None)
     return config
 
 

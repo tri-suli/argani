@@ -9,42 +9,36 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "argani_config.py"
 sys.path.insert(0, str(SCRIPT.parent))
 
 import argani_config  # noqa: E402
+import argani_home  # noqa: E402
 
 
 def make_repo(path, config_text=None):
+    """A git repo; config_text (a JSON object of config keys) is registered as its project in the argani home."""
     path.mkdir(parents=True)
     subprocess.run(["git", "-C", str(path), "init", "-q", "-b", "trunk"], check=True, capture_output=True)
     if config_text is not None:
-        (path / ".claude").mkdir()
-        (path / ".claude" / "argani.json").write_text(config_text)
+        project_dir = argani_home.home_path() / "projects" / path.name
+        project_dir.mkdir(parents=True)
+        (project_dir / "project.json").write_text(json.dumps(
+            {"name": path.name, "remotes": [], "paths": [str(path.resolve())], **json.loads(config_text)}))
     return path
 
 
-def test_invalid_json_returns_defaults_but_cli_fails(tmp_path):
-    repo = make_repo(tmp_path / "repo", "{not json")
-    assert argani_config.load_config(repo)["artifactRoot"] == "argani"
+def test_null_ignored(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"verifyCommand": null, "baseBranch": "develop"}')
+    config = argani_config.load_config(repo)
+    assert config["verifyCommand"] is None
+    assert config["baseBranch"] == "develop"
+
+
+def test_wrong_type_falls_back_to_all_defaults_but_cli_fails(tmp_path):
+    repo = make_repo(tmp_path / "repo", '{"reviewers": "code", "verifyCommand": "make"}')
+    config = argani_config.load_config(repo)
+    assert config["reviewers"] == ["code"]
+    assert config["verifyCommand"] is None
     result = subprocess.run([sys.executable, str(SCRIPT), str(repo)], capture_output=True, text=True)
     assert result.returncode == 1
     assert "invalid config" in result.stderr
-
-
-def test_non_object_returns_defaults(tmp_path):
-    repo = make_repo(tmp_path / "repo", "[1, 2]")
-    assert argani_config.load_config(repo)["reviewers"] == ["code"]
-
-
-def test_null_ignored(tmp_path):
-    repo = make_repo(tmp_path / "repo", '{"artifactRoot": null, "verifyCommand": "make"}')
-    config = argani_config.load_config(repo)
-    assert config["artifactRoot"] == "argani"
-    assert config["verifyCommand"] == "make"
-
-
-def test_wrong_type_falls_back_to_all_defaults(tmp_path):
-    repo = make_repo(tmp_path / "repo", '{"reviewers": "code", "artifactRoot": "work"}')
-    config = argani_config.load_config(repo)
-    assert config["reviewers"] == ["code"]
-    assert config["artifactRoot"] == "argani"
 
 
 def test_current_branch_in_output(tmp_path):
@@ -153,34 +147,11 @@ def test_human_is_a_reserved_reviewer_name(tmp_path):
     assert argani_config.load_config(repo)["reviewers"] == ["code"]
 
 
-@pytest.mark.parametrize("message", ['"chore(skill): record {slug} {what}"', '"docs: {what} for {slug}"',
-                                     '"chore: argani {what}"'])
-def test_record_commit_message_is_configurable(tmp_path, message):
-    repo = make_repo(tmp_path / "repo", f'{{"recordCommitMessage": {message}}}')
-    config = argani_config.load_config(repo, strict=True)
-    expected = message.strip('"').replace("{slug}", "login").replace("{what}", "decision")
-    assert argani_config.record_commit_message(config, "login", "decision") == expected
-
-
-def test_record_commit_message_default(tmp_path):
+def test_commit_trailers_default_and_model_placeholder(tmp_path):
     config = argani_config.load_config(make_repo(tmp_path / "repo"), strict=True)
-    assert argani_config.record_commit_message(config, "login", "round 2 reviews") == \
-        "chore(argani): record login round 2 reviews"
     assert config["commitTrailers"] == ["Co-Authored-By: {model} <noreply@anthropic.com>"]
     assert argani_config.commit_trailers(config, "Claude Sonnet 5.5") == [
         "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"]
-
-
-@pytest.mark.parametrize("message, reason", [
-    ('"chore(skill): record {slug}"', "exactly once"),
-    ('"{what} {what}"', "exactly once"),
-    ('"chore: {what}\\nbody"', "single, non-empty subject line"),
-    ("7", "expected a string"),
-])
-def test_invalid_record_commit_message_is_rejected(tmp_path, message, reason):
-    repo = make_repo(tmp_path / "repo", f'{{"recordCommitMessage": {message}}}')
-    with pytest.raises(ValueError, match=reason):
-        argani_config.load_config(repo, strict=True)
 
 
 def test_commit_trailers_are_kept(tmp_path):
@@ -196,27 +167,6 @@ def test_invalid_commit_trailers_are_rejected(tmp_path, trailers):
     repo = make_repo(tmp_path / "repo", f'{{"commitTrailers": {trailers}}}')
     with pytest.raises(ValueError):
         argani_config.load_config(repo, strict=True)
-
-
-@pytest.mark.parametrize("root, expected", [
-    ('"docs/tasks"', "docs/tasks"), ('" ./work/jobs/ "', "work/jobs"), ('"tasks"', "tasks"),
-])
-def test_artifact_root_is_normalized(tmp_path, root, expected):
-    repo = make_repo(tmp_path / "repo", f'{{"artifactRoot": {root}}}')
-    assert argani_config.load_config(repo, strict=True)["artifactRoot"] == expected
-
-
-@pytest.mark.parametrize("root, reason", [
-    ('""', "must name a folder"), ('"./"', "must name a folder"),
-    ('"/tmp/jobs"', "absolute"), ('"C:/jobs"', "absolute"),
-    ('"../outside"', "leaves the repository"), ('"docs/../../x"', "leaves the repository"),
-    ('".git/jobs"', "inside .git"), ('"./.git"', "inside .git"),
-])
-def test_unsafe_artifact_root_is_rejected(tmp_path, root, reason):
-    repo = make_repo(tmp_path / "repo", f'{{"artifactRoot": {root}}}')
-    with pytest.raises(ValueError, match=reason):
-        argani_config.load_config(repo, strict=True)
-    assert argani_config.load_config(repo)["artifactRoot"] == "argani"
 
 
 def test_empty_commit_trailers_mean_none(tmp_path):
@@ -271,3 +221,34 @@ def test_invalid_commit_skill_is_rejected(tmp_path, value):
     repo = make_repo(tmp_path / "repo", f'{{"commitSkill": {value}}}')
     with pytest.raises(ValueError):
         argani_config.load_config(repo, strict=True)
+
+
+def write_legacy_file(tmp_path, content):
+    path = tmp_path / "argani.json"
+    path.write_text(content)
+    return path
+
+
+def test_legacy_file_accepts_the_removed_keys_and_the_normal_ones(tmp_path):
+    path = write_legacy_file(tmp_path, json.dumps({
+        "artifactRoot": " ./docs/tasks/ ", "recordCommitMessage": "chore: record {what}",
+        "verifyCommand": "make", "commitSkill": None}))
+    assert argani_config.read_legacy_file(path) == {
+        "artifactRoot": "docs/tasks", "recordCommitMessage": "chore: record {what}", "verifyCommand": "make"}
+
+
+@pytest.mark.parametrize("content, reason", [
+    ("{not json", "Expecting"),
+    ("[1, 2]", "top level must be a JSON object"),
+    ('{"artifactRoot": "/tmp/jobs"}', "absolute"),
+    ('{"artifactRoot": "../outside"}', "leaves the repository"),
+    ('{"artifactRoot": ".git/jobs"}', "inside .git"),
+    ('{"recordCommitMessage": "chore: record {slug}"}', "exactly once"),
+    ('{"recordCommitMessage": "chore: {what}\\nbody"}', "single, non-empty subject line"),
+    ('{"recordCommitMessage": 7}', "expected a string"),
+    ('{"reviewers": "code"}', "reviewers"),
+])
+def test_legacy_file_rejects_junk(tmp_path, content, reason):
+    with pytest.raises(ValueError, match=reason):
+        argani_config.read_legacy_file(write_legacy_file(tmp_path, content))
+

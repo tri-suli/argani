@@ -18,7 +18,11 @@ from pathlib import Path
 
 import argani_home
 import git_cli
-from git_cli import git_output, toplevel
+from git_cli import git_output
+
+def toplevel(start_dir):
+    return git_cli.toplevel(start_dir)
+
 
 PROJECT_FILE = "project.json"
 PROJECT_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -144,20 +148,32 @@ def _only_match(projects, label, value, key):
     return names[0] if names else None
 
 
+def _name_by_ancestor_path(projects, real_start_dir):
+    """The project whose `paths` lists start_dir or its nearest ancestor that any project lists."""
+    folder = Path(real_start_dir)
+    for candidate in [folder, *folder.parents]:
+        name = _only_match(projects, "path", str(candidate), "paths")
+        if name:
+            return name
+    return None
+
+
 def resolve(start_dir, home, top=None):
     """The project entry that start_dir belongs to, or None. The home itself is never a project.
-    top is the repository toplevel when the caller already knows it."""
+    top is the repository toplevel when the caller already knows it. Without a toplevel (no git) the
+    project is found by the registered path of start_dir or of its nearest registered ancestor."""
     if not (home / argani_home.PROJECTS_DIR).is_dir():
         return None
     real_home = os.path.realpath(home)
     if os.path.commonpath([os.path.realpath(start_dir), real_home]) == real_home:
         return None
     top = top or toplevel(start_dir)
-    if top is None:
-        return None
-    real_top = os.path.realpath(top)
     projects = list_projects(home)
     by_name = {project["name"]: project for project in projects}
+    if top is None:  # git is missing or masked: the registered path of an ancestor folder is the only identity
+        name = _name_by_ancestor_path(projects, os.path.realpath(start_dir))
+        return by_name[name] if name else None
+    real_top = os.path.realpath(top)
     remote_names = {
         _only_match(projects, "remote", remote, "remotes") for remote in repository_remotes(start_dir)
     } - {None}

@@ -130,7 +130,13 @@ skills. argani creates and switches no branch, makes no worktree, commits, pushe
 guards no git command, names no branch and reads no remote. What it needs from the project is two
 commands in `project.json`: `verifyCommand` (proves the work) and `diffCommand` (prints the change
 under review). Before `/argani:factory` the human, or the project's own skills, prepare the branch or
-worktree and start the session in that directory; the builder follows the project's `CLAUDE.md` for
+worktree and either start the session in that directory or pass it as `in <dir>` (the working
+directory; a project skill the builder invokes runs from the session directory unless it takes
+the directory as an argument, so starting the session there is simpler). A working directory nested inside the registered path
+(for example `.worktrees/<slug>`) must be covered by a `paths` pattern in `project.json`
+(`docs/config.md`), otherwise the project root is the outer checkout and `diffCommand` and
+`protectedPaths` use the wrong root. The builder follows the
+project's `CLAUDE.md` for
 commits.
 
 ## Two modes
@@ -146,10 +152,10 @@ reviews and merges). `plan.md` is written by the builder before it changes any c
 reviewed together with the change in the merge request. Factory mode is expensive (several agents
 per job, up to two rounds), so use it only for jobs with clear acceptance criteria.
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
-`scripts/factory_state.py <slug>`, which only reports and never writes.
+`scripts/factory_state.py <slug> <dir>`, which only reports and never writes.
 
-Before each review round the orchestrator runs `scripts/capture_change.py <slug>`: it runs the
-project's `diffCommand` with the project root as working directory and saves the output as
+Before each review round the orchestrator runs `scripts/capture_change.py <slug> <dir>`: it runs the
+project's `diffCommand` with the project root of the working directory as working directory and saves the output as
 `review/round-<N>/change.diff`; once a reviewer has worked on a round its change is fixed and is not
 captured again. Reviewers and the approver read that file; they have no shell. The
 files named in it also decide which checklists run when `reviewerPaths` is set. If `diffCommand`

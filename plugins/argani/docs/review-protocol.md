@@ -111,9 +111,9 @@ checklist a reviewer was given, so that part is an instruction in the agent prom
 
 ## Running a round
 
-**Manual mode.** `/argani:review <slug>`:
+**Manual mode.** `/argani:review <slug> [in <dir>]`:
 1. Read `reviewers` and `diffCommand` from the project configuration (`argani_config.py`).
-2. Run `capture_change.py <slug>`: it runs `diffCommand` in the project root and writes
+2. Run `capture_change.py <slug> <dir>`: it runs `diffCommand` in the project root of the working directory and writes
    `review/round-N/change.diff`. An empty diff stops the round: nothing to review.
 3. In one message, spawn one `argani:reviewer` per checklist (parallel). Each prompt names the
    checklist file, the slug folder, the round and the `Change` file; the reviewer writes its one
@@ -126,7 +126,7 @@ checklist a reviewer was given, so that part is an instruction in the agent prom
 all `PASS` spawns the approver; round 3 is refused by the hook and the job escalates.
 Agents do not carry memory between steps: every spawn reads files named in its prompt.
 
-**Human rework.** `/argani:factory rework <slug> <note>` writes `review/round-N+1/review-human.md`
+**Human rework.** `/argani:factory rework <slug> [in <dir>] <note>` writes `review/round-N+1/review-human.md`
 with `CHANGES` on line 1, the note as an Important finding, and the closing line, then continues
 as a normal round. It is allowed only after a clean round 1 and before a decision; it is refused
 after round 2, and the hook denies `round-3`.

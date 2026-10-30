@@ -1,4 +1,5 @@
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -97,7 +98,9 @@ def test_write_saves_the_body_in_the_job_folder_and_still_prints_json(job):
 
 def test_no_command_without_mr_command(job):
     job.intent()
-    assert "command" not in description(job, "--write")
+    printed = description(job, "--write")
+    assert "command" not in printed
+    assert printed["directory"] == os.path.realpath(job.root)
 
 
 NASTY_TITLE = 'Say "hi" $HOME `id` back\\slash'
@@ -108,6 +111,9 @@ def test_command_quotes_every_value_for_the_shell(job):
     job.write("intent.md", INTENT.format(status=APPROVED).replace("Demo", NASTY_TITLE, 1))
     printed = description(job, "--write")
     words = shlex.split(printed["command"])
+    assert words[:3] == ["cd", printed["directory"], "&&"]
+    assert words[3] == "(" and words[-1] == ")"
+    assert printed["directory"] == os.path.realpath(job.root)
     assert words[words.index("--title") + 1] == NASTY_TITLE
     assert words[words.index("--body-file") + 1] == printed["bodyFile"]
 

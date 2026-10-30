@@ -4,13 +4,15 @@
 Usage: python3 factory_state.py <slug> [dir]
 
 The job folder is found through the config of the project that contains dir: the task folder of
-the project in the argani home. Prints JSON. Reads files only, never writes. Exit 0 whenever the
-slug folder exists; exit 1 with a message for a bad slug, an unregistered directory or a missing folder; exit 2 for an invalid
+the project in the argani home. Prints JSON, with the key "directory": the real path of dir. Reads
+files only, never writes. Exit 0 whenever the slug folder exists; exit 1 with a message for a bad
+slug, a dir that is not a directory, an unregistered directory or a missing folder; exit 2 for an invalid
 config (including a reviewer named 'human', which is reserved). The JSON is the only state the
 orchestrator trusts; nothing is remembered between calls.
 """
 import datetime
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -313,6 +315,9 @@ def main(argv):
         print(__doc__.strip(), file=sys.stderr)
         return 2
     start_dir = argv[2] if len(argv) == 3 else "."
+    if not os.path.isdir(start_dir):
+        print(f"{start_dir} is not a directory")
+        return 1
     if not SLUG_PATTERN.fullmatch(argv[1]):
         print(f"Invalid slug '{argv[1]}': use lowercase letters, digits and hyphens.")
         return 1
@@ -328,6 +333,7 @@ def main(argv):
             return 1
         print(f"No job folder for slug '{argv[1]}' under {config['tasksDir']}.")
         return 1
+    state["directory"] = os.path.realpath(start_dir)
     print(json.dumps(state, indent=2))
     return 0
 

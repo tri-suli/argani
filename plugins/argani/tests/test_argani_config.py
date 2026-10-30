@@ -125,3 +125,11 @@ def test_reviewer_paths_must_name_listed_reviewers():
         argani_config.validate_overrides({"reviewerPaths": {"security": ["src/**"]}})
     argani_config.validate_overrides({"reviewers": ["code", "security"], "reviewerPaths": {"security": ["src/**"]}})
     argani_config.validate_overrides({})
+
+
+def test_the_command_line_refuses_a_directory_that_does_not_exist(tmp_path):
+    missing = tmp_path / "no-such-directory"
+    result = subprocess.run([sys.executable, str(Path(argani_config.__file__)), str(missing)],
+                            capture_output=True, text=True)
+    assert result.returncode == 2
+    assert f"{missing} is not a directory" in result.stderr

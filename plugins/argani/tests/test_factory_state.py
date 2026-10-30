@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -538,3 +539,18 @@ def test_a_merged_line_needs_a_date_at_the_start_of_a_line(job, text):
     assert finished_job(job, "https://example.test/mr/1\n" + text)["mr"]["merged"] is False
 
 
+
+
+def test_the_state_reports_the_real_path_of_a_relative_directory(job):
+    job.intent()
+    result = subprocess.run([sys.executable, str(SCRIPT), "demo", job.root.name], cwd=job.root.parent,
+                            capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout
+    assert json.loads(result.stdout)["directory"] == os.path.realpath(job.root)
+
+
+def test_a_directory_that_does_not_exist_exits_one(job, tmp_path):
+    missing = tmp_path / "no-such-directory"
+    result = subprocess.run([sys.executable, str(SCRIPT), "demo", str(missing)], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert result.stdout.strip() == f"{missing} is not a directory"

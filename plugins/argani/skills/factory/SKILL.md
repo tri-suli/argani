@@ -1,7 +1,7 @@
 ---
 name: factory
-description: Run an argani job end to end with fresh subagents (spec, build, review rounds, decision) and stop at a human gate or at the merge request. Also takes a human rework note. Slash form /argani:factory <slug> or /argani:factory rework <slug> <note>.
-argument-hint: "<slug> | rework <slug> <note>"
+description: Run an argani job end to end with fresh subagents (spec, build, review rounds, decision) and stop at a human gate or at the merge request. Also takes a human rework note. Slash form /argani:factory <slug> [in <dir>] or /argani:factory rework <slug> [in <dir>] <note>.
+argument-hint: "<slug> [in <dir>] | rework <slug> [in <dir>] <note>"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
@@ -17,8 +17,14 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 
 Version control is the project's business, not argani's. Before `/argani:factory` the human (or the
 project's own skills) prepares the place where the work happens, for example the branch or the
-worktree, and starts this session in that directory. argani creates, switches, commits, pushes and
-merges nothing; the builder follows the project's `CLAUDE.md` for commits.
+worktree, and either starts this session in that directory or passes it as `in <dir>`. Starting the
+session there is the simpler of the two: with `in <dir>`, a project skill the builder invokes
+(for example a commit skill) still runs from the session directory unless it takes the directory
+as an argument. A working directory nested inside the registered path (for example
+`.worktrees/<slug>`) must be covered by a `paths` pattern in `project.json` (`docs/config.md`),
+otherwise the project root is the outer checkout and `diffCommand` and `protectedPaths` use the wrong
+root. argani creates, switches, commits, pushes and merges nothing; the builder follows
+the project's `CLAUDE.md` for commits.
 
 Tools: the list above is the minimum, no `Bash(*)`. `mrCommand` runs through `Bash`, which the human
 permits when asked. Cost: one spec-writer, one builder per round, N reviewers per round, one approver;
@@ -27,20 +33,29 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 
 ## Step 1
 
-1. Parse `$ARGUMENTS`:
-   - empty: **stop** and print the usage `/argani:factory <slug> | rework <slug> <note>`;
+1. Parse `$ARGUMENTS`. `in <dir>` is recognised only immediately after the slug: words 2 and 3 of
+   `<slug> in <dir>`, words 3 and 4 of `rework <slug> in <dir> <note>`. Everything after that is the
+   note, whatever words it contains. `<dir>` is a single token without spaces: absolute, or relative
+   to the session directory (`~` is expanded by the shell). It is **the working directory** and is
+   `<dir>` below; without it `<dir>` is `.`, the directory the session runs in. Every command and
+   agent below uses it. After the optional `in <dir>`:
+   - empty: **stop** and print the usage `/argani:factory <slug> [in <dir>] | rework <slug> [in <dir>] <note>`;
    - first word `rework`: `rework <slug> <note>`;
    - exactly one word: `<slug>`;
    - anything else (a description of new work, not a slug): **stop** without writing anything. The
      factory only runs a job that already has an intent. Say: start with `/argani:intent <the text>`,
      then `/argani:intent approve <slug>`, then `/argani:factory <slug>`.
    If step 3 reports no job folder for a one-word argument, give the same advice with that word.
-2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py`. If it exits non-zero, **stop** and show its
-   error. If `verifyCommand`, `diffCommand` or `reviewers` is empty, **stop**, name the project's
+2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>`. If it exits non-zero (`<dir>` is not a directory or the
+   config is invalid), **stop** and show its error. If `verifyCommand`, `diffCommand` or `reviewers` is empty, **stop**, name the project's
    `project.json` in the argani home and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
-3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug>`. If it exits non-zero, **stop** and
-   show its output. Print `stage` and `next`. Read `project` and `job_dir` from it and use them below.
+3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> <dir>`. If it exits non-zero, **stop** and
+   show its output ("No job folder" can mean the working directory is outside the job's project). Print `stage` and `next`. Read `project`, `job_dir` and `directory` (the absolute working directory;
+   use it wherever a prompt below says `<absolute working directory>`) from it and use them below.
+   When `in <dir>` was given and `directory` differs from the session directory, print one line before
+   spawning the first agent: "working directory differs from the session directory; the builder runs
+   project skills only when they take a directory argument".
 
 Commands: run each command on its own, so the allowed-tools patterns match and the human is not
 prompted.
@@ -81,6 +96,7 @@ The reviewers of a job are the state's `reviewers`, not the config's: a checklis
 
 ```
 Plugin root: <plugin root>
+Working directory: <absolute working directory>
 Intent: <job_dir>/intent.md
 Spec: <job_dir>/spec.md
 Config: <the config JSON>
@@ -89,10 +105,11 @@ Language: <language of the project's CLAUDE.md, else of the intent>
 
 ### Builder
 
-Spawn `argani:builder` with the prompt below. It works in the directory this session runs in.
+Spawn `argani:builder` with the prompt below. It works in the working directory.
 
 ```
 Plugin root: <plugin root>
+Working directory: <absolute working directory>
 Slug folder: <job_dir>
 Verify command: <verifyCommand>
 Round: <review_round>
@@ -108,8 +125,8 @@ After it returns, re-run state and continue the loop. Its reply is one line; if 
 ### Review round
 
 1. If `rounds` has no entry for `review_round` with a `review-<checklist>.md` in its `present` (the
-   human note does not count), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug>`.
-   It runs `diffCommand` with the project root as working directory and writes
+   human note does not count), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug> <dir>`.
+   It runs `diffCommand` with the project root of the working directory as its working directory and writes
    `<job_dir>/review/round-<review_round>/change.diff`. If it exits non-zero, **stop** and show its
    output. If its `bytes` is 0, **stop** and say "diffCommand printed nothing; nothing to review.
    Check diffCommand against the builder's commit rule" (committed work and a working tree need different commands). Re-run state, because the captured `files`
@@ -131,17 +148,17 @@ Protected paths: <protectedPaths, comma-separated, or "none">
 ```
 
 Before spawning the approver, check that `change.diff` exists in the round folder. If it is missing (a
-round reviewed before 2.0.0), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug>`:
+round reviewed before 2.0.0), run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug> <dir>`:
 at `needs-decision` it writes the missing file and refuses to overwrite an existing one. Apply the
 same empty-output rule as above, then spawn the approver.
 
 ### Merge request (`needs-mr`)
 
-1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> --write`. If it exits non-zero, stop and
+1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
    show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
    verification checklist of `decision.md`, where the task folder is) and prints JSON with `title`,
-   `bodyFile` and, when `mrCommand` is configured, `command`.
-- `mrCommand` configured: run the printed `command` verbatim; never rebuild or re-quote it. If it
+   `bodyFile`, `directory` and, when `mrCommand` is configured, `command`.
+- `mrCommand` configured: run the printed `command` verbatim (it starts with `cd` into the working directory); never rebuild or re-quote it. If it
   fails, stop and show the error (no `mr.md`). Otherwise write `<job_dir>/mr.md` (the command's
   output or URL, and today's date) and stop: "MR ready for human review".
 - Not configured: print `title` and `bodyFile` and tell the human to open the merge request with

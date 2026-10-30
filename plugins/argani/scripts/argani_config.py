@@ -9,6 +9,7 @@ git: the project's own tools handle branches, commits and merges.
 Usage: python3 argani_config.py [dir]   (prints the effective config as JSON)
 """
 import json
+import os
 import re
 import shlex
 import sys
@@ -329,8 +330,12 @@ def mr_command_for(config, values):
 
 
 def main(argv):
+    start_dir = argv[1] if len(argv) > 1 else "."
+    if not os.path.isdir(start_dir):
+        print(f"{start_dir} is not a directory", file=sys.stderr)
+        return 2
     try:
-        config = load_config(argv[1] if len(argv) > 1 else ".", strict=True)
+        config = load_config(start_dir, strict=True)
     except ValueError as error:
         print(f"argani: invalid config: {error}", file=sys.stderr)
         return 1

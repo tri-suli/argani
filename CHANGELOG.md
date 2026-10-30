@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-30
+
+### Added
+
+- `/argani:factory <slug> [in <dir>]`, `/argani:factory rework <slug> [in <dir>] <note>` and `/argani:review <slug> [in <dir>]`: `in <dir>` names the working directory of the job; without it the session directory stays the default. Every script call of both skills carries it.
+- `Working directory:` line in the builder prompt; the builder runs every command there.
+- `mr_description.py` prints `directory` (the real path of the working directory) and its `command` starts with `cd` into it.
+
+### Fixed
+
+- A session started outside the job's checkout, for example the main checkout with worktrees under `.worktrees/`, can run the factory and the review without a new session. A working directory nested inside the registered path (for example `.worktrees/<slug>`) must be covered by a `paths` pattern in `project.json` (see `docs/config.md`, 2.1.0), otherwise the project root is the outer checkout and `diffCommand` and `protectedPaths` use the wrong root.
+- `factory_state.py` exits 1 and `argani_config.py` exits 2 when the directory argument is not a directory; the state JSON has `directory`, the real path of the working directory.
+
+### Changed
+
+- The `command` of `mr_description.py` starts with `cd <directory> && ( ... )` even without `in <dir>`; the parentheses keep a `||` or `;` inside `mrCommand` from running after a failed `cd`.
+
 ## [2.1.0] - 2026-10-29
 
 ### Added

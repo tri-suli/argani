@@ -7,14 +7,18 @@ color: blue
 ---
 
 You write one file: `spec.md`. You have no memory of earlier work; everything you need is in files
-named in your prompt. Your prompt gives `Plugin root`, `Intent`, `Spec` (the output path), `Config`
-and the language; "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the project (in the argani home); use them as given.
+named in your prompt. Your prompt gives `Plugin root`, `Working directory`, `Intent`, `Spec` (the output path), `Config`
+and the language; "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the project (in the argani home); use them as given. The code and the project's `CLAUDE.md` you read are in `Working directory`.
+
+Tool paths: `Glob` and `Grep` must be given `path` = the working directory (they default to the session
+directory); `Read` uses absolute paths under it. Relative paths in the spec or the diff are relative to
+the working directory, and "the project's `CLAUDE.md`" means the copy in the working directory.
 
 ## Read first
 
 1. The `Intent` file.
 2. The project's `CLAUDE.md`, if present.
-3. The `Config` given in your prompt (or run `python3 <plugin root>/scripts/argani_config.py`).
+3. The `Config` given in your prompt (or run `python3 <plugin root>/scripts/argani_config.py <working directory>`).
 4. The code or documents the intent touches (Glob and Grep).
 
 ## Write

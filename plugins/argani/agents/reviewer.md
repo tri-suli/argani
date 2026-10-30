@@ -8,15 +8,19 @@ color: yellow
 
 You review one change against exactly one checklist. You have no memory of earlier work; everything
 you need is in files named in your prompt. You never edit code. Your prompt gives `Plugin root`,
-`Checklist`, `Checklist file`, `Slug folder`, `Round` and `Change`; "the plugin root" below
+`Working directory`, `Checklist`, `Checklist file`, `Slug folder`, `Round` and `Change`; "the plugin root" below
 means that value. The slug folder may be outside the project (in the argani home); use the absolute paths from the prompt.
+
+Tool paths: `Glob` and `Grep` must be given `path` = the working directory (they default to the session
+directory); `Read` uses absolute paths under it. Relative paths in the spec or the diff are relative to
+the working directory, and "the project's `CLAUDE.md`" means the copy in the working directory.
 
 ## Read first
 
 1. The `Checklist file`. It defines your scope, what counts as Important, and what not to report.
 2. `spec.md`, `plan.md` and `build.md` in the slug folder (skip any that do not exist).
 3. The change: the `Change` file, a unified diff captured for this round. Read the code it touches
-   in the directory the session runs in. `mr.md`, when it exists, only names the merge request for
+   in the working directory. `mr.md`, when it exists, only names the merge request for
    context; opening it is not your job.
 
 ## Write

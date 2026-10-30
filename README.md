@@ -85,11 +85,11 @@ Installed copies then update with `claude plugin marketplace update argani` and
 Prerequisites: an approved `intent.md` (the factory writes the spec and stops for your approval),
 `verifyCommand`, `diffCommand` and `reviewers` in the project's `project.json` (set by `/argani:init`),
 and the place where the work happens prepared by you or your project's own skills (for example the
-branch or the worktree), with the session started in that directory.
+branch or the worktree), with the session started in that directory or that directory passed as `in <dir>`.
 
 ```
-/argani:factory <slug>                 # advances until the next human gate, then stops
-/argani:factory rework <slug> <note>   # add a human CHANGES note after a clean round 1
+/argani:factory <slug> [in <dir>]                 # advances until the next human gate, then stops
+/argani:factory rework <slug> [in <dir>] <note>   # add a human CHANGES note after a clean round 1
 ```
 
 It stops at the spec (approve it, then run it again) and at the merge request. Before each review round

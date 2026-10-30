@@ -3,16 +3,19 @@
 
 Usage: python3 mr_description.py <slug> [dir] [--write]
 
-Prints JSON {"title", "body"}. The title is the intent's heading; the body lists the summary, the
-acceptance criteria of intent.md, the human verification checklist of decision.md (when it has
-one) and where the job's artifacts live. With --write the body is saved to <job_dir>/mr-body.md
-and the JSON also has "bodyFile" (that path) and, when the config has mrCommand, "command": the
-mrCommand with {title} and {bodyFile} replaced by shell-quoted values, to be
-run verbatim. Reads files only (plus the --write file). Exit 1 when the job folder is missing or
+Prints JSON {"title", "body", "directory"}. The title is the intent's heading; the body lists the
+summary, the acceptance criteria of intent.md, the human verification checklist of decision.md
+(when it has one) and where the job's artifacts live; "directory" is the real path of [dir], the
+working directory of the job. With --write the body is saved to <job_dir>/mr-body.md and the JSON
+also has "bodyFile" (that path) and, when the config has mrCommand, "command": `cd <directory> &&`
+followed by the mrCommand in parentheses (a `||` or `;` inside it cannot run after a failed `cd`)
+with {title} and {bodyFile} replaced by shell-quoted values, to be run verbatim. Reads files only (plus the --write file). Exit 1 when the job folder is missing or
 the slug is invalid; exit 2 for an invalid config or wrong usage.
 """
 import json
+import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -133,6 +136,8 @@ def main(argv):
     job_dir = Path(state["job_dir"])
     description = build_description(state, read_normalized(job_dir / "intent.md"),
                                     read_normalized(job_dir / "decision.md"))
+    directory = os.path.realpath(start_dir)
+    description["directory"] = directory
     if write:
         body_file = job_dir / "mr-body.md"
         body_file.write_text(description["body"], encoding="utf-8")
@@ -140,7 +145,7 @@ def main(argv):
         command = argani_config.mr_command_for(config, {
             "title": description["title"], "bodyFile": str(body_file)})
         if command:
-            description["command"] = command
+            description["command"] = f"cd {shlex.quote(directory)} && ( {command} )"
     print(json.dumps(description, indent=2))
     return 0
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-10-31
+
+### Added
+
+- `Instruction:` line in the builder prompt: the human ran `/argani:factory <slug>` on the date, which is their instruction for the work of the job, including what the project's protocols require of the builder (for example commits).
+- The builder, the reviewer and the spec-writer read the project's protocols, not only `CLAUDE.md`.
+- The `Instruction` line is narrow: it is the human's explicit instruction only for steps the protocols assign to the builder (for example the commit of its own work) and "authorises nothing else"; it never covers a push, a merge, branches, destructive operations or migrations. When the protocols say nothing about commits, the builder commits its own work on the branch it is on and never pushes.
+- Protocols include the rules Claude Code loaded (the user's own `CLAUDE.md` too) and the working directory's `CLAUDE.md` or `.claude/CLAUDE.md` (parents up to the project root), `@` imports and `.claude/rules/**/*.md` (`paths:` respected); the working directory's copy wins over the session directory's. A protocol wins over argani on how the work is done, never over the artifact protocol.
+- A plan written after the first code change is a recorded deviation; the builder's final reply and `build.md` state whether the commit step was done and per which protocol.
+
+### Fixed
+
+- A project skill the builder invokes runs its commands from the working directory like every other command; the 2.2.0 rule that skipped such skills (and so the project's commit skill) is gone. Only a skill with `context: fork` cannot be redirected.
+- The builder no longer stays silent on commits when a project rule needs an explicit human instruction.
+
 ## [2.2.0] - 2026-10-30
 
 ### Added

@@ -133,7 +133,7 @@ after round 2, and the hook denies `round-3`.
 
 ## Version control
 
-Not argani's business. The builder follows the project's own `CLAUDE.md` and skills for commits;
+Not argani's business. The builder follows the project's own protocols (`CLAUDE.md`, its `@` imports and `.claude/rules/*.md`) and skills for commits;
 the task folder is outside the project and is never part of a commit.
 
 ## Agents
@@ -143,9 +143,9 @@ one artifact. Spawn them with `subagent_type: "argani:<agent>"`.
 
 | Agent                | Reads                                                                        | Writes                                               | Closing line                                                                            |
 |----------------------|------------------------------------------------------------------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
-| `argani:spec-writer` | `intent.md`, project `CLAUDE.md`, config                                     | `spec.md`                                            | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
-| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, `CLAUDE.md`                     | code in the project, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
-| `argani:reviewer`    | one checklist, `spec.md`, `plan.md`, `build.md`, `change.diff`               | `review/round-N/review-<checklist>.md`               | `=== END OF REVIEW ===`                                                                 |
+| `argani:spec-writer` | `intent.md`, project protocols (CLAUDE.md, @imports, .claude/rules), config  | `spec.md`                                            | none (spec stays human-editable; completeness is checked with `artifact_check.py spec`) |
+| `argani:builder`     | `spec.md`, `plan.md`, previous round folder, project protocols (CLAUDE.md, @imports, .claude/rules)| code in the project, `plan.md` if missing, `build.md` | `=== END OF BUILD ===`                                                                  |
+| `argani:reviewer`    | one checklist, project protocols (CLAUDE.md, @imports, .claude/rules), `spec.md`, `plan.md`, `build.md`, `change.diff`| `review/round-N/review-<checklist>.md`               | `=== END OF REVIEW ===`                                                                 |
 | `argani:approver`    | latest round folder, `build.md`, `spec.md`, `plan.md`, `change.diff`         | `decision.md`                                        | `=== END OF DECISION ===`                                                               |
 
 ### Spawn prompts

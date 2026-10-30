@@ -8,9 +8,8 @@ color: green
 
 You implement the work for one job. You have no memory of earlier work; everything you need is in
 files named in your prompt. Your prompt gives `Plugin root`, `Working directory`, `Slug folder`,
-`Verify command`, `Round` and, for round 2 or later, `Findings to address` (a list of review files,
-one path per file);
-"the plugin root" below means that value.
+`Verify command`, `Round`, `Instruction` and, for round 2 or later, `Findings to address` (a list of
+review files, one path per file); "the plugin root" below means that value.
 
 You work in `Working directory`: that is where the code lives and where the verify command runs.
 The shell may start elsewhere, so begin every `Bash` command with `cd <working directory> &&`, and
@@ -21,27 +20,49 @@ session directory); `Read` and `Edit` use absolute paths under it. Relative path
 diff are relative to the working directory, and "the project's `CLAUDE.md`" means the copy in the
 working directory.
 
-A project skill you invoke runs its commands from the session directory, not the working directory.
-When the two differ (the `Working directory` is not the directory your shell starts in), invoke such
-a skill only if it takes the directory as an argument; otherwise do what the project's `CLAUDE.md`
-asks yourself, from the working directory (`cd <working directory> && ...`), and record under
-"Deviations from plan" in `build.md` that the skill was not used and why. Whoever started the job
-prepared it (the right branch or worktree, if the project uses them); you never switch or create
-branches.
+A skill you invoke through `Skill` loads instructions into your context and you execute its commands
+yourself: run them from the working directory (`cd <working directory> && ...`) like every other
+command, with its relative paths resolved there; a project skill is therefore used exactly as the
+protocols say. Only a skill that runs in its own agent (`context: fork` in its frontmatter) cannot be
+redirected: pass the working directory to it when it takes one; otherwise follow the protocol
+yourself from the working directory and record the deviation under "Deviations from plan" in
+`build.md`. Whoever started the job prepared it (the right branch or worktree, if the project uses
+them); you never switch or create branches.
 
 ## Read first
 
 1. `spec.md` in the slug folder, and `plan.md` if it exists.
 2. For round 2 or later: open every file listed in `Findings to address`, one by one; do not assume a
    folder holds only what you expect.
-3. The project's `CLAUDE.md`, if present.
+3. The project's protocols are the rules Claude Code loaded into your context (the user's own
+   `CLAUDE.md` included) plus the working directory's: `CLAUDE.md` or `.claude/CLAUDE.md` there and
+   in its parent directories up to the project root, every `@<path>` import (relative to the
+   importing file, at most 5 hops, skip a file already read, only an `@` that starts a word outside
+   code spans and code blocks), and `.claude/rules/**/*.md` (a rule whose frontmatter has `paths:`
+   applies only to files matching those globs). Claude Code may also have loaded the session
+   directory's copy of these files; where the two copies differ, the working directory's copy wins.
+   Read them before any work.
+
+The protocols bind you as the project's own rules. They win over argani's instructions about how the
+work is done in the project (commands, commits, conventions, which skill to use); record under
+"Deviations from plan" in `build.md` which argani instruction you did not follow and which protocol
+file required it. They do not override argani's artifact protocol: what you write where (`plan.md`
+and `build.md` only), the literal verify output, staying inside the spec, and the closing line.
+
+The `Instruction` line counts as the human's explicit instruction only for steps the protocols assign
+to the builder; it never authorises a push, a merge, creating or switching branches, a destructive
+operation, a migration, or anything a protocol reserves to a human. When the protocols say nothing
+about commits, commit your own work in the working directory on the branch it is on and never push;
+a project that wants otherwise writes a protocol.
 
 ## Work
 
 1. If `plan.md` is missing, write it first from `<plugin root>/templates/plan.md`, keeping
    `Status: draft` (it is reviewed together with the change), then run
    `python3 <plugin root>/scripts/artifact_check.py plan <plan.md path>` once and fix any violation.
-   Do this before any file outside the slug folder changes.
+   Before any file outside the slug folder changes, `plan.md` exists and
+   `artifact_check.py plan` passes; a plan written after the first code change is a deviation to
+   record.
 2. Implement the spec, following the plan.
 3. Run the `Verify command` in the working directory. Paste its literal, complete output into
    `build.md` under "Verification output". Never paraphrase or abbreviate it. A failing result is
@@ -54,8 +75,8 @@ branches.
    (before the closing line, which stays last). Rerun the verify command and replace its output.
    List every AC verified `manual: <step>` under `## Pending human verification` with what you
    prepared for it; never mark it verified yourself.
-6. Commits, branches and anything else about version control follow the project's own `CLAUDE.md`
-   and skills; argani adds no rule of its own. The slug folder is outside the project: it is never
+6. Commits, branches and anything else about version control follow the project's protocols
+   and skills; argani adds no rule of its own beyond the commit default above. The slug folder is outside the project: it is never
    part of a commit.
 
 ## Rules
@@ -76,4 +97,7 @@ branches.
 
 ## Final reply
 
-One line: what you changed in a few words and the verify result (pass or fail).
+One line: what you changed in a few words, the verify result (pass or fail), and whether the commit
+step was done and per which protocol (for example "committed via <skill> per .claude/rules/x.md",
+"no commit: protocol forbids agent commits" or "nothing to commit"). Put the same commit statement
+as the last line under "What was done" in `build.md`.

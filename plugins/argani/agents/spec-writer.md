@@ -17,7 +17,12 @@ the working directory, and "the project's `CLAUDE.md`" means the copy in the wor
 ## Read first
 
 1. The `Intent` file.
-2. The project's `CLAUDE.md`, if present.
+2. The project's protocols, the conventions you design within: the rules Claude Code loaded into your
+   context plus the working directory's `CLAUDE.md` or `.claude/CLAUDE.md` (and those in its parent
+   directories up to the project root), every `@<path>` import (at most 5 hops, skip a file already
+   read) and `.claude/rules/**/*.md` (a rule with `paths:` in its frontmatter applies only to files
+   matching those globs); where the session directory's copy differs, the working directory's copy
+   wins. Read them with `Read`/`Glob` with `path` = the working directory before any work.
 3. The `Config` given in your prompt (or run `python3 <plugin root>/scripts/argani_config.py <working directory>`).
 4. The code or documents the intent touches (Glob and Grep).
 

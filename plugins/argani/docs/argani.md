@@ -131,13 +131,17 @@ guards no git command, names no branch and reads no remote. What it needs from t
 commands in `project.json`: `verifyCommand` (proves the work) and `diffCommand` (prints the change
 under review). Before `/argani:factory` the human, or the project's own skills, prepare the branch or
 worktree and either start the session in that directory or pass it as `in <dir>` (the working
-directory; a project skill the builder invokes runs from the session directory unless it takes
-the directory as an argument, so starting the session there is simpler). A working directory nested inside the registered path
+directory; the agents run every command from it). A working directory nested inside the registered path
 (for example `.worktrees/<slug>`) must be covered by a `paths` pattern in `project.json`
 (`docs/config.md`), otherwise the project root is the outer checkout and `diffCommand` and
-`protectedPaths` use the wrong root. The builder follows the
-project's `CLAUDE.md` for
-commits.
+`protectedPaths` use the wrong root. The agents follow the project's
+own protocols: the rules Claude Code loaded plus the working directory's `CLAUDE.md`, its `@<path>`
+imports and `.claude/rules/**/*.md` (the working directory's copy wins over the session directory's).
+A protocol wins over argani on how the work is done, never over the artifact protocol. A project skill
+the builder invokes runs its commands from the working directory, like every other command (only a
+skill with `context: fork` cannot be redirected). The builder prompt carries an `Instruction` line
+saying the human ran `/argani:factory`; it counts as explicit instruction only for steps the
+protocols assign to the builder (such as its own commit), never for a push, a merge or branches.
 
 ## Two modes
 

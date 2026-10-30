@@ -22,6 +22,12 @@ the working directory, and "the project's `CLAUDE.md`" means the copy in the wor
 3. The change: the `Change` file, a unified diff captured for this round. Read the code it touches
    in the working directory. `mr.md`, when it exists, only names the merge request for
    context; opening it is not your job.
+4. The project's protocols, the conventions you judge against: the rules Claude Code loaded into your
+   context plus the working directory's `CLAUDE.md` or `.claude/CLAUDE.md` (and those in its parent
+   directories up to the project root), every `@<path>` import (at most 5 hops, skip a file already
+   read) and `.claude/rules/**/*.md` (a rule with `paths:` in its frontmatter applies only to files
+   matching those globs); where the session directory's copy differs, the working directory's copy
+   wins. Read them with `Read`/`Glob` with `path` = the working directory before any work.
 
 ## Write
 

@@ -9,7 +9,8 @@ Date: {{YYYY-MM-DD}}
 
 ## What was done
 
-<!-- Summary of the changes actually made, grouped by area. -->
+<!-- Summary of the changes actually made, grouped by area. The last line is the commit statement
+     (for example `Commit: via <skill> per <protocol file>`, `Commit: none, protocol forbids agent commits`). -->
 
 - {{change}}
 

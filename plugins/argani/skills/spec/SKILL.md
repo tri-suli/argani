@@ -33,7 +33,7 @@ This skill never writes code.
    - Prints `draft`: **stop**. Name the file, say the intent is not approved, and tell the user to
      run `/argani:intent approve <slug>`. Do not write spec.md.
 2. If `spec.md` already exists in that folder, stop and ask before touching it.
-3. Read the project's CLAUDE.md and the code or documents the intent touches.
+3. Read the project's protocols (CLAUDE.md, its `@` imports, `.claude/rules/*.md`) and the code or documents the intent touches.
 4. Write `spec.md` from `${CLAUDE_PLUGIN_ROOT}/templates/spec.md` with `Status: draft`:
    - Approach, and rejected alternatives.
    - Affected areas, as concrete paths.

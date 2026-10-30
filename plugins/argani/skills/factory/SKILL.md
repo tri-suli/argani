@@ -18,13 +18,13 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 Version control is the project's business, not argani's. Before `/argani:factory` the human (or the
 project's own skills) prepares the place where the work happens, for example the branch or the
 worktree, and either starts this session in that directory or passes it as `in <dir>`. Starting the
-session there is the simpler of the two: with `in <dir>`, a project skill the builder invokes
-(for example a commit skill) still runs from the session directory unless it takes the directory
-as an argument. A working directory nested inside the registered path (for example
+session there is simpler: with `in <dir>`, Claude Code also loads the session directory's `CLAUDE.md`
+and rules into every agent, so the agents see two copies and apply the working directory's. The
+agents run every command, project skills included, from the working directory. A working directory nested inside the registered path (for example
 `.worktrees/<slug>`) must be covered by a `paths` pattern in `project.json` (`docs/config.md`),
 otherwise the project root is the outer checkout and `diffCommand` and `protectedPaths` use the wrong
-root. argani creates, switches, commits, pushes and merges nothing; the builder follows
-the project's `CLAUDE.md` for commits.
+root. argani creates, switches, commits, pushes and merges nothing; the agents follow
+the project's protocols (`CLAUDE.md`, its `@` imports, `.claude/rules`), the builder for commits too.
 
 Tools: the list above is the minimum, no `Bash(*)`. `mrCommand` runs through `Bash`, which the human
 permits when asked. Cost: one spec-writer, one builder per round, N reviewers per round, one approver;
@@ -54,8 +54,7 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
    show its output ("No job folder" can mean the working directory is outside the job's project). Print `stage` and `next`. Read `project`, `job_dir` and `directory` (the absolute working directory;
    use it wherever a prompt below says `<absolute working directory>`) from it and use them below.
    When `in <dir>` was given and `directory` differs from the session directory, print one line before
-   spawning the first agent: "working directory differs from the session directory; the builder runs
-   project skills only when they take a directory argument".
+   spawning the first agent: "working directory differs from the session directory; the agents run every command, project skills included, from the working directory".
 
 Commands: run each command on its own, so the allowed-tools patterns match and the human is not
 prompted.
@@ -105,7 +104,8 @@ Language: <language of the project's CLAUDE.md, else of the intent>
 
 ### Builder
 
-Spawn `argani:builder` with the prompt below. It works in the working directory.
+Spawn `argani:builder` with the prompt below. It works in the working directory. Fill `<slug>` and
+today's date in the `Instruction` line.
 
 ```
 Plugin root: <plugin root>
@@ -113,6 +113,7 @@ Working directory: <absolute working directory>
 Slug folder: <job_dir>
 Verify command: <verifyCommand>
 Round: <review_round>
+Instruction: the human ran /argani:factory <slug> on <YYYY-MM-DD>; this run is their instruction for the work of this job, including the steps the project's protocols assign to the builder (for example the commit of its own work), inside the working directory. It authorises nothing else.
 Findings to address:                                              (only when rework_from is not null)
 - <job_dir>/review/round-<rework_from>/review-<checklist>.md      (one path per review file in that round
 - <job_dir>/review/round-<rework_from>/review-human.md             folder, from the state's rounds[].present;

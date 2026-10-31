@@ -41,7 +41,8 @@ defaults (with a note on stderr). The artifact guard cannot check `protectedPath
 | `reviewers`      | `["code"]`    | Names of checklists from the catalog that reviewers apply.                                                                                                                                                                                                                                                                   |
 | `reviewerPaths`  | `{}`          | Path globs per checklist (same syntax as `protectedPaths`), for example `{"security": ["src/auth/**"]}`. A checklist listed here runs only when the captured `change.diff` touches one of its globs; the others always run. Without a `change.diff` (or one that is not a unified diff) every reviewer runs. Keys must be listed in `reviewers`. |
 | `protectedPaths` | `[]`          | Globs relative to the project directory that agents must not write.                                                                                                                                                                                                                                                         |
-| `mrCommand`      | none          | Command that opens the merge request. `{title}` is the title and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, the factory only prints the description. |
+| `mrCommand`      | none          | Command that opens the merge request. `{title}` is the title (the output of `mrTitleCommand` when set, else the intent's heading) and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, the factory only prints the description. |
+| `mrTitleCommand` | none          | Command that prints the merge request title, for projects whose titles follow a convention argani cannot derive. `{title}` is the intent's heading and `{slug}` the task slug, shell-quoted by argani like `mrCommand` (write them without quotes). Runs in the working directory with a 30 s timeout; the first non-empty line of stdout is the title. A failure or an empty output stops the merge request step. Examples: `scripts/mr-title.sh {slug}`, `printf '[feat]: %s' {title}`. |
 | `agentModels`    | see below     | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"\|"medium"\|"high": ...}`. Keys are `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below). |
 
 ## Choosing `diffCommand`
@@ -118,6 +119,7 @@ whether it points into another directory of the project or to a folder outside a
   "diffCommand": "git diff origin/main...HEAD",
   "reviewers": ["code", "security", "compliance"],
   "protectedPaths": ["raw/**", "archive/**"],
+  "mrTitleCommand": "scripts/mr-title.sh {slug}",
   "mrCommand": "gh pr create --title {title} --body-file {bodyFile}"
 }
 ```

@@ -118,6 +118,55 @@ def test_command_quotes_every_value_for_the_shell(job):
     assert words[words.index("--body-file") + 1] == printed["bodyFile"]
 
 
+def test_without_mr_title_command_the_title_is_the_intent_heading(job):
+    job.intent()
+    printed = description(job)
+    assert printed["titleSource"] == "intent" and printed["title"] == "Demo"
+
+
+def test_mr_title_command_output_becomes_the_title(job):
+    job.set_config(mrTitleCommand="printf '[feat]: Demo Title\\n'")
+    job.intent()
+    printed = description(job)
+    assert printed["title"] == "[feat]: Demo Title" and printed["titleSource"] == "mrTitleCommand"
+
+
+def test_mr_title_command_fills_quoted_title_and_slug(job):
+    job.set_config(mrTitleCommand="printf '%s|%s' {title} {slug}",
+                   mrCommand="gh pr create --title {title}")
+    job.write("intent.md", INTENT.format(status=APPROVED).replace("Demo", NASTY_TITLE, 1))
+    printed = description(job, "--write")
+    assert printed["title"] == f"{NASTY_TITLE}|demo"
+    assert shlex.split(printed["command"])[-2:] == [f"{NASTY_TITLE}|demo", ")"]
+
+
+def test_mr_title_command_uses_the_first_non_empty_line(job):
+    job.set_config(mrTitleCommand="printf '\\n  \\n  Second line  \\nthird\\n'")
+    job.intent()
+    assert description(job)["title"] == "Second line"
+
+
+def test_mr_title_command_runs_in_the_working_directory(job):
+    job.set_config(mrTitleCommand="pwd")
+    job.intent()
+    assert description(job)["title"] == os.path.realpath(job.root)
+
+
+def test_failing_mr_title_command_exits_1_with_its_stderr(job):
+    job.set_config(mrTitleCommand="echo broken >&2; exit 3")
+    job.intent()
+    result = generate(job)
+    assert result.returncode == 1
+    assert "mrTitleCommand failed with exit code 3" in result.stdout and "broken" in result.stdout
+
+
+def test_empty_mr_title_command_output_exits_1(job):
+    job.set_config(mrTitleCommand="printf '\\n  \\n'")
+    job.intent()
+    result = generate(job)
+    assert result.returncode == 1 and "mrTitleCommand printed no title" in result.stdout
+
+
 def test_fence_first_desired_outcome_uses_the_next_paragraph(job):
     text = INTENT.format(status=APPROVED).replace("outcome\no\n", "outcome\n```\ncode line\n```\n\nReal summary.\n", 1)
     job.write("intent.md", text)

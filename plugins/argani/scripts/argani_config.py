@@ -28,6 +28,7 @@ DEFAULTS = {
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
+    "mrTitleCommand": None,  # prints the merge request title
     # Model per agent, or per job risk ({"default": ..., "low"|"medium"|"high": ...}). A key
     # "reviewer:<checklist>" overrides "reviewer" for that checklist.
     "agentModels": {
@@ -67,6 +68,7 @@ def _reviewer_names(value):
 
 QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
 MR_COMMAND_PLACEHOLDERS = ("{title}", "{bodyFile}")
+MR_TITLE_COMMAND_PLACEHOLDERS = ("{title}", "{slug}")
 
 
 def _command_with_placeholders(value, allowed):
@@ -85,6 +87,10 @@ def _command_with_placeholders(value, allowed):
 
 def _mr_command(value):
     return _command_with_placeholders(value, MR_COMMAND_PLACEHOLDERS)
+
+
+def _mr_title_command(value):
+    return _command_with_placeholders(value, MR_TITLE_COMMAND_PLACEHOLDERS)
 
 
 def _optional_string(value):
@@ -198,6 +204,7 @@ COERCERS = {
     "verifyCommand": _optional_string,
     "diffCommand": _optional_string,
     "mrCommand": _mr_command,
+    "mrTitleCommand": _mr_title_command,
     "agentModels": _agent_models,
     "reviewerPaths": _reviewer_paths,
 }
@@ -318,15 +325,22 @@ def job_dir(config, slug):
 
 
 def fill_command(template, values):
-    """template with every {name} replaced by the shell-quoted value; values maps names (without braces) to strings."""
-    for name, value in values.items():
-        template = template.replace("{" + name + "}", shlex.quote(value))
-    return template
+    """template with every {name} replaced by the shell-quoted value, in one pass, so a value that
+    itself contains a placeholder is never filled again; values maps names (without braces) to strings."""
+    def quoted(match):
+        name = match.group(0)[1:-1]
+        return shlex.quote(values[name]) if name in values else match.group(0)
+    return PLACEHOLDER.sub(quoted, template)
 
 
 def mr_command_for(config, values):
     """The configured mrCommand filled by fill_command, or None when there is no mrCommand."""
     return fill_command(config["mrCommand"], values) if config["mrCommand"] else None
+
+
+def mr_title_command_for(config, values):
+    """The configured mrTitleCommand filled by fill_command, or None when there is no mrTitleCommand."""
+    return fill_command(config["mrTitleCommand"], values) if config["mrTitleCommand"] else None
 
 
 def main(argv):

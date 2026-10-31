@@ -157,8 +157,8 @@ same empty-output rule as above, then spawn the approver.
 
 1. `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
    show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
-   verification checklist of `decision.md`, where the task folder is) and prints JSON with `title`,
-   `bodyFile`, `directory` and, when `mrCommand` is configured, `command`.
+   verification checklist of `decision.md`, where the task folder is) and prints JSON with `title` (the intent heading, or the output of `mrTitleCommand` when configured),
+   `bodyFile`, `directory`, `titleSource` and, when `mrCommand` is configured, `command`.
 - `mrCommand` configured: run the printed `command` verbatim (it starts with `cd` into the working directory); never rebuild or re-quote it. If it
   fails, stop and show the error (no `mr.md`). Otherwise write `<job_dir>/mr.md` (the command's
   output or URL, and today's date) and stop: "MR ready for human review".

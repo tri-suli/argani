@@ -3,19 +3,25 @@
 
 Usage: python3 mr_description.py <slug> [dir] [--write]
 
-Prints JSON {"title", "body", "directory"}. The title is the intent's heading; the body lists the
-summary, the acceptance criteria of intent.md, the human verification checklist of decision.md
+Prints JSON {"title", "body", "directory", "titleSource"}. The title is the intent's heading, or
+the first non-empty line printed by the config's mrTitleCommand ({title} and {slug} shell-quoted;
+run in the working directory with stdin closed and a 30 s timeout, with or without --write;
+"titleSource" is then "mrTitleCommand", else "intent"). Exit 1 when that command fails, times out
+or prints no title. The body lists the summary, the acceptance criteria of intent.md, the human verification checklist of decision.md
 (when it has one) and where the job's artifacts live; "directory" is the real path of [dir], the
 working directory of the job. With --write the body is saved to <job_dir>/mr-body.md and the JSON
 also has "bodyFile" (that path) and, when the config has mrCommand, "command": `cd <directory> &&`
 followed by the mrCommand in parentheses (a `||` or `;` inside it cannot run after a failed `cd`)
-with {title} and {bodyFile} replaced by shell-quoted values, to be run verbatim. Reads files only (plus the --write file). Exit 1 when the job folder is missing or
-the slug is invalid; exit 2 for an invalid config or wrong usage.
+with {title} and {bodyFile} replaced by shell-quoted values, to be run verbatim. Apart from
+mrTitleCommand, reads files only (plus the --write file). Exit 1 when the job folder is missing
+or the slug is invalid; exit 2 for an invalid config or wrong usage.
 """
 import json
 import os
 import re
 import shlex
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +33,37 @@ TITLE_PATTERN = re.compile(r"^# Intent:\s*(\S.*?)\s*$")
 METADATA_PATTERN = re.compile(r"^[A-Za-z][A-Za-z ]*: ")
 CHECKLIST_HEADING = "Human verification before merge"
 CHECKLIST_ITEM_PREFIX = "- [ ] "
+COMMAND_TIMEOUT_SECONDS = 30
+
+
+class TitleCommandError(ValueError):
+    pass
+
+
+def run_title_command(command, directory):
+    """First non-empty stripped line printed by the shell command run in directory with stdin closed.
+    The command runs in its own process group, which is killed on a timeout. Raises TitleCommandError."""
+    try:
+        process = subprocess.Popen(command, shell=True, cwd=directory, stdin=subprocess.DEVNULL,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    except OSError as error:
+        raise TitleCommandError(f"mrTitleCommand could not run in {directory}: {error}") from error
+    try:
+        stdout, stderr = process.communicate(timeout=COMMAND_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as error:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+        raise TitleCommandError(f"mrTitleCommand timed out after {COMMAND_TIMEOUT_SECONDS} s") from error
+    if process.returncode != 0:
+        raise TitleCommandError(f"mrTitleCommand failed with exit code {process.returncode}:\n"
+                                f"{stderr.decode('utf-8', 'replace').rstrip()}")
+    for line in stdout.decode("utf-8", "replace").splitlines():
+        if line.strip():
+            return line.strip()
+    raise TitleCommandError("mrTitleCommand printed no title")
 
 
 def first_paragraph(lines):
@@ -138,6 +175,16 @@ def main(argv):
                                     read_normalized(job_dir / "decision.md"))
     directory = os.path.realpath(start_dir)
     description["directory"] = directory
+    description["titleSource"] = "intent"
+    title_command = argani_config.mr_title_command_for(config, {
+        "title": description["title"], "slug": slug})
+    if title_command:
+        try:
+            description["title"] = run_title_command(title_command, directory)
+        except TitleCommandError as error:
+            print(f"mr_description: {error}")
+            return 1
+        description["titleSource"] = "mrTitleCommand"
     if write:
         body_file = job_dir / "mr-body.md"
         body_file.write_text(description["body"], encoding="utf-8")

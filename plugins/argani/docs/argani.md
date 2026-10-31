@@ -28,7 +28,7 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 | Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
 | Work     | code or documents in the project, `build.md`    | Human or builder agent                      | none                                                                            |
 | Review   | `review/round-N/change.diff`, `review/round-N/review-<checklist>.md` | `capture_change.py` (the change), reviewer agents | none                                                                            |
-| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the MR description is generated from the intent and the decision |
+| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the MR description is generated from the intent and the decision; its title is the intent heading, or the output of `mrTitleCommand` |
 | Operate  | follow-up intents                               | Human, from what production shows           | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.

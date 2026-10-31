@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-31
+
+### Added
+
+- `mrTitleCommand` (optional) in `project.json`: a project command that prints the merge request title, for projects whose titles follow a convention argani cannot derive (for example `[feat]: Title In Title Case`). `{title}` and `{slug}` are shell-quoted placeholders. `mr_description.py` runs it in the working directory (30 s timeout), uses the first non-empty line of stdout as the title, exits 1 when it fails or prints nothing, and reports `titleSource` (`mrTitleCommand` or `intent`). The title flows into `{title}` of `mrCommand`.
+
 ## [2.3.0] - 2026-10-31
 
 ### Added

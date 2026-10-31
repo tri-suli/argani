@@ -19,6 +19,7 @@ def test_defaults_outside_every_project(tmp_path):
     assert config["verifyCommand"] is None
     assert config["diffCommand"] is None
     assert config["mrCommand"] is None
+    assert config["mrTitleCommand"] is None
 
 
 def test_defaults_carry_no_git_keys(tmp_path):
@@ -108,6 +109,21 @@ def test_mr_command_rejects_quoted_placeholders(command):
         argani_config._mr_command(command)
 
 
+def test_mr_title_command_rejects_quoted_and_unknown_placeholders():
+    with pytest.raises(ValueError, match="quoted by argani"):
+        argani_config._mr_title_command('title.sh "{slug}"')
+    with pytest.raises(ValueError, match="uses {bodyFile}"):
+        argani_config._mr_title_command("title.sh {bodyFile}")
+    assert argani_config._mr_title_command("title.sh {title} {slug}") == "title.sh {title} {slug}"
+
+
+def test_mr_title_command_for_fills_quoted_values():
+    config = {"mrTitleCommand": "title.sh {slug} {title}"}
+    command = argani_config.mr_title_command_for(config, {"slug": "a-b", "title": "It's $x"})
+    assert shlex.split(command) == ["title.sh", "a-b", "It's $x"]
+    assert argani_config.mr_title_command_for({"mrTitleCommand": None}, {"slug": "a"}) is None
+
+
 def test_mr_command_ignores_shell_variables_and_braces():
     command = "gh pr create --repo ${GH_REPO} --label {a,b} --title {title}"
     assert argani_config._mr_command(command) == command
@@ -133,3 +149,9 @@ def test_the_command_line_refuses_a_directory_that_does_not_exist(tmp_path):
                             capture_output=True, text=True)
     assert result.returncode == 2
     assert f"{missing} is not a directory" in result.stderr
+
+
+def test_fill_command_fills_each_placeholder_once_even_when_a_value_holds_one():
+    command = argani_config.fill_command("gh pr create --title {title} --body-file {bodyFile}",
+                                         {"title": "Fix {bodyFile} x", "bodyFile": "/tmp/a b/mr-body.md"})
+    assert shlex.split(command) == ["gh", "pr", "create", "--title", "Fix {bodyFile} x", "--body-file", "/tmp/a b/mr-body.md"]

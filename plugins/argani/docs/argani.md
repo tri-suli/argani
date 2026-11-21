@@ -107,6 +107,14 @@ Done is decided by `mr.md` alone: when the merge request is merged, the human ap
 `Merged: <YYYY-MM-DD>` (a valid date at the start of a line). argani never looks at branches or
 remotes, so a merge by any means (squash, rebase, a deleted branch) is recognised the same way.
 
+After APPROVE the job's scope is closed: the approver judged the change against `spec.md` and the
+acceptance criteria of `intent.md`, and the merge request carries that judgement. Work that grows
+beyond the approved spec while the merge request is open is a new intent, not an edit of this
+job: a long-lived merge request that keeps absorbing scope leaves `mr-body.md`, the acceptance
+criteria and the human checklist stale, and nothing in argani re-reviews it. argani does not
+amend an approved spec; `mr_description.py` only warns when `intent.md` changed after
+`decision.md`.
+
 ## Always-on rules
 
 1. Skills advise, hooks enforce. Anything that must always hold is a hook reading the project config.

@@ -1,6 +1,8 @@
 import json
+import re
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -312,3 +314,102 @@ def test_merged_line_in_mr_md_is_done_without_any_directory(make_project, hub, r
     (folder / "mr.md").write_text("url\nfeature/login\nMerged: 2026-10-29\n")
     task = board.board(hub)["projects"][0]["tasks"][0]
     assert (task["stage"], task["column"], task["merged"]) == ("done", "Done", True)
+
+
+# --- board.json and the active agents ---------------------------------------------------------------
+
+def spawn_record(tool_use_id="toolu_1", ts="2026-11-21T10:00:00Z", project="demo", slug="login"):
+    return {"ts": ts, "event": "spawn", "session_id": "s1", "agent_type": "argani:builder",
+            "parent_agent_type": None, "tool_use_id": tool_use_id, "model": "sonnet",
+            "project": project, "slug": slug, "cwd": "/work"}
+
+
+def finish_record(tool_use_id="toolu_1"):
+    return {"ts": "2026-11-21T10:05:00Z", "event": "finish", "session_id": "s1",
+            "agent_type": "argani:builder", "tool_use_id": tool_use_id, "status": "completed"}
+
+
+def write_events(hub, days_ago, *lines):
+    day = datetime.now().astimezone() - timedelta(days=days_ago)
+    folder = hub / "events"
+    folder.mkdir(exist_ok=True)
+    (folder / f"{day:%Y-%m-%d}.jsonl").write_text(
+        "".join((line if isinstance(line, str) else json.dumps(line)) + "\n" for line in lines))
+
+
+def test_spawn_without_finish_is_active(hub):
+    write_events(hub, 0, spawn_record())
+    assert board.board(hub)["agents"] == [spawn_record()]
+
+
+def test_spawn_with_finish_is_not_active(hub):
+    write_events(hub, 0, spawn_record(), finish_record())
+    assert board.board(hub)["agents"] == []
+
+
+def test_finish_in_a_later_file_closes_the_spawn_of_yesterday(hub):
+    write_events(hub, 1, spawn_record())
+    write_events(hub, 0, finish_record())
+    assert board.board(hub)["agents"] == []
+
+
+def test_yesterday_counts_and_two_days_ago_does_not(hub):
+    write_events(hub, 1, spawn_record("toolu_y"))
+    write_events(hub, 2, spawn_record("toolu_old"))
+    assert [agent["tool_use_id"] for agent in board.board(hub)["agents"]] == ["toolu_y"]
+
+
+def test_agents_keep_file_order_oldest_file_first(hub):
+    write_events(hub, 1, spawn_record("toolu_b"))
+    write_events(hub, 0, spawn_record("toolu_c"), spawn_record("toolu_a"))
+    assert [agent["tool_use_id"] for agent in board.board(hub)["agents"]] == ["toolu_b", "toolu_c", "toolu_a"]
+
+
+@pytest.mark.parametrize("tool_use_id", [None, ["x"], {"a": 1}, 7])
+def test_spawn_without_string_tool_use_id_is_never_active(hub, tool_use_id):
+    write_events(hub, 0, spawn_record(tool_use_id=tool_use_id), spawn_record("toolu_ok"))
+    assert [agent["tool_use_id"] for agent in board.board(hub)["agents"]] == ["toolu_ok"]
+
+
+def test_finish_with_unhashable_tool_use_id_does_not_crash(hub):
+    write_events(hub, 0, spawn_record(), {"event": "finish", "tool_use_id": ["toolu_1"]})
+    assert board.board(hub)["agents"] == [spawn_record()]
+
+
+def test_malformed_lines_are_skipped_with_one_warning(hub, capsys):
+    write_events(hub, 0, "{not json", "[1, 2]", "[" * 100000 + "]" * 100000, spawn_record())
+    assert board.board(hub)["agents"] == [spawn_record()]
+    error = capsys.readouterr().err
+    assert error.count("skipped 3 malformed lines in") == 1
+
+
+def test_missing_events_folder_means_no_agents(hub):
+    assert not (hub / "events").exists()
+    assert board.board(hub)["agents"] == []
+
+
+def test_write_creates_board_json_snapshot(project, hub):
+    project.task()
+    assert run_board("--write", str(project.root)).returncode == 0
+    snapshot = json.loads((hub / "board.json").read_text())
+    assert set(snapshot) == {"home", "generatedAt", "columns", "projects", "agents"}
+    assert snapshot["columns"] == list(board.COLUMNS)
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", snapshot["generatedAt"])
+    assert snapshot["agents"] == []
+    assert [task["slug"] for task in snapshot["projects"][0]["tasks"]] == ["login"]
+    assert not (hub / ".board.json.tmp").exists()
+
+
+def test_json_output_equals_board_json_file(project, hub):
+    project.task()
+    write_events(hub, 0, spawn_record())
+    result = run_board("--json", "--write", str(project.root))
+    assert json.loads(result.stdout) == json.loads((hub / "board.json").read_text())
+
+
+def test_single_project_board_still_lists_agents_of_other_projects(project, hub):
+    project.task()
+    write_events(hub, 0, spawn_record(project="other", slug="billing"))
+    data = board.board(hub, ["demo"])
+    assert [item["name"] for item in data["projects"]] == ["demo"]
+    assert [agent["project"] for agent in data["agents"]] == ["other"]

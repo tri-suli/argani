@@ -5,7 +5,8 @@ Usage: python3 board.py [--all] [--write] [--json] [dir]
 
 Without --all the board shows the project of `dir` (default: the current directory); with --all
 it shows every registered project. Prints markdown (or, with --json, the board as JSON).
---write also writes the markdown to <home>/board.md, which is generated and never edited by hand.
+--write also writes the markdown to <home>/board.md and the JSON to <home>/board.json, which are
+generated and never edited by hand.
 
 The column of a task derives from its stage (factory_state.py); nothing is stored separately.
 Exit 1 with a message when the home is unusable or the directory is not registered.
@@ -13,6 +14,7 @@ Exit 1 with a message when the home is unusable or the directory is not register
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 
 import argani_config
 import argani_home
@@ -21,6 +23,7 @@ import project_registry
 
 COLUMNS = ("Backlog", "Design", "In progress", "Ready for MR", "In review", "Done", "Needs human")
 BOARD_FILE = "board.md"
+BOARD_JSON_FILE = "board.json"
 
 STAGE_COLUMNS = {
     "needs-intent-approval": "Backlog",
@@ -90,12 +93,46 @@ def project_tasks(home, entry):
     return [task_row(home, name, slug, config) for slug in slugs]
 
 
+def active_agents(home):
+    """Spawn records of today's and yesterday's event files (local dates) without a finish record,
+    in file order (oldest file first). Records without a string tool_use_id count as malformed."""
+    now = datetime.now().astimezone()
+    spawns, finished = [], set()
+    for day in (now - timedelta(days=1), now):
+        path = home / argani_home.EVENTS_DIR / f"{day:%Y-%m-%d}.jsonl"
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except FileNotFoundError:
+            continue
+        except (OSError, UnicodeDecodeError) as error:
+            print(f"argani: cannot read {path}: {error}", file=sys.stderr)
+            continue
+        malformed = 0
+        for line in filter(None, (line.strip() for line in lines)):
+            try:
+                record = json.loads(line)
+            except (ValueError, RecursionError):
+                record = None
+            # a tool_use_id that is not a string cannot be correlated (and may be unhashable)
+            if not isinstance(record, dict) or not isinstance(record.get("tool_use_id"), str):
+                malformed += 1
+            elif record.get("event") == "spawn":
+                spawns.append(record)
+            elif record.get("event") == "finish":
+                finished.add(record["tool_use_id"])
+        if malformed:
+            print(f"argani: skipped {malformed} malformed lines in {path}", file=sys.stderr)
+    return [spawn for spawn in spawns if spawn["tool_use_id"] not in finished]
+
+
 def board(home, names=None):
     entries = project_registry.list_projects(home)
     if names is not None:
         entries = [entry for entry in entries if entry["name"] in names]
     projects = [{"name": entry["name"], "tasks": project_tasks(home, entry)} for entry in entries]
-    return {"home": str(home), "projects": projects}
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"home": str(home), "generatedAt": generated_at,
+            "columns": list(COLUMNS), "projects": projects, "agents": active_agents(home)}
 
 
 def escape_markdown(text):
@@ -134,11 +171,11 @@ def parse_arguments(argv):
     return flags, (positional[0] if positional else ".")
 
 
-def write_board_file(home, markdown):
-    """Replace <home>/board.md atomically."""
-    temporary = home / f".{BOARD_FILE}.tmp"
-    temporary.write_text(markdown, encoding="utf-8")
-    os.replace(temporary, home / BOARD_FILE)
+def write_board_file(home, file_name, content):
+    """Replace <home>/<file_name> atomically."""
+    temporary = home / f".{file_name}.tmp"
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, home / file_name)
 
 
 def main(argv):
@@ -160,7 +197,8 @@ def main(argv):
         board_data = board(home, names)
         markdown = render_markdown(board_data)
         if "--write" in flags:
-            write_board_file(home, markdown)
+            write_board_file(home, BOARD_FILE, markdown)
+            write_board_file(home, BOARD_JSON_FILE, json.dumps(board_data, indent=2) + "\n")
     except (argani_home.HomeError, project_registry.ProjectError, ValueError, OSError) as error:
         print(error)
         return 1

@@ -94,12 +94,28 @@ project language.
 
 ```
 python3 board.py [dir]                    # the project of dir (default: the current directory)
-python3 board.py --all [--write] [--json] # every project; --write saves <home>/board.md
+python3 board.py --all [--write] [--json] # every project; --write saves <home>/board.md and <home>/board.json
 ```
 
 `/argani:board [--all]` runs `board.py` and shows the result.
 
-`board.md` is generated and never edited by hand; it is regenerated on every `--write`.
+`board.md` and `board.json` are generated and never edited by hand; they are regenerated on every `--write`.
+
+### board.json
+
+A read-only snapshot for user interfaces; `--json` prints the same object. Top-level keys: `home`,
+`generatedAt` (UTC, `YYYY-MM-DDTHH:MM:SSZ`), `columns` (the column order), `projects[]` and `agents[]`.
+Each project is `{name, tasks[]}`; each task has `project`, `slug`, `title`, `stage`, `column`, `merged`
+and `next`. `agents[]` holds the active argani agents: the `spawn` records of the [Event log](#event-log)
+(fields there, unchanged), so a UI joins them to tasks on `project` + `slug`. An agent is active when its
+`spawn` has no `finish` with the same `tool_use_id` in the event files of today and yesterday (local
+dates), in file order; a `spawn` without a string `tool_use_id` is never active. The window is the only
+expiry: a `spawn` that never got a `finish` (the session died, the Agent call was denied, blocked by
+another hook or interrupted) stays listed until its file ages out, and an agent still running when its
+file ages out disappears early. A background agent reports `finish` with `status: async_launched`
+at launch, so it would be dropped early; argani's skills do not use them. `agents` ignores the project
+filter: it always lists every active agent of the home. An unreadable event file or malformed line is
+skipped with a warning on stderr.
 
 A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
 
@@ -202,7 +218,7 @@ removing the old folders and `.claude/argani.json` goes through the project's ow
 
 `hooks/log_events.py` appends one JSON line per event to `<home>/events/<YYYY-MM-DD>.jsonl` (the local date;
 the folder is created on the first event, and nothing is written when the home does not exist). The
-log is append-only and nothing reads it yet. Only `argani:*` agents are logged. Every line has `ts`
+log is append-only; `board.py` reads it for the active agents of `board.json`. Only `argani:*` agents are logged. Every line has `ts`
 (UTC), `event`, `session_id` and `agent_type`, plus the fields below. For `spawn` and `finish` the `agent_type` is the agent that was
 called and `parent_agent_type` the one that called it (`null` in the main session).
 

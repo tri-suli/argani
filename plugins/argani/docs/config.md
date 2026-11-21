@@ -149,8 +149,8 @@ expanded) without `..`.
 `--create` makes the missing folders only (the home and `projects/`) and never touches existing
 files. Its parent folder must already exist. The home is a plain folder; what the user does with it
 (backup, sync, version control) is theirs, and argani writes nothing of its own beyond the files
-described here. If the home is under version control, add `board.md` to its ignore list: the board
-is regenerated.
+described here. If the home is under version control, add `board.md` and `board.json` to its ignore list:
+the board is regenerated.
 
 `/argani:init` registers a directory as a project: it detects the settings, asks what cannot be
 detected, and runs `python3 <plugin root>/scripts/register_project.py <name> <dir> < config.json`,

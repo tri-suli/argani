@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-11-21
+
+### Added
+
+- `scripts/board.py --write` also writes `<home>/board.json`, a read-only snapshot for user interfaces: `home`, `generatedAt`, `columns`, the projects with their tasks, and `agents`, the argani agents still active in the event log (a `spawn` without a `finish` in today's and yesterday's files). `--json` prints the same object.
+
 ## [2.6.0] - 2026-11-21
 
 ### Added

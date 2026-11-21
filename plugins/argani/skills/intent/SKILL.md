@@ -1,7 +1,7 @@
 ---
 name: intent
-description: Write or approve an intent.md, the first artifact of the argani loop. Use when the user wants to start a new piece of work, describe a problem or goal, or approve an intent. Slash form /argani:intent <description> or /argani:intent approve <slug>.
-argument-hint: "<description> | approve <slug>"
+description: Write or approve an intent.md, the first artifact of the argani loop. Use when the user wants to start a new piece of work, describe a problem or goal, or approve an intent. Slash form /argani:intent <description> or /argani:intent approve <slug> [by <name>].
+argument-hint: "<description> | approve <slug> [by <name>]"
 allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(date +%F), Read, Write, Edit, Glob
 ---
 
@@ -23,9 +23,12 @@ This skill never writes code.
 2. Artifact language: the language of this project's CLAUDE.md, else the user's. Only the
    prose is in that language. The `# Intent:` title prefix, the `##` section headings, file names,
    `Status:` lines, `AC-n`, `verify:` and verdict words always stay English.
-3. Mode: it is `approve` only when `$ARGUMENTS` is exactly two tokens, `approve <slug>`, and the
+3. Mode: it is `approve` only when `$ARGUMENTS` is `approve <slug>`, optionally followed by `by <name>`
+   (`<name>` is the rest of the line, one or more words; it is the approver's name), and the
    folder `<artifact dir>/<slug>/` exists. If `$ARGUMENTS` is exactly `approve <slug>` but the
-   folder does not exist, say the slug was not found and stop; do not start an interview.
+   folder does not exist, say the slug was not found and stop; do not start an interview. With
+   `by <name>` and no such folder, the line is a description ("approve refunds by finance" is
+   work to describe, not a command). A bare trailing `by` is an approve without a name: ask for it.
    Anything else is a description.
 
 ## Description mode
@@ -57,7 +60,7 @@ This skill never writes code.
 1. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py status <artifact dir>/<slug>/intent.md`.
    - Non-zero exit: refuse, show the violations verbatim, never set the approved status.
    - Prints `approved`: say it is already approved and stop.
-2. Take the approver's name from the user's message, else ask for it (one line, no guessing).
+2. Take the approver's name from `by <name>`, else from the user's message, else ask for it (one line, no guessing).
 3. Run `date +%F`, then replace the Status line with
    `Status: approved by <name> on <YYYY-MM-DD>`.
 4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`

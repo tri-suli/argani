@@ -3,7 +3,8 @@
 
 Usage: python3 mr_description.py <slug> [dir] [--write]
 
-Prints JSON {"title", "body", "directory", "titleSource"}. The title is the intent's heading, or
+Prints JSON {"title", "body", "directory", "titleSource", "warnings"}. The title is the intent's
+heading, or
 the first non-empty line printed by the config's mrTitleCommand ({title} and {slug} shell-quoted;
 run in the working directory with stdin closed and a 30 s timeout, with or without --write;
 "titleSource" is then "mrTitleCommand", else "intent"). Exit 1 when that command fails, times out
@@ -12,7 +13,9 @@ or prints no title. The body lists the summary, the acceptance criteria of inten
 working directory of the job. With --write the body is saved to <job_dir>/mr-body.md and the JSON
 also has "bodyFile" (that path) and, when the config has mrCommand, "command": `cd <directory> &&`
 followed by the mrCommand in parentheses (a `||` or `;` inside it cannot run after a failed `cd`)
-with {title} and {bodyFile} replaced by shell-quoted values, to be run verbatim. Apart from
+with {title} and {bodyFile} replaced by shell-quoted values, to be run verbatim. "warnings" is a
+list, empty unless decision.md exists and intent.md is newer than it (the human verification
+checklist may then be stale); each warning is also printed to stderr. Apart from
 mrTitleCommand, reads files only (plus the --write file). Exit 1 when the job folder is missing
 or the slug is invalid; exit 2 for an invalid config or wrong usage.
 """
@@ -125,6 +128,10 @@ def argani_section(state):
     return [task]
 
 
+STALE_CHECKLIST_WARNING = ("intent.md changed after decision.md; check that the human verification "
+                           "checklist still matches the acceptance criteria")
+
+
 def build_description(state, intent_text, decision_text):
     """{"title", "body"} for a job state from factory_state.build_state."""
     blocks = []
@@ -175,6 +182,12 @@ def main(argv):
                                     read_normalized(job_dir / "decision.md"))
     directory = os.path.realpath(start_dir)
     description["directory"] = directory
+    description["warnings"] = []
+    decision_file = job_dir / "decision.md"
+    intent_file = job_dir / "intent.md"
+    if decision_file.exists() and intent_file.exists() and intent_file.stat().st_mtime > decision_file.stat().st_mtime:
+        description["warnings"].append(STALE_CHECKLIST_WARNING)
+        print(STALE_CHECKLIST_WARNING, file=sys.stderr)
     description["titleSource"] = "intent"
     title_command = argani_config.mr_title_command_for(config, {
         "title": description["title"], "slug": slug})

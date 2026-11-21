@@ -14,7 +14,7 @@ never edits code. Reviewers write the review files.
 ## Steps
 
 `$ARGUMENTS` is `<slug>` or `<slug> in <dir>`; `in <dir>` is recognised only as words 2 and 3,
-immediately after the slug. `<dir>` is the working directory, a single token without spaces: absolute,
+immediately after the slug. `<dir>` is the working directory, a single token without spaces (a trailing `,` or `.` is dropped): absolute,
 or relative to the session directory (`~` is expanded by the shell); without it `<dir>` is `.`, the
 directory the session runs in. `<slug>` below is the first word. The state's `directory` (step 1) is
 its absolute path, used as `<absolute working directory>` below.

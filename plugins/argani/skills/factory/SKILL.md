@@ -35,7 +35,8 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 
 1. Parse `$ARGUMENTS`. `in <dir>` is recognised only immediately after the slug: words 2 and 3 of
    `<slug> in <dir>`, words 3 and 4 of `rework <slug> in <dir> <note>`. Everything after that is the
-   note, whatever words it contains. `<dir>` is a single token without spaces: absolute, or relative
+   note, whatever words it contains. `<dir>` is a single token without spaces (a trailing `,` or `.` is dropped, since users type
+   `in <dir>, <note>`): absolute, or relative
    to the session directory (`~` is expanded by the shell). It is **the working directory** and is
    `<dir>` below; without it `<dir>` is `.`, the directory the session runs in. Every command and
    agent below uses it. After the optional `in <dir>`:
@@ -165,7 +166,8 @@ same empty-output rule as above, then spawn the approver.
 - Not configured: print `title` and `bodyFile` and tell the human to open the merge request with
   that description in their own way, then write `mr.md` (the URL) or configure `mrCommand` and re-run.
 
-In both cases, when `decision.md` has `## Human verification before merge`, copy that checklist into
+In both cases, when the printed `warnings` is non-empty, repeat them in the final message to the human.
+Also, when `decision.md` has `## Human verification before merge`, copy that checklist into
 `mr.md` and into the final message: the human does those steps and ticks them before merging. When the
 merge request is merged, the human adds a line `Merged: <YYYY-MM-DD>` to `mr.md`; the board then shows the
 task as Done. argani itself never pushes, merges or commits.

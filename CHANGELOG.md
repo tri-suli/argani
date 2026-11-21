@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-21
+
+### Changed
+
+- `docs/argani.md` states the rule a pilot made necessary: after APPROVE the job's scope is closed; work that grows beyond the approved spec while the merge request is open is a new intent. argani does not amend an approved spec and only warns when `intent.md` changed after `decision.md`.
+
 ## [2.5.0] - 2026-11-21
 
 ### Added

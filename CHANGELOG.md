@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-21
+
+### Added
+
+- `hooks/log_events.py` appends one JSON line per argani agent event (`spawn`, `start`, `stop`, `finish`) to `<home>/events/<YYYY-MM-DD>.jsonl`. It only observes: it prints nothing, never blocks, and does nothing without an argani home. `argani_home.py` reports the `events` folder.
+
 ## [2.5.1] - 2026-11-21
 
 ### Changed

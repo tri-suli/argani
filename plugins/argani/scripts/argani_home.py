@@ -8,9 +8,9 @@ Usage: python3 argani_home.py [--create]
 
 The home is a plain folder; what the user does with it (backup, sync, version control) is theirs.
 
-Prints JSON: home, projects (the folder of project entries), exists. With --create, makes the
-missing folders first and reports what it made; existing files are never touched. Exit 1 with a
-message when ARGANI_HOME is not usable.
+Prints JSON: home, projects (the folder of project entries), events (the hook-written event log),
+exists. With --create, makes the missing folders first and reports what it made; existing files are
+never touched. Exit 1 with a message when ARGANI_HOME is not usable.
 """
 import json
 import os
@@ -20,6 +20,7 @@ from pathlib import Path
 ENV_VAR = "ARGANI_HOME"
 DEFAULT_HOME = "~/.argani"
 PROJECTS_DIR = "projects"
+EVENTS_DIR = "events"
 
 
 class HomeError(ValueError):
@@ -63,6 +64,7 @@ def report(home, created=None):
     result = {
         "home": str(home),
         "projects": str(home / PROJECTS_DIR),
+        "events": str(home / EVENTS_DIR),
         "exists": all(folder.is_dir() for folder in layout(home)),
     }
     if created is not None:

@@ -167,6 +167,7 @@ Each project registered on the board has an entry, `projects/<name>/project.json
   projects/
     <name>/project.json     {"name": "<name>", "paths": [...]}
     <name>/tasks/<slug>/    intent.md, spec.md, plan.md, build.md, review/, decision.md, mr.md
+  events/<YYYY-MM-DD>.jsonl   agent event log written by hooks/log_events.py
 ```
 
 `name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `paths` are the real paths of the

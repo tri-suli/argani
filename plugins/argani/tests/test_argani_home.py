@@ -93,7 +93,7 @@ def test_script_reports_without_creating_anything(tmp_path):
     home = tmp_path / "board"
     result = run_script(env_home=home)
     assert result.returncode == 0
-    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "exists": False}
+    assert json.loads(result.stdout) == {"home": str(home), "projects": str(home / "projects"), "events": str(home / "events"), "exists": False}
     assert not home.exists()
 
 

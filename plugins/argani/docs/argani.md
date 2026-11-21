@@ -198,6 +198,24 @@ that holds exactly the found files is `already-imported` (a rerun is safe); one 
 extra files is a conflict and is never written. The project is not modified and nothing is deleted;
 removing the old folders and `.claude/argani.json` goes through the project's own process.
 
+## Event log
+
+`hooks/log_events.py` appends one JSON line per event to `<home>/events/<YYYY-MM-DD>.jsonl` (the local date;
+the folder is created on the first event, and nothing is written when the home does not exist). The
+log is append-only and nothing reads it yet. Only `argani:*` agents are logged. Every line has `ts`
+(UTC), `event`, `session_id` and `agent_type`, plus the fields below. For `spawn` and `finish` the `agent_type` is the agent that was
+called and `parent_agent_type` the one that called it (`null` in the main session).
+
+| Event | When | Fields |
+|---|---|---|
+| `spawn` | `PreToolUse` of the Agent tool | `tool_use_id`, `model` (when given), `project`, `slug` (from the prompt's `Slug folder:` or `Intent:` path, else `null`), `parent_agent_type`, `cwd` |
+| `start` | `SubagentStart` | `agent_id` |
+| `stop` | `SubagentStop` | `agent_id`, `agent_transcript_path`, `last_assistant_message` (first 500 characters) |
+| `finish` | `PostToolUse` of the Agent tool | `tool_use_id`, `agent_id`, `status`, `parent_agent_type`, `duration_ms`, `project`, `slug`, `usage` (the four token counts: `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) and `totalTokens` when present |
+
+Correlation: `spawn` and `finish` share `tool_use_id`; `start`, `stop` and `finish` share `agent_id`.
+`status` of `finish` tells a launch from a completion: an agent started in the background reports `async_launched` when it is launched, so `stop` is the real end of a background agent (argani's skills do not launch agents in the background today). `ts` is UTC while the file name is the local date, so the events of one agent can straddle midnight.
+
 ## Verified behaviour
 
 Facts observed by running the plugin (Claude Code 2.1.310), not read from documentation.

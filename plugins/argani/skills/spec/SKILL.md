@@ -1,7 +1,7 @@
 ---
 name: spec
-description: Write or approve a spec.md from an approved intent, the second artifact of the argani loop. Use when an intent is approved and needs a design, or when a spec needs approval. Slash form /argani:spec <slug> or /argani:spec approve <slug>.
-argument-hint: "<slug> | approve <slug>"
+description: Write or approve a spec.md from an approved intent, the second artifact of the argani loop. Use when an intent is approved and needs a design, or when a spec needs approval. Slash form /argani:spec <slug> or /argani:spec approve <slug> [by <name>].
+argument-hint: "<slug> | approve <slug> [by <name>]"
 allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Bash(date +%F), Read, Write, Edit, Glob, Grep
 ---
 
@@ -23,8 +23,10 @@ This skill never writes code.
 2. Artifact language: the language of this project's CLAUDE.md, else the user's. Only the
    prose is in that language. The `# Spec:` title prefix, the `##` section headings, file names,
    `Status:` lines, `AC-n`, `verify:` and verdict words always stay English.
-3. Mode: it is `approve` only when `$ARGUMENTS` is exactly two tokens, `approve <slug>`, and the
-   folder `<artifact dir>/<slug>/` exists. Otherwise `$ARGUMENTS` is the `<slug>`.
+3. Mode: it is `approve` only when `$ARGUMENTS` is `approve <slug>`, optionally followed by `by <name>`
+   (`<name>` is the rest of the line, one or more words; it is the approver's name), and the
+   folder `<artifact dir>/<slug>/` exists; a bare trailing `by` is an approve without a name: ask for
+   it. Otherwise `$ARGUMENTS` is the `<slug>`.
 
 ## Write mode
 
@@ -50,7 +52,7 @@ This skill never writes code.
 1. Run `artifact_check.py status <artifact dir>/<slug>/spec.md`.
    - Non-zero exit: refuse, show the violations verbatim, never set the approved status.
    - Prints `approved`: say it is already approved and stop.
-2. Take the approver's name from the user's message, else ask for it (one line, no guessing).
+2. Take the approver's name from `by <name>`, else from the user's message, else ask for it (one line, no guessing).
 3. Run `date +%F`, then replace the Status line with
    `Status: approved by <name> on <YYYY-MM-DD>`.
 4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`

@@ -23,7 +23,9 @@ working directory.
 A skill you invoke through `Skill` loads instructions into your context and you execute its commands
 yourself: run them from the working directory (`cd <working directory> && ...`) like every other
 command, with its relative paths resolved there; a project skill is therefore used exactly as the
-protocols say. Only a skill that runs in its own agent (`context: fork` in its frontmatter) cannot be
+protocols say: follow the skill's instructions exactly, within the Rules below, the identity it asks
+you to sign with included (for example a `Co-Authored-By` form it prescribes for subagents). Only a
+skill that runs in its own agent (`context: fork` in its frontmatter) cannot be
 redirected: pass the working directory to it when it takes one; otherwise follow the protocol
 yourself from the working directory and record the deviation under "Deviations from plan" in
 `build.md`. Whoever started the job prepared it (the right branch or worktree, if the project uses
@@ -72,7 +74,9 @@ a project that wants otherwise writes a protocol.
 5. Round 2 or later: address every `CHANGES` finding in every listed file, then append a
    `## Rework after round <K>` section to `build.md` for each round K the listed files belong to, listing each finding
    and how it was handled
-   (before the closing line, which stays last). Rerun the verify command and replace its output.
+   (before the closing line, which stays last). When an entry under "Deviations from plan" no longer
+   holds, append ` (superseded in round <K>)` to that entry instead of deleting it; this is the one edit
+   allowed to earlier content. Rerun the verify command and replace its output.
    List every AC verified `manual: <step>` under `## Pending human verification` with what you
    prepared for it; never mark it verified yourself.
 6. Commits, branches and anything else about version control follow the project's protocols

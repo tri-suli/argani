@@ -5,7 +5,8 @@ Date: {{YYYY-MM-DD}}
 
 <!-- Written by the builder when work is finished. On rework, append a section
      `## Rework after round {{K}}` for each round folder whose findings were addressed, instead of
-     rewriting earlier content. -->
+     rewriting earlier content; the one exception is the `(superseded in round K)` mark on a
+     deviation that no longer holds. -->
 
 ## What was done
 
@@ -32,7 +33,8 @@ Date: {{YYYY-MM-DD}}
 
 ## Deviations from plan
 
-<!-- Where the work differs from plan.md and why. Write "None" if there are none. -->
+<!-- Where the work differs from plan.md and why. Write "None" if there are none. In a rework round,
+     mark an entry that no longer holds by appending ` (superseded in round <K>)`; do not delete it. -->
 
 - {{deviation}}
 

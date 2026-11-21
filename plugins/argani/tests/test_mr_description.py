@@ -219,3 +219,49 @@ def test_the_project_directory_is_never_written(job):
 def test_factory_skill_uses_the_generated_description():
     text = FACTORY_SKILL.read_text()
     assert "mr_description.py" in text and "mr-body.md" in text
+
+
+def set_mtimes(job, intent_time, decision_time):
+    os.utime(job.path / "intent.md", (intent_time, intent_time))
+    os.utime(job.path / "decision.md", (decision_time, decision_time))
+
+
+def test_no_warning_when_decision_is_newer(job):
+    job.intent()
+    job.write("decision.md", DECISION_WITH_CHECKLIST)
+    set_mtimes(job, 1_000, 2_000)
+    result = generate(job)
+    assert json.loads(result.stdout)["warnings"] == []
+    assert result.stderr == ""
+
+
+def test_no_warning_without_decision(job):
+    job.intent()
+    assert description(job)["warnings"] == []
+
+
+def test_warning_when_intent_changed_after_decision(job):
+    job.intent()
+    job.write("decision.md", DECISION_WITH_CHECKLIST)
+    set_mtimes(job, 2_000, 1_000)
+    result = generate(job)
+    warning = "intent.md changed after decision.md; check that the human verification checklist still matches the acceptance criteria"
+    assert json.loads(result.stdout)["warnings"] == [warning]
+    assert warning in result.stderr
+
+
+def test_skills_and_agents_carry_the_pilot_backlog_rules():
+    root = FACTORY_SKILL.parents[2]
+    for name in ("intent", "spec", "plan"):
+        text = (root / "skills" / name / "SKILL.md").read_text()
+        assert 'argument-hint: "' in text and "approve <slug> [by <name>]" in text.split("---")[1]
+        assert "exactly two tokens" not in text
+    builder = (root / "agents" / "builder.md").read_text()
+    assert "the identity it asks you to sign with" in " ".join(builder.split())
+    assert "superseded in round" in builder
+    template = (root / "templates" / "build.md").read_text()
+    deviations_comment = template.split("## Deviations from plan")[1].split("- {{deviation}}")[0]
+    assert "superseded in round" in deviations_comment
+    for name in ("factory", "review"):
+        assert "trailing" in (root / "skills" / name / "SKILL.md").read_text()
+

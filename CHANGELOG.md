@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-11-21
+
+### Added
+
+- `/argani:intent`, `/argani:spec` and `/argani:plan` accept `approve <slug> by <name>`; the rest of the line is the approver's name, which is otherwise taken from the message or asked for.
+- `mr_description.py` reports `warnings` (also on stderr) when `intent.md` is newer than `decision.md`, so the human verification checklist may no longer match the acceptance criteria; the factory repeats them in its final message.
+
+### Changed
+
+- The builder follows a project skill's instructions exactly, the identity it asks to sign with included.
+- Rework marks a deviation that no longer holds with `(superseded in round <K>)` instead of deleting it.
+
+### Fixed
+
+- `in <dir>` ignores a trailing `,` or `.` on the directory token.
+
 ## [2.4.0] - 2026-10-31
 
 ### Added

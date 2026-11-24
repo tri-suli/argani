@@ -2,6 +2,8 @@
 
 A read-only local dashboard for the argani board: a kanban of the seven columns, a project filter and the active argani agents. A small Python backend serves `GET /api/board` (the `board.json` snapshot); the frontend (Alpine.js + TypeScript, built with Vite) polls it every 5 seconds.
 
+Three more read-only endpoints feed the task detail drawer that opens from a card: `GET /api/tasks` (every task with rounds, verdicts, agent time and tokens), `GET /api/tasks/<project>/<slug>` (one task with its file list) and `GET /api/tasks/<project>/<slug>/file?path=<file>` (the text of one listed file, at most 2 MiB). The backend only answers requests whose `Host` is `localhost`, `127.0.0.1` or `[::1]`.
+
 ## Run with Docker
 
 ```sh

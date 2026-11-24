@@ -7,6 +7,7 @@ from http.server import ThreadingHTTPServer
 
 from board_source import PluginBoardSource
 from request_handler import make_handler_class
+from task_source import PluginTaskSource
 
 PORT_ENV_VAR = "OFFICE_BACKEND_PORT"
 DEFAULT_HOST = "127.0.0.1"
@@ -22,8 +23,8 @@ def default_port(environ):
     return int(raw)
 
 
-def build_server(board_source, host, port):
-    return ThreadingHTTPServer((host, port), make_handler_class(board_source))
+def build_server(board_source, task_source, host, port):
+    return ThreadingHTTPServer((host, port), make_handler_class(board_source, task_source))
 
 
 def main(argv, environ=None):
@@ -39,7 +40,7 @@ def main(argv, environ=None):
     arguments = parser.parse_args(argv)
     # as PID 1 in a container SIGTERM is otherwise ignored; this makes `docker stop` immediate
     signal.signal(signal.SIGTERM, signal.default_int_handler)
-    server = build_server(PluginBoardSource(), arguments.host, arguments.port)
+    server = build_server(PluginBoardSource(), PluginTaskSource(), arguments.host, arguments.port)
     print(f"office backend on http://{arguments.host}:{server.server_port}/api/board", flush=True)
     try:
         server.serve_forever()

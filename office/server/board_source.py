@@ -8,6 +8,12 @@ SCRIPTS_DIR_ENV_VAR = "ARGANI_SCRIPTS_DIR"
 DEFAULT_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "plugins" / "argani" / "scripts"
 
 
+def ensure_importable(scripts_dir):
+    """The plugin modules import each other by plain name, so their folder must be importable."""
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+
+
 class BoardSource(Protocol):
     def snapshot(self) -> dict:
         """The current board as a JSON-serialisable dict."""
@@ -21,9 +27,7 @@ class PluginBoardSource:
         self.scripts_dir = Path(raw) if raw else DEFAULT_SCRIPTS_DIR
 
     def snapshot(self) -> dict:
-        # the plugin modules import each other by plain name, so the folder must be importable
-        if str(self.scripts_dir) not in sys.path:
-            sys.path.insert(0, str(self.scripts_dir))
+        ensure_importable(self.scripts_dir)
         import argani_home
         import board
         return board.board(argani_home.home_path())

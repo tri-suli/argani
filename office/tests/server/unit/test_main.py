@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 import main
-from conftest import FakeBoardSource
+from conftest import FakeBoardSource, FakeTaskSource
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +35,7 @@ def test_main_exits_2_on_invalid_env(capsys):
 
 
 def test_build_server_binds_requested_port():
-    server = main.build_server(FakeBoardSource(), "127.0.0.1", 0)
+    server = main.build_server(FakeBoardSource(), FakeTaskSource(), "127.0.0.1", 0)
     try:
         assert server.server_port > 0
     finally:

@@ -1,8 +1,9 @@
 import type { BoardClient } from './board-client';
-import type { BoardSnapshot } from './types';
+import type { TaskClient } from './task-client';
+import type { BoardSnapshot, TaskSummary } from './types';
 
 export interface PollHandlers {
-  onSnapshot(snapshot: BoardSnapshot): void;
+  onSnapshot(snapshot: BoardSnapshot, tasks: TaskSummary[]): void;
   onError(error: Error): void;
 }
 
@@ -16,7 +17,8 @@ export class BoardPoller implements Poller {
   private requestInFlight = false;
 
   constructor(
-    private readonly client: BoardClient,
+    private readonly boardClient: BoardClient,
+    private readonly taskClient: Pick<TaskClient, 'fetchTasks'>,
     private readonly intervalMilliseconds = 5000,
   ) {}
 
@@ -39,7 +41,9 @@ export class BoardPoller implements Poller {
     }
     this.requestInFlight = true;
     try {
-      handlers.onSnapshot(await this.client.fetchBoard());
+      // Both succeed or the whole cycle fails, so the page never mixes a new board with old task data.
+      const [snapshot, tasks] = await Promise.all([this.boardClient.fetchBoard(), this.taskClient.fetchTasks()]);
+      handlers.onSnapshot(snapshot, tasks);
     } catch (error) {
       handlers.onError(error instanceof Error ? error : new Error(String(error)));
     } finally {

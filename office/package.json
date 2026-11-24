@@ -13,7 +13,9 @@
     "check": "npm run typecheck && npm run test && npm run build && npm run test:e2e"
   },
   "dependencies": {
-    "alpinejs": "^3.17.5"
+    "alpinejs": "^3.17.5",
+    "dompurify": "^3.5.0",
+    "marked": "^18.3.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
@@ -21,6 +23,7 @@
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.1",
     "happy-dom": "^21.0.4",
+    "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"

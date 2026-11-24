@@ -3,18 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
     <title>argani office</title>
   </head>
   <body>
     <div x-data="dashboard" class="page">
       <header class="page-header">
-        <h1>argani office</h1>
-        <dl class="meta">
-          <div><dt>Home</dt><dd data-testid="home" x-text="snapshot ? snapshot.home : '-'"></dd></div>
-          <div><dt>Generated</dt><dd data-testid="generated-at" x-text="snapshot ? snapshot.generatedAt : '-'"></dd></div>
-          <div><dt>Connection</dt><dd data-testid="status" role="status" aria-live="polite" x-text="status"></dd></div>
-        </dl>
+        <div class="title">
+          <h1>argani office</h1>
+          <p class="home mono" data-testid="home" x-text="snapshot ? snapshot.home : '-'"></p>
+        </div>
         <label class="filter">Project
           <select data-testid="project-filter" x-model="selectedProject">
             <option value="">All projects</option>
@@ -23,9 +22,15 @@
             </template>
           </select>
         </label>
+        <p class="status mono" :class="{ error: errorMessage !== null }" role="status" aria-live="polite">
+          <span class="dot" aria-hidden="true"></span>
+          <span data-testid="status" x-text="status"></span>
+          <span data-testid="updated" x-show="updatedLabel !== ''" x-text="'· ' + updatedLabel"></span>
+          <span data-testid="status-error" x-show="errorMessage !== null" x-text="'· ' + errorMessage"></span>
+        </p>
       </header>
 
-      <p class="banner" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
+      <p class="banner mono" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
         Last refresh failed: <span x-text="errorMessage"></span>. Showing the last data received<span x-show="lastSuccessAt"> at <span x-text="lastSuccessAt"></span></span>.
       </p>
 
@@ -33,37 +38,105 @@
 
       <main class="board" aria-label="Board">
         <template x-for="column in columns" :key="column.name">
-          <section class="column" :data-column="column.name">
-            <h2><span x-text="column.name"></span> <span class="count" x-text="column.tasks.length"></span></h2>
-            <p class="empty" x-show="column.tasks.length === 0">No tasks</p>
-            <template x-for="task in column.tasks" :key="task.project + '/' + task.slug">
-              <article class="card" :data-active="isActive(task)" :data-task="task.project + '/' + task.slug">
-                <p class="card-project" x-text="task.project"></p>
-                <h3 x-text="task.title"></h3>
-                <p class="card-slug" x-text="task.slug"></p>
-                <p>Stage: <span x-text="task.stage"></span></p>
-                <p>Next: <span x-text="task.next"></span></p>
-                <p class="working" data-testid="agent-marker" x-show="isActive(task)">Agent working</p>
+          <section class="col" :class="column.tone" :data-column="column.name">
+            <div class="col-head">
+              <h2 x-text="column.name"></h2>
+              <span class="count" x-text="String(column.cards.length)"></span>
+              <span class="who" x-text="column.who"></span>
+            </div>
+            <p class="empty" x-show="column.cards.length === 0">No tasks</p>
+            <template x-for="card in column.cards" :key="card.key">
+              <article
+                class="card"
+                :class="{ live: card.active, human: card.flag !== null, done: card.dimmed }"
+                :data-active="card.active"
+                :data-task="card.key"
+                tabindex="0"
+                role="button"
+                :aria-label="card.task.title + ', ' + card.task.project + ' ' + card.task.slug"
+                aria-haspopup="dialog"
+                @click="drawer.open(card.task)"
+                @keydown.enter.self.prevent="drawer.open(card.task)"
+                @keydown.space.self.prevent="drawer.open(card.task)"
+              >
+                <div class="card-top">
+                  <span class="pulse" data-testid="agent-marker" role="img" aria-label="Agent working" x-show="card.active"></span>
+                  <span class="num mono" x-text="card.task.project + ' · ' + card.task.slug"></span>
+                  <span class="flag" data-testid="card-flag" x-show="card.flag !== null" x-text="card.flag"></span>
+                </div>
+                <h3 class="feature" x-text="card.task.title"></h3>
+                <p class="links mono" x-show="card.mrUrl !== null">
+                  <a :href="card.mrUrl" target="_blank" rel="noopener noreferrer" @click.stop>MR</a>
+                </p>
+                <div class="rounds" x-show="card.rounds.length > 0">
+                  <template x-for="round in card.rounds" :key="round.n">
+                    <div class="round">
+                      <span class="r mono" x-text="round.label"></span>
+                      <template x-for="chip in round.chips" :key="chip.reviewer">
+                        <span class="chip mono" :class="chip.className" :title="chip.reviewer + ': ' + chip.state">
+                          <span x-text="chip.reviewer"></span><span class="sr-only" x-text="': ' + chip.state"></span>
+                        </span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+                <div class="meta mono">
+                  <span data-testid="card-risk" x-show="card.risk !== null" :class="'risk-' + card.risk" x-text="card.risk"></span>
+                  <span data-testid="card-time" x-show="card.time !== ''" x-text="card.time"></span>
+                  <span data-testid="card-tokens" x-show="card.tokens !== ''" x-text="card.tokens"></span>
+                </div>
+                <p class="hint mono" data-testid="card-hint" x-show="card.hint !== null" x-text="card.hint"></p>
               </article>
             </template>
           </section>
         </template>
       </main>
 
-      <aside class="agents" aria-label="Active agents">
-        <h2>Active agents <span class="count" x-text="agents.length"></span></h2>
-        <p class="empty" x-show="agents.length === 0">No active agents</p>
-        <ul>
-          <template x-for="agent in agents" :key="agent.tool_use_id">
-            <li data-testid="agent-item">
-              <strong x-text="agent.agent_type"></strong>
-              <span x-text="agent.project + (agent.slug ? '/' + agent.slug : '')"></span>
-              <span x-show="agent.model" x-text="agent.model"></span>
-              <time x-text="agent.ts"></time>
-            </li>
-          </template>
-        </ul>
-      </aside>
+      <footer class="page-footer mono">
+        <span>/argani:board</span>
+        <span>/argani:factory &lt;slug&gt;</span>
+        <span>/argani:intent approve &lt;slug&gt;</span>
+        <span class="totals" data-testid="totals"><span x-text="String(agentsRunning)"></span> agents running · <span x-text="tokensLabel"></span> tokens</span>
+      </footer>
+
+      <div class="drawer-root" data-testid="drawer" x-show="drawer.isOpen" x-cloak
+           @keydown.escape.window="drawer.close()"
+           x-effect="drawer.isOpen && $nextTick(() => drawer.isOpen && $refs.close?.focus())">
+        <div class="scrim" data-testid="scrim" @click="drawer.close()"></div>
+        <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" @keydown.tab="drawer.trapFocus($event, $el)">
+          <header class="d-head">
+            <p class="num mono" data-testid="drawer-headline" x-text="drawer.headline"></p>
+            <h2 id="drawer-title" class="d-title" data-testid="drawer-title" x-text="drawer.title"></h2>
+            <p class="links mono" x-show="drawer.detail && drawer.detail.mrUrl">
+              <a :href="drawer.detail ? drawer.detail.mrUrl : null" target="_blank" rel="noopener noreferrer">MR</a>
+            </p>
+            <button type="button" class="close" x-ref="close" aria-label="Close" @click="drawer.close()">×</button>
+          </header>
+          <div class="d-body">
+            <nav class="files" aria-label="Task files">
+              <template x-for="group in drawer.groups" :key="group.name">
+                <div role="group" :aria-label="group.name">
+                  <p class="group" x-text="group.name"></p>
+                  <template x-for="file in group.files" :key="file.path">
+                    <button type="button" class="file mono" :class="{ on: file.path === drawer.selectedPath }" :title="file.path" :aria-current="file.path === drawer.selectedPath" @click="drawer.select(file.path)">
+                      <span class="v" :class="file.tone"></span><span x-text="drawer.fileLabel(file)"></span><span class="sr-only" x-text="file.tone ? ': ' + drawer.toneLabel(file.tone) : ''"></span>
+                    </button>
+                  </template>
+                </div>
+              </template>
+            </nav>
+            <div class="doc">
+              <p class="note" data-testid="drawer-error" x-show="drawer.errorMessage !== null" x-text="drawer.errorMessage"></p>
+              <div class="md" data-testid="drawer-markdown" x-show="drawer.rendered !== null">
+                <p class="verdict" :class="drawer.rendered ? drawer.rendered.tone : ''" data-testid="drawer-verdict" x-show="drawer.rendered && drawer.rendered.verdict !== null" x-text="drawer.rendered ? drawer.rendered.verdict : ''"></p>
+                <div class="summary" data-testid="drawer-summary" x-show="drawer.rendered && drawer.rendered.summaryHtml !== null" x-html="drawer.rendered ? drawer.rendered.summaryHtml : ''"></div>
+                <div data-testid="drawer-body" x-html="drawer.rendered ? drawer.rendered.bodyHtml : ''"></div>
+              </div>
+              <pre class="plain" data-testid="drawer-plain" x-show="drawer.rendered === null" x-text="drawer.fileText"></pre>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,0 +1,32 @@
+# Read-only argani office. Works with or without office/.env (see .env.example).
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: office/backend.Dockerfile
+    ports:
+      - "127.0.0.1:${OFFICE_BACKEND_PORT:-2212}:${OFFICE_BACKEND_PORT:-2212}"
+    # SELinux hosts: read the read-only home mount without relabelling it on the host.
+    security_opt: ["label=disable"]
+    environment:
+      OFFICE_BACKEND_PORT: ${OFFICE_BACKEND_PORT:-2212}
+      ARGANI_HOME: ${ARGANI_HOME:-${HOME}/.argani}
+      # Passed through only when set: an empty TZ would make the container use UTC.
+      TZ:
+    volumes:
+      # Same path inside, read-only.
+      - "${ARGANI_HOME:-${HOME}/.argani}:${ARGANI_HOME:-${HOME}/.argani}:ro"
+      # Container local date must match the host: board.py names event files by local date.
+      - /etc/localtime:/etc/localtime:ro
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    ports:
+      - "127.0.0.1:${OFFICE_FRONTEND_PORT:-1222}:${OFFICE_FRONTEND_PORT:-1222}"
+    environment:
+      OFFICE_FRONTEND_PORT: ${OFFICE_FRONTEND_PORT:-1222}
+      OFFICE_BACKEND_PORT: ${OFFICE_BACKEND_PORT:-2212}
+    depends_on:
+      - backend

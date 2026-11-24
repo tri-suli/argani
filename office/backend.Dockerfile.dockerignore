@@ -1,0 +1,4 @@
+*
+!plugins/argani/scripts
+!office/server
+**/__pycache__

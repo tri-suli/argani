@@ -5,6 +5,7 @@
   ],
   "verifyCommand": "pytest",
   "reviewers": [
-    "code"
+    "code",
+    "docs"
   ]
 }

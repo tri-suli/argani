@@ -5,6 +5,8 @@ server {
 
     location /api/ {
         proxy_pass http://backend:${OFFICE_BACKEND_PORT};
+        # the backend rejects unknown Host headers (DNS rebinding), so pass the browser's one on
+        proxy_set_header Host $host;
         # a stopped backend container drops packets; fail fast instead of the 60 s default
         proxy_connect_timeout 3s;
     }

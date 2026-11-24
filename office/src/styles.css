@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light dark;
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1a1d21;
+  --muted: #4d5560;
+  --border: #c9ced6;
+  --accent: #0b5cad;
+  --warning-background: #fff3cd;
+  --warning-text: #5c4400;
+  --active: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #14171a;
+    --surface: #1d2126;
+    --text: #e8eaed;
+    --muted: #b0b7c0;
+    --border: #3a4048;
+    --accent: #6cb2ff;
+    --warning-background: #4a3a00;
+    --warning-text: #ffe69c;
+    --active: #56d364;
+  }
+}
+[x-cloak] { display: none !important; }
+body { margin: 0; background: var(--background); color: var(--text); font: 16px/1.4 system-ui, sans-serif; }
+.page { padding: 16px; display: grid; gap: 16px; }
+h1, h2, h3, p { margin: 0; }
+h2 { font-size: 1rem; margin-bottom: 8px; }
+h3 { font-size: 1rem; }
+.page-header { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; }
+.meta { display: flex; flex-wrap: wrap; gap: 16px; margin: 0; }
+.meta dt { color: var(--muted); font-size: 0.8rem; }
+.meta dd { margin: 0; }
+.filter { display: grid; gap: 4px; color: var(--muted); font-size: 0.8rem; }
+select { font: inherit; padding: 4px 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.banner { padding: 12px; background: var(--warning-background); color: var(--warning-text); border: 1px solid var(--warning-text); }
+.board { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: start; }
+.column, .agents { background: var(--surface); border: 1px solid var(--border); padding: 12px; }
+.card { border: 1px solid var(--border); border-left: 4px solid var(--border); padding: 8px; margin-top: 8px; display: grid; gap: 4px; font-size: 0.9rem; overflow-wrap: anywhere; }
+.card[data-active=true] { border-left-color: var(--active); }
+.card-project, .card-slug, .empty { color: var(--muted); font-size: 0.8rem; }
+.working { color: var(--active); font-weight: 600; }
+.count { color: var(--muted); font-weight: normal; }
+.agents ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.agents li { display: flex; flex-wrap: wrap; gap: 8px; }

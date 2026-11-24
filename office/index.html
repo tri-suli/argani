@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>argani office</title>
+  </head>
+  <body>
+    <div x-data="dashboard" class="page">
+      <header class="page-header">
+        <h1>argani office</h1>
+        <dl class="meta">
+          <div><dt>Home</dt><dd data-testid="home" x-text="snapshot ? snapshot.home : '-'"></dd></div>
+          <div><dt>Generated</dt><dd data-testid="generated-at" x-text="snapshot ? snapshot.generatedAt : '-'"></dd></div>
+          <div><dt>Connection</dt><dd data-testid="status" role="status" aria-live="polite" x-text="status"></dd></div>
+        </dl>
+        <label class="filter">Project
+          <select data-testid="project-filter" x-model="selectedProject">
+            <option value="">All projects</option>
+            <template x-for="name in projects" :key="name">
+              <option :value="name" x-text="name"></option>
+            </template>
+          </select>
+        </label>
+      </header>
+
+      <p class="banner" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
+        Last refresh failed: <span x-text="errorMessage"></span>. Showing the last data received<span x-show="lastSuccessAt"> at <span x-text="lastSuccessAt"></span></span>.
+      </p>
+
+      <p class="empty" data-testid="loading" x-show="snapshot === null &amp;&amp; errorMessage === null">Loading the board...</p>
+
+      <main class="board" aria-label="Board">
+        <template x-for="column in columns" :key="column.name">
+          <section class="column" :data-column="column.name">
+            <h2><span x-text="column.name"></span> <span class="count" x-text="column.tasks.length"></span></h2>
+            <p class="empty" x-show="column.tasks.length === 0">No tasks</p>
+            <template x-for="task in column.tasks" :key="task.project + '/' + task.slug">
+              <article class="card" :data-active="isActive(task)" :data-task="task.project + '/' + task.slug">
+                <p class="card-project" x-text="task.project"></p>
+                <h3 x-text="task.title"></h3>
+                <p class="card-slug" x-text="task.slug"></p>
+                <p>Stage: <span x-text="task.stage"></span></p>
+                <p>Next: <span x-text="task.next"></span></p>
+                <p class="working" data-testid="agent-marker" x-show="isActive(task)">Agent working</p>
+              </article>
+            </template>
+          </section>
+        </template>
+      </main>
+
+      <aside class="agents" aria-label="Active agents">
+        <h2>Active agents <span class="count" x-text="agents.length"></span></h2>
+        <p class="empty" x-show="agents.length === 0">No active agents</p>
+        <ul>
+          <template x-for="agent in agents" :key="agent.tool_use_id">
+            <li data-testid="agent-item">
+              <strong x-text="agent.agent_type"></strong>
+              <span x-text="agent.project + (agent.slug ? '/' + agent.slug : '')"></span>
+              <span x-show="agent.model" x-text="agent.model"></span>
+              <time x-text="agent.ts"></time>
+            </li>
+          </template>
+        </ul>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

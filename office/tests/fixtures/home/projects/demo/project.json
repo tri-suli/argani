@@ -1,0 +1,10 @@
+{
+  "name": "demo",
+  "paths": [
+    "/nonexistent/office-fixture-demo"
+  ],
+  "verifyCommand": "pytest",
+  "reviewers": [
+    "code"
+  ]
+}

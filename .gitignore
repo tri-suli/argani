@@ -3,3 +3,10 @@
 **/evals/results/
 __pycache__/
 .pytest_cache/
+office/node_modules/
+office/dist/
+office/coverage/
+office/test-results/
+office/playwright-report/
+office/.env
+.coverage

@@ -3,7 +3,8 @@ import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PollHandlers, Poller } from '../../../src/board/board-poller';
 import { createDashboard } from '../../../src/components/dashboard';
-import { sampleSnapshot } from '../sample-snapshot';
+import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
+import { classesOf, hasClass } from './class-of';
 import { pageMarkup } from './page-markup';
 
 class FakePoller implements Poller {
@@ -17,118 +18,161 @@ class FakePoller implements Poller {
   }
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+// Alpine renders nested x-for templates over several ticks, so assertions on rendered output retry with vi.waitFor.
+const eventually = (assertions: () => void) => vi.waitFor(assertions);
 const text = (selector: string) => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
 const visible = (selector: string) => (document.querySelector(selector) as HTMLElement).style.display !== 'none';
+const card = (task: string) => document.querySelector(`[data-task="${task}"]`) as HTMLElement;
+const within = (task: string, selector: string) => card(task).querySelector(selector) as HTMLElement;
+const showing = (element: Element | null) => (element as HTMLElement).style.display !== 'none';
 
 let poller: FakePoller;
+let taskClient: FakeTaskClient;
+const now = () => new Date('2026-11-24T10:00:10Z');
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, now: () => new Date('2026-11-24T10:00:10Z') }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, now }));
   Alpine.start();
 });
 
 beforeEach(async () => {
   poller = new FakePoller();
+  taskClient = new FakeTaskClient();
   document.body.innerHTML = pageMarkup();
   Alpine.initTree(document.body);
-  await settle();
+  await eventually(() => expect(poller.handlers).toBeDefined());
 });
 
-describe('dashboard', () => {
+const deliver = async (snapshot = sampleSnapshot(), expectedCards = 5) => {
+  poller.handlers.onSnapshot(snapshot, sampleTasks());
+  await eventually(() => {
+    expect(text('[data-testid=status]')).toBe('Connected');
+    expect(document.querySelectorAll('.card')).toHaveLength(expectedCards);
+  });
+};
+
+describe('dashboard board', () => {
   it('shows loading before the first snapshot', () => {
     expect(text('[data-testid=status]')).toBe('Connecting');
     expect(visible('[data-testid=loading]')).toBe(true);
-    expect(document.querySelectorAll('.column')).toHaveLength(0);
+    expect(document.querySelectorAll('.col')).toHaveLength(0);
   });
 
-  it('renders columns, cards, agents and the marker', async () => {
-    poller.handlers.onSnapshot(sampleSnapshot());
-    await settle();
+  it('renders header, columns with who labels, and the footer', async () => {
+    await deliver();
     expect(text('[data-testid=status]')).toBe('Connected');
     expect(text('[data-testid=home]')).toBe('/home/user/.argani');
-    expect(text('[data-testid=generated-at]')).toBe('2026-11-24T10:00:05Z');
-    expect([...document.querySelectorAll('.column h2')].map((heading) => heading.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Backlog 1',
-      'In progress 1',
-      'Done 1',
+    expect(text('[data-testid=updated]')).toMatch(/^· \d\d:\d\d:\d\d$/);
+    expect([...document.querySelectorAll('.col-head')].map((head) => head.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
+      'Backlog 1 intent · you approve',
+      'In progress 2 builder · reviewers',
+      'Done 1 merged',
+      'Needs human 1 you',
     ]);
-    const cardSelector = '[data-task="demo/fix-export"]';
-    const card = () => document.querySelector(cardSelector) as HTMLElement;
-    expect(card().textContent).toContain('Fix export');
-    expect(card().textContent).toContain('Stage: spec');
-    expect(card().textContent).toContain('Next: build');
-    await settle();
-    expect(card().getAttribute('data-active')).toBe('true');
-    expect(card().querySelector<HTMLElement>('[data-testid=agent-marker]')?.style.display).not.toBe('none');
-    expect(document.querySelector<HTMLElement>('[data-task="demo/add-login"] [data-testid=agent-marker]')?.style.display).toBe('none');
-    expect(text('[data-testid=agent-item]')).toContain('argani:builder demo/fix-export sonnet');
+    expect(hasClass(document.querySelector('[data-column="Needs human"]'), 'human')).toBe(true);
+    expect(hasClass(document.querySelector('[data-column="Done"]'), 'merged')).toBe(true);
+    expect(text('[data-testid=totals]')).toBe('1 agents running · 1.2M tokens');
     expect(visible('[data-testid=loading]')).toBe(false);
   });
 
-  it('shows empty states and agents without slug or model', async () => {
-    const [agent] = sampleSnapshot().agents;
-    poller.handlers.onSnapshot(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }], agents: [{ ...agent, slug: null, model: undefined }] }));
-    await settle();
-    expect(document.querySelectorAll('.column .empty:not([style*="none"])')).toHaveLength(3);
-    expect(text('[data-testid=agent-item]')).toContain('argani:builder demo');
-    poller.handlers.onSnapshot(sampleSnapshot({ agents: [] }));
-    await settle();
-    expect(document.querySelector('[data-testid=agent-item]')).toBeNull();
-    expect(text('.agents .empty')).toBe('No active agents');
+  it('renders card details: pulse, chips, risk, time, tokens, MR link', async () => {
+    await deliver();
+    await eventually(() => {
+      const fix = '[data-task="demo/fix-export"]';
+      expect(card('demo/fix-export').getAttribute('data-active')).toBe('true');
+      expect(showing(within('demo/fix-export', '[data-testid=agent-marker]'))).toBe(true);
+      expect(showing(within('demo/add-login', '[data-testid=agent-marker]'))).toBe(false);
+      expect(text(`${fix} .num`)).toBe('demo · fix-export');
+      expect(text(`${fix} .feature`)).toBe('Fix export');
+      expect(text(`${fix} .round`)).toContain('R1');
+      expect([...card('demo/fix-export').querySelectorAll('.chip')].map((chip) => classesOf(chip).filter((name) => name !== 'chip' && name !== 'mono')[0])).toEqual(['PASS', 'wait']);
+      expect(text(`${fix} [data-testid=card-risk]`)).toBe('medium');
+      expect(hasClass(within('demo/fix-export', '[data-testid=card-risk]'), 'risk-medium')).toBe(true);
+      expect(text(`${fix} [data-testid=card-time]`)).toBe('2m');
+      expect(text(`${fix} [data-testid=card-tokens]`)).toBe('48.2k tok');
+      const link = within('demo/fix-export', 'a');
+      expect(link.getAttribute('href')).toBe('https://example.test/mr/7');
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(showing(within('demo/add-login', '[data-testid=card-time]'))).toBe(false);
+      expect(showing(within('demo/add-login', '.links'))).toBe(false);
+    
+    });
+  });
+
+  it('gives each card the button role and an accessible name', async () => {
+    await deliver();
+    await eventually(() => {
+      expect(card('demo/fix-export').getAttribute('role')).toBe('button');
+      expect(card('demo/fix-export').getAttribute('aria-label')).toBe('Fix export, demo fix-export');
+    });
+  });
+
+  it('flags and hints Needs human cards, dims Done cards, sorts newest first', async () => {
+    await deliver();
+    expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('your call');
+    expect(text('[data-task="demo/stuck"] [data-testid=card-hint]')).toBe('decide the schema');
+    expect(hasClass(card('demo/stuck'), 'human')).toBe(true);
+    expect(showing(within('demo/fix-export', '[data-testid=card-flag]'))).toBe(false);
+    expect(hasClass(card('other/ship'), 'done')).toBe(true);
+    expect([...document.querySelectorAll('[data-column="In progress"] .card')].map((element) => element.getAttribute('data-task'))).toEqual(['demo/fix-export', 'demo/older']);
+  });
+
+  it('shows empty states and agents running as zero', async () => {
+    await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }], agents: [] }), 0);
+    await eventually(() => {
+      expect(document.querySelectorAll('.col .empty:not([style*="none"])')).toHaveLength(4);
+      expect(text('[data-testid=totals]')).toContain('0 agents running');
+    });
   });
 
   it('filters by project', async () => {
-    poller.handlers.onSnapshot(sampleSnapshot());
-    await settle();
+    await deliver();
     expect([...document.querySelectorAll('[data-testid=project-filter] option')].map((option) => option.textContent)).toEqual(['All projects', 'demo', 'other']);
     const select = document.querySelector('[data-testid=project-filter]') as HTMLSelectElement;
     select.value = 'other';
     select.dispatchEvent(new Event('change'));
-    await settle();
-    expect([...document.querySelectorAll('.card')].map((card) => card.getAttribute('data-task'))).toEqual(['other/ship']);
+    await eventually(() => expect([...document.querySelectorAll('.card')].map((element) => element.getAttribute('data-task'))).toEqual(['other/ship']));
   });
 
   it('resets the project filter when the selected project disappears', async () => {
-    poller.handlers.onSnapshot(sampleSnapshot());
-    await settle();
+    await deliver();
     const select = document.querySelector('[data-testid=project-filter]') as HTMLSelectElement;
     select.value = 'other';
     select.dispatchEvent(new Event('change'));
-    await settle();
-    poller.handlers.onSnapshot(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }] }));
-    await settle();
-    expect(select.value).toBe('');
+    await eventually(() => expect(document.querySelectorAll('.card')).toHaveLength(1));
+    await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }] }), 0);
+    await eventually(() => expect(select.value).toBe(''));
   });
 
   it('keeps the last data and shows a banner when a poll fails, then recovers', async () => {
-    poller.handlers.onSnapshot(sampleSnapshot());
-    await settle();
+    await deliver();
     poller.handlers.onError(new Error('backend down'));
-    await settle();
-    expect(visible('[data-testid=error-banner]')).toBe(true);
-    expect(text('[data-testid=error-banner]')).toContain('backend down');
-    expect(text('[data-testid=error-banner]')).toContain('2026-11-24T10:00:10.000Z');
-    expect(text('[data-testid=status]')).toBe('Disconnected');
-    expect(document.querySelectorAll('.card')).toHaveLength(3);
-    poller.handlers.onSnapshot(sampleSnapshot());
-    await settle();
-    expect(visible('[data-testid=error-banner]')).toBe(false);
-    expect(text('[data-testid=status]')).toBe('Connected');
+    await eventually(() => {
+      expect(visible('[data-testid=error-banner]')).toBe(true);
+      expect(text('[data-testid=error-banner]')).toContain('backend down');
+      expect(text('[data-testid=error-banner]')).toContain('2026-11-24T10:00:10.000Z');
+      expect(text('[data-testid=status]')).toBe('Disconnected');
+      expect(text('[data-testid=status-error]')).toBe('· backend down');
+      expect(document.querySelectorAll('.card')).toHaveLength(5);
+    });
+    await deliver();
+    await eventually(() => expect(visible('[data-testid=error-banner]')).toBe(false));
   });
 
   it('shows the failure without data when the first poll fails', async () => {
     poller.handlers.onError(new Error('never up'));
-    await settle();
-    expect(text('[data-testid=error-banner]')).toContain('never up');
-    expect(visible('[data-testid=loading]')).toBe(false);
+    await eventually(() => {
+      expect(text('[data-testid=error-banner]')).toContain('never up');
+      expect(visible('[data-testid=loading]')).toBe(false);
+    });
   });
 
-  it('stops polling when destroyed', () => {
-    const dashboard = createDashboard({ poller, now: vi.fn() });
-    expect(dashboard.isActive(sampleSnapshot().projects[0].tasks[0])).toBe(false);
+  it('stops polling when destroyed and has empty derived state before data', () => {
+    const dashboard = createDashboard({ poller, taskClient, now: vi.fn() });
     expect(dashboard.projects).toEqual([]);
-    expect(dashboard.agents).toEqual([]);
+    expect(dashboard.columns).toEqual([]);
+    expect(dashboard.agentsRunning).toBe(0);
+    expect(dashboard.updatedLabel).toBe('');
     dashboard.destroy();
     expect(poller.stopped).toBe(true);
   });

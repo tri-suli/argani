@@ -10,3 +10,4 @@ office/test-results/
 office/playwright-report/
 office/.env
 .coverage
+.playwright-mcp/

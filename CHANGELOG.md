@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+
+- `office/`: argani office v1, a read-only monitoring dashboard of the argani board at the repository root (not part of the plugin yet). A Python standard-library API (`GET /api/board`, the `board.json` snapshot computed live by `scripts/board.py`) on port 2212 and an Alpine.js + TypeScript page on port 1222 with the kanban columns, the active agents and a project filter. Runs with Docker Compose (`office/compose.yaml`, `.env.example`) or directly. Tests under `office/tests/` (unit, integration, Playwright e2e) with a 100% coverage gate, run by `scripts/check.sh`.
+
 ## [2.7.0] - 2026-11-21
 
 ### Added

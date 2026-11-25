@@ -1,6 +1,6 @@
 import type { Poller } from '../board/board-poller';
 import { groupTasksByColumn, projectNames, totalTokens, type ColumnView } from '../board/board-view';
-import { formatCount } from '../board/format';
+import { formatCount, formatDuration } from '../board/format';
 import type { TaskClient } from '../board/task-client';
 import type { BoardSnapshot, TaskSummary } from '../board/types';
 import { createTaskDrawer, type TaskDrawer } from './task-drawer';
@@ -16,6 +16,7 @@ export interface Dashboard {
   tasks: TaskSummary[];
   errorMessage: string | null;
   lastSuccessAt: string | null;
+  clockMilliseconds: number;
   selectedProject: string;
   drawer: TaskDrawer;
   init(): void;
@@ -29,16 +30,25 @@ export interface Dashboard {
 }
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
+const CLOCK_INTERVAL_MILLISECONDS = 1000;
+
 export function createDashboard({ poller, taskClient, now }: DashboardDependencies): Dashboard {
+  let clockTimer: ReturnType<typeof setInterval> | null = null;
   return {
     snapshot: null,
     tasks: [],
     errorMessage: null,
     lastSuccessAt: null,
+    clockMilliseconds: 0,
     selectedProject: '',
     drawer: createTaskDrawer(taskClient),
 
     init() {
+      this.clockMilliseconds = now().getTime();
+      // ticks every second so the "updated … ago" label keeps counting between polls
+      clockTimer = setInterval(() => {
+        this.clockMilliseconds = now().getTime();
+      }, CLOCK_INTERVAL_MILLISECONDS);
       poller.start({
         onSnapshot: (snapshot, tasks) => {
           this.snapshot = snapshot;
@@ -47,7 +57,8 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
             this.selectedProject = '';
           }
           this.errorMessage = null;
-          this.lastSuccessAt = now().toISOString();
+          this.clockMilliseconds = now().getTime();
+          this.lastSuccessAt = new Date(this.clockMilliseconds).toISOString();
           void this.drawer.refresh();
         },
         onError: (error) => {
@@ -58,6 +69,10 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
 
     destroy() {
       poller.stop();
+      if (clockTimer !== null) {
+        clearInterval(clockTimer);
+        clockTimer = null;
+      }
     },
 
     get status() {
@@ -68,7 +83,11 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
     },
 
     get updatedLabel() {
-      return this.lastSuccessAt === null ? '' : new Date(this.lastSuccessAt).toLocaleTimeString('en-GB');
+      if (this.lastSuccessAt === null) {
+        return '';
+      }
+      const age = Math.max(0, this.clockMilliseconds - Date.parse(this.lastSuccessAt));
+      return age < 60_000 ? `updated ${Math.floor(age / 1000)}s ago` : `updated ${formatDuration(age)} ago`;
     },
 
     get projects() {

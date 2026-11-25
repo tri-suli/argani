@@ -64,10 +64,13 @@ describe('dashboard board', () => {
     expect(text('[data-testid=home]')).toBe('/home/user/.argani');
     expect(text('[data-testid=updated]')).toMatch(/^· \d\d:\d\d:\d\d$/);
     expect([...document.querySelectorAll('.col-head')].map((head) => head.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Backlog 1 intent · you approve',
-      'In progress 2 builder · reviewers',
-      'Done 1 merged',
+      'Intake 1 intent · you approve',
+      'Spec 0 spec-writer',
+      'Build 1 builder · verify',
+      'Review 1 reviewers',
+      'Approve 0 approver · you merge',
       'Needs human 1 you',
+      'Done 1 merged',
     ]);
     expect(hasClass(document.querySelector('[data-column="Needs human"]'), 'human')).toBe(true);
     expect(hasClass(document.querySelector('[data-column="Done"]'), 'merged')).toBe(true);
@@ -107,20 +110,22 @@ describe('dashboard board', () => {
     });
   });
 
-  it('flags and hints Needs human cards, dims Done cards, sorts newest first', async () => {
+  it('flags and hints the cards waiting for the human, dims Done cards, sorts newest first', async () => {
     await deliver();
     expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('your call');
     expect(text('[data-task="demo/stuck"] [data-testid=card-hint]')).toBe('decide the schema');
     expect(hasClass(card('demo/stuck'), 'human')).toBe(true);
+    expect(text('[data-task="demo/add-login"] [data-testid=card-flag]')).toBe('your call');
+    expect(text('[data-task="demo/add-login"] [data-testid=card-hint]')).toBe('approve intent');
     expect(showing(within('demo/fix-export', '[data-testid=card-flag]'))).toBe(false);
     expect(hasClass(card('other/ship'), 'done')).toBe(true);
-    expect([...document.querySelectorAll('[data-column="In progress"] .card')].map((element) => element.getAttribute('data-task'))).toEqual(['demo/fix-export', 'demo/older']);
+    expect([...document.querySelectorAll('[data-column="Build"] .card')].map((element) => element.getAttribute('data-task'))).toEqual(['demo/fix-export']);
   });
 
   it('shows empty states and agents running as zero', async () => {
     await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }], agents: [] }), 0);
     await eventually(() => {
-      expect(document.querySelectorAll('.col .empty:not([style*="none"])')).toHaveLength(4);
+      expect(document.querySelectorAll('.col .empty:not([style*="none"])')).toHaveLength(7);
       expect(text('[data-testid=totals]')).toContain('0 agents running');
     });
   });

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const columnNames = ['Backlog', 'Design', 'In progress', 'Ready for MR', 'In review', 'Done', 'Needs human'];
+const columnNames = ['Intake', 'Spec', 'Build', 'Review', 'Approve', 'Needs human', 'Done'];
 const liveUrl = 'http://127.0.0.1:22122';
 const deadBackendUrl = 'http://127.0.0.1:22123';
 
@@ -16,13 +16,15 @@ test.describe('with a live backend', () => {
   test('shows all seven columns with the fixture tasks in the right ones', async ({ page }) => {
     await expect(page.locator('[data-column]')).toHaveCount(7);
     await expect(page.locator('[data-column] h2')).toHaveText(columnNames);
-    await expect(column(page, 'Backlog').locator('[data-task="demo/add-login"]')).toBeVisible();
-    await expect(column(page, 'In progress').locator('[data-task="demo/fix-export"]')).toBeVisible();
+    await expect(column(page, 'Intake').locator('[data-task="demo/add-login"]')).toBeVisible();
+    await expect(column(page, 'Intake').locator('[data-task="other/write-docs"]')).toBeVisible();
+    await expect(taskCard(page, 'demo/add-login').getByTestId('card-flag')).toHaveText('your call');
+    await expect(column(page, 'Build').locator('[data-task="demo/fix-export"]')).toBeVisible();
     await expect(column(page, 'Done').locator('[data-task="demo/ship-report"]')).toBeVisible();
-    await expect(column(page, 'Design').getByText('No tasks')).toBeVisible();
+    await expect(column(page, 'Spec').getByText('No tasks')).toBeVisible();
   });
 
-  test('lays the seven columns out left to right in one row, Done before Needs human', async ({ page }) => {
+  test('lays the seven columns out left to right in one row, Needs human before Done', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const boxes = await Promise.all(columnNames.map((name) => column(page, name).boundingBox()));
     const rects = boxes.map((box) => box!);

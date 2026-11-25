@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agentsWorkingOn, chipClassName, COLUMN_WHO, groupTasksByColumn, projectNames, totalTokens } from '../../../src/board/board-view';
+import { agentsWorkingOn, chipClassName, columnOf, groupTasksByColumn, PIPELINE, projectNames, totalTokens } from '../../../src/board/board-view';
 import { formatCount, formatDuration } from '../../../src/board/format';
 import { fileName, groupFiles, isMarkdownFile } from '../../../src/board/file-view';
 import { sampleAgent, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';
@@ -19,48 +19,80 @@ describe('board view', () => {
     expect(projectNames(sampleSnapshot())).toEqual(['demo', 'other']);
   });
 
-  it('groups cards in column order, newest first, and keeps empty columns', () => {
-    const columns = groupTasksByColumn(sampleSnapshot({ columns: ['In progress', 'Design', 'Backlog'] }), sampleTasks(), null);
-    expect(columns.map((column) => column.name)).toEqual(['In progress', 'Design', 'Backlog']);
-    expect(columns.map((column) => column.cards.map((card) => card.task.slug))).toEqual([['fix-export', 'older'], [], ['add-login']]);
+  it('groups cards into the pipeline columns, newest first, ignoring the plugin columns', () => {
+    const columns = groupTasksByColumn(sampleSnapshot(), sampleTasks(), null);
+    expect(columns.map((column) => column.name)).toEqual(['Intake', 'Spec', 'Build', 'Review', 'Approve', 'Needs human', 'Done']);
+    expect(columns.map((column) => column.cards.map((card) => card.task.slug))).toEqual([['add-login'], [], ['fix-export'], ['older'], [], ['stuck'], ['ship']]);
   });
 
   it('puts tasks without a timestamp last and orders ties by key', () => {
-    const tasks = [sampleSummary({ project: 'demo', slug: 'older', updatedAt: '2026-01-01T00:00:00Z' })];
-    const columns = groupTasksByColumn(sampleSnapshot({ columns: ['In progress'] }), tasks, null);
-    expect(columns[0].cards.map((card) => card.key)).toEqual(['demo/older', 'demo/fix-export']);
-    const tied = groupTasksByColumn(sampleSnapshot({ columns: ['In progress'] }), [], null);
-    expect(tied[0].cards.map((card) => card.key)).toEqual(['demo/fix-export', 'demo/older']);
+    const tasks = ['b', 'a', 'dated'].map((slug) => ({ project: 'p', slug, title: slug, stage: 'needs-build', column: 'Backlog', merged: null, next: '-' }));
+    const snapshot = sampleSnapshot({ projects: [{ name: 'p', tasks }] });
+    const dated = [sampleSummary({ project: 'p', slug: 'dated', updatedAt: '2026-01-01T00:00:00Z' })];
+    expect(groupTasksByColumn(snapshot, dated, null)[2].cards.map((card) => card.key)).toEqual(['p/dated', 'p/a', 'p/b']);
   });
 
-  it('labels columns with who works on them and tones the last two', () => {
-    const names = Object.keys(COLUMN_WHO);
-    const columns = groupTasksByColumn(sampleSnapshot({ columns: [...names, 'Custom'] }), [], null);
-    expect(columns.map((column) => column.who)).toEqual([...Object.values(COLUMN_WHO), '']);
-    expect(columns.map((column) => column.tone)).toEqual(['', '', '', '', '', 'merged', 'human', '']);
-    expect(COLUMN_WHO['Needs human']).toBe('you');
+  it.each([
+    ['needs-intent-approval', null, 'Intake'],
+    ['needs-spec', null, 'Spec'],
+    ['needs-spec-approval', null, 'Spec'],
+    ['needs-build', null, 'Build'],
+    ['needs-rework', null, 'Build'],
+    ['needs-review', null, 'Review'],
+    ['needs-decision', null, 'Approve'],
+    ['needs-mr', null, 'Approve'],
+    ['done', null, 'Approve'],
+    ['done', false, 'Approve'],
+    ['done', true, 'Done'],
+    ['escalate', null, 'Needs human'],
+    ['error', null, 'Needs human'],
+    ['something-new', null, 'Needs human'],
+  ])('maps stage %s (merged %s) to %s', (stage, merged, expected) => {
+    expect(columnOf({ project: 'p', slug: 's', title: 't', stage, column: 'Backlog', merged, next: '-' })).toBe(expected);
+  });
+
+  it('labels the pipeline columns and tones the last two', () => {
+    const columns = groupTasksByColumn(sampleSnapshot(), [], null);
+    expect(columns.map((column) => column.who)).toEqual(PIPELINE.map((column) => column.who));
+    expect(columns.map((column) => column.who)).toEqual(['intent · you approve', 'spec-writer', 'builder · verify', 'reviewers', 'approver · you merge', 'you', 'merged']);
+    expect(columns.map((column) => column.tone)).toEqual(['', '', '', '', '', 'human', 'merged']);
+  });
+
+  it('flags the cards whose next step is the human', () => {
+    const stages: [string, boolean | null][] = [
+      ['needs-intent-approval', null], ['needs-spec', null], ['needs-spec-approval', null], ['needs-build', null], ['needs-review', null],
+      ['needs-decision', null], ['done', null], ['done', true], ['escalate', null], ['error', null], ['unknown', null],
+      ['needs-mr', null], ['needs-rework', null],
+    ];
+    const tasks = stages.map(([stage, merged], index) => ({ project: 'p', slug: `t${index}`, title: 't', stage, column: 'Backlog', merged, next: `next ${index}` }));
+    const snapshot = sampleSnapshot({ projects: [{ name: 'p', tasks }] });
+    const cards = groupTasksByColumn(snapshot, [], null).flatMap((column) => column.cards);
+    const flagged = cards.filter((card) => card.flag !== null).map((card) => card.task.slug).sort();
+    expect(flagged).toEqual(['t0', 't10', 't2', 't6', 't8', 't9']);
+    expect(cards.find((card) => card.task.slug === 't6')).toMatchObject({ flag: 'your call', hint: 'next 6', dimmed: false });
+    expect(cards.find((card) => card.task.slug === 't7')).toMatchObject({ flag: null, hint: null, dimmed: true });
   });
 
   it('builds card details from the task summary', () => {
-    const [, inProgress, done, needsHuman] = groupTasksByColumn(sampleSnapshot(), sampleTasks(), null);
-    const card = inProgress.cards[0];
+    const [, , build, review, , needsHuman, done] = groupTasksByColumn(sampleSnapshot(), sampleTasks(), null);
+    const card = build.cards[0];
     expect(card).toMatchObject({ active: true, risk: 'medium', mrUrl: 'https://example.test/mr/7', time: '2m', tokens: '48.2k tok', flag: null, hint: null, dimmed: false });
     expect(card.rounds).toEqual([
       { n: 1, label: 'R1', chips: [{ reviewer: 'code', state: 'PASS', className: 'PASS' }, { reviewer: 'compliance', state: 'pending', className: 'wait' }] },
     ]);
-    expect(inProgress.cards[1].rounds[0].chips.map((chip) => chip.className)).toEqual(['CHANGES', 'bad']);
+    expect(review.cards[0].rounds[0].chips.map((chip) => chip.className)).toEqual(['CHANGES', 'bad']);
     expect(done.cards[0]).toMatchObject({ dimmed: true, time: '1h05m', tokens: '1.2M tok', active: false });
     expect(needsHuman.cards[0]).toMatchObject({ flag: 'your call', hint: 'decide the schema', risk: 'high' });
   });
 
   it('shows no details for a task without summary or usage', () => {
-    const [backlog] = groupTasksByColumn(sampleSnapshot(), [sampleSummary({ project: 'demo', slug: 'add-login' })], null);
-    expect(backlog.cards[0]).toMatchObject({ time: '', tokens: '', risk: null, mrUrl: null, rounds: [] });
+    const [intake] = groupTasksByColumn(sampleSnapshot(), [sampleSummary({ project: 'demo', slug: 'add-login' })], null);
+    expect(intake.cards[0]).toMatchObject({ time: '', tokens: '', risk: null, mrUrl: null, rounds: [] });
     const [withoutSummary] = groupTasksByColumn(sampleSnapshot(), [], null);
     expect(withoutSummary.cards[0]).toMatchObject({ time: '', tokens: '', rounds: [] });
   });
 
-  it('does not breathe on pending reviews outside In progress', () => {
+  it('does not breathe on pending reviews outside Build and Review', () => {
     expect(chipClassName('pending', false)).toBe('pending');
     expect(chipClassName('pending', true)).toBe('wait');
     expect(chipClassName('invalid', true)).toBe('bad');

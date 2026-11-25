@@ -18,15 +18,15 @@ export function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSna
   return {
     home: '/home/user/.argani',
     generatedAt: '2026-11-24T10:00:05Z',
-    columns: ['Backlog', 'In progress', 'Done', 'Needs human'],
+    columns: ['Backlog', 'In progress', 'Done', 'Needs human'], // plugin columns, ignored by the office
     projects: [
       {
         name: 'demo',
         tasks: [
-          { project: 'demo', slug: 'add-login', title: 'Add login', stage: 'intent', column: 'Backlog', merged: null, next: 'approve intent' },
-          { project: 'demo', slug: 'fix-export', title: 'Fix export', stage: 'spec', column: 'In progress', merged: null, next: 'build' },
-          { project: 'demo', slug: 'older', title: 'Older work', stage: 'spec', column: 'In progress', merged: null, next: 'build' },
-          { project: 'demo', slug: 'stuck', title: 'Stuck task', stage: 'build', column: 'Needs human', merged: null, next: 'decide the schema' },
+          { project: 'demo', slug: 'add-login', title: 'Add login', stage: 'needs-intent-approval', column: 'Backlog', merged: null, next: 'approve intent' },
+          { project: 'demo', slug: 'fix-export', title: 'Fix export', stage: 'needs-build', column: 'In progress', merged: null, next: 'build' },
+          { project: 'demo', slug: 'older', title: 'Older work', stage: 'needs-review', column: 'In progress', merged: null, next: 'build' },
+          { project: 'demo', slug: 'stuck', title: 'Stuck task', stage: 'escalate', column: 'Needs human', merged: null, next: 'decide the schema' },
         ],
       },
       {

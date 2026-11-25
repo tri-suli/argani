@@ -1,9 +1,6 @@
-import { DEFAULT_TIMEOUT_MILLISECONDS, requestOk, type FetchFunction } from './http';
-import type { BoardSnapshot } from './types';
-
-export interface BoardClient {
-  fetchBoard(): Promise<BoardSnapshot>;
-}
+import { DEFAULT_TIMEOUT_MILLISECONDS } from './constants';
+import { requestOk } from './http';
+import type { BoardClient, BoardSnapshot, FetchFunction } from './types';
 
 export class FetchBoardClient implements BoardClient {
   constructor(

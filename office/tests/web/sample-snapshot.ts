@@ -1,5 +1,4 @@
-import type { BoardAgent, BoardSnapshot, TaskDetail, TaskSummary } from '../../src/board/types';
-import type { TaskClient } from '../../src/board/task-client';
+import type { BoardAgent, BoardSnapshot, TaskClient, TaskDetail, TaskSummary } from '../../src/board/types';
 
 export const sampleAgent: BoardAgent = {
   ts: '2026-11-24T10:00:00Z',

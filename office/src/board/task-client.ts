@@ -1,11 +1,6 @@
-import { DEFAULT_TIMEOUT_MILLISECONDS, requestOk, type FetchFunction } from './http';
-import type { TaskDetail, TaskSummary } from './types';
-
-export interface TaskClient {
-  fetchTasks(): Promise<TaskSummary[]>;
-  fetchTask(project: string, slug: string): Promise<TaskDetail>;
-  fetchFile(project: string, slug: string, path: string): Promise<string>;
-}
+import { DEFAULT_TIMEOUT_MILLISECONDS } from './constants';
+import { requestOk } from './http';
+import type { FetchFunction, TaskClient, TaskDetail, TaskSummary } from './types';
 
 export class FetchTaskClient implements TaskClient {
   constructor(

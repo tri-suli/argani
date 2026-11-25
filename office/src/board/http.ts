@@ -1,7 +1,4 @@
-export type FetchFunction = (url: string, init: RequestInit) => Promise<Response>;
-
-// Shorter than the poll interval: a backend that never answers must surface as a failure, not a hang.
-export const DEFAULT_TIMEOUT_MILLISECONDS = 4000;
+import type { FetchFunction } from './types';
 
 /** Resolves with an ok response; otherwise throws the backend's `{error}` message or the HTTP status. */
 export async function requestOk(fetchFunction: FetchFunction, url: string, timeoutMilliseconds: number): Promise<Response> {

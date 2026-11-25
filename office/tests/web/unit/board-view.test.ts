@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { agentsWorkingOn, chipClassName, columnOf, groupTasksByColumn, PIPELINE, projectNames, totalTokens } from '../../../src/board/board-view';
+import { agentsWorkingOn, chipClassName, columnOf, groupTasksByColumn, projectNames, totalTokens } from '../../../src/board/board-view';
+import { PIPELINE } from '../../../src/board/constants';
 import { formatCount, formatDuration } from '../../../src/board/format';
 import { fileName, groupFiles, isMarkdownFile } from '../../../src/board/file-view';
 import { sampleAgent, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';

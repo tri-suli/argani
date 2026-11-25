@@ -82,3 +82,78 @@ export interface TaskDetail extends TaskSummary {
   decision: { exists: boolean; complete: boolean; verdict: string | null } | null;
   files: TaskFile[];
 }
+
+export interface BoardClient {
+  fetchBoard(): Promise<BoardSnapshot>;
+}
+
+export interface TaskClient {
+  fetchTasks(): Promise<TaskSummary[]>;
+  fetchTask(project: string, slug: string): Promise<TaskDetail>;
+  fetchFile(project: string, slug: string, path: string): Promise<string>;
+}
+
+export interface PollHandlers {
+  onSnapshot(snapshot: BoardSnapshot, tasks: TaskSummary[]): void;
+  onError(error: Error): void;
+}
+
+export interface Poller {
+  start(handlers: PollHandlers): void;
+  stop(): void;
+}
+
+export type FetchFunction = (url: string, init: RequestInit) => Promise<Response>;
+
+export interface FileGroup {
+  name: string;
+  files: TaskFile[];
+}
+
+export interface RenderedDocument {
+  /** First line of the file, shown as a badge, when the file has a tone. */
+  verdict: string | null;
+  tone: FileTone | null;
+  /** The `## Summary` section, if any. */
+  summaryHtml: string | null;
+  bodyHtml: string;
+}
+
+export interface PipelineColumn {
+  name: string;
+  who: string;
+  tone: '' | 'human' | 'merged';
+}
+
+export interface ChipView {
+  reviewer: string;
+  state: ReviewState;
+  className: string;
+}
+
+export interface RoundView {
+  n: number;
+  label: string;
+  chips: ChipView[];
+}
+
+export interface CardView {
+  key: string;
+  task: BoardTask;
+  active: boolean;
+  risk: Risk | null;
+  rounds: RoundView[];
+  mrUrl: string | null;
+  time: string;
+  tokens: string;
+  flag: string | null;
+  hint: string | null;
+  dimmed: boolean;
+}
+
+export interface ColumnView {
+  name: string;
+  who: string;
+  tone: '' | 'human' | 'merged';
+  cards: CardView[];
+}

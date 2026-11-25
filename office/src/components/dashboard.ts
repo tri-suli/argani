@@ -1,36 +1,8 @@
-import type { Poller } from '../board/board-poller';
-import { groupTasksByColumn, projectNames, totalTokens, type ColumnView } from '../board/board-view';
+import { groupTasksByColumn, projectNames, totalTokens } from '../board/board-view';
 import { formatCount, formatDuration } from '../board/format';
-import type { TaskClient } from '../board/task-client';
-import type { BoardSnapshot, TaskSummary } from '../board/types';
-import { createTaskDrawer, type TaskDrawer } from './task-drawer';
-
-export interface DashboardDependencies {
-  poller: Poller;
-  taskClient: TaskClient;
-  now: () => Date;
-}
-
-export interface Dashboard {
-  snapshot: BoardSnapshot | null;
-  tasks: TaskSummary[];
-  errorMessage: string | null;
-  lastSuccessAt: string | null;
-  clockMilliseconds: number;
-  selectedProject: string;
-  drawer: TaskDrawer;
-  init(): void;
-  destroy(): void;
-  readonly status: string;
-  readonly updatedLabel: string;
-  readonly projects: string[];
-  readonly columns: ColumnView[];
-  readonly agentsRunning: number;
-  readonly tokensLabel: string;
-}
-
-/** UI state only: all polling and grouping logic lives in injected or pure modules. */
-const CLOCK_INTERVAL_MILLISECONDS = 1000;
+import { CLOCK_INTERVAL_MILLISECONDS } from './constants';
+import { createTaskDrawer } from './task-drawer';
+import type { Dashboard, DashboardDependencies } from './types';
 
 export function createDashboard({ poller, taskClient, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;

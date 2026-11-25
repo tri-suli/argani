@@ -1,16 +1,4 @@
-import type { BoardClient } from './board-client';
-import type { TaskClient } from './task-client';
-import type { BoardSnapshot, TaskSummary } from './types';
-
-export interface PollHandlers {
-  onSnapshot(snapshot: BoardSnapshot, tasks: TaskSummary[]): void;
-  onError(error: Error): void;
-}
-
-export interface Poller {
-  start(handlers: PollHandlers): void;
-  stop(): void;
-}
+import type { BoardClient, Poller, PollHandlers, TaskClient } from './types';
 
 export class BoardPoller implements Poller {
   private timer: ReturnType<typeof setInterval> | null = null;

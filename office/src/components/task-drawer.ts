@@ -1,46 +1,9 @@
-import { fileName, groupFiles, isMarkdownFile, type FileGroup } from '../board/file-view';
+import { fileName, groupFiles, isMarkdownFile } from '../board/file-view';
 import { formatCount, formatDuration } from '../board/format';
-import { renderDocument, type RenderedDocument } from '../board/markdown';
-import type { TaskClient } from '../board/task-client';
-import type { BoardTask, FileTone, TaskDetail, TaskFile } from '../board/types';
-
-export interface TaskDrawer {
-  isOpen: boolean;
-  project: string;
-  slug: string;
-  title: string;
-  detail: TaskDetail | null;
-  selectedPath: string | null;
-  fileText: string;
-  /** Path and fingerprint (updatedAt, listing entry) of the file now in fileText/rendered; null when none is loaded. */
-  loadedPath: string | null;
-  loadedStamp: string | null;
-  /** Rendered markdown of the selected file; null when it is shown as plain text. */
-  rendered: RenderedDocument | null;
-  errorMessage: string | null;
-  /** Bumped by every request so a slow answer for an old selection is dropped. */
-  generation: number;
-  open(task: BoardTask): Promise<void>;
-  close(): void;
-  select(path: string): Promise<void>;
-  /** Reloads the open task, called after every board poll. */
-  refresh(): Promise<void>;
-  trapFocus(event: KeyboardEvent, container: HTMLElement): void;
-  clearFile(): void;
-  fileStamp(detail: TaskDetail): string;
-  load(): Promise<void>;
-  loadFile(generation: number): Promise<void>;
-  readonly headline: string;
-  readonly groups: FileGroup[];
-  readonly selectedFile: TaskFile | null;
-  fileLabel(file: TaskFile): string;
-  toneLabel(tone: FileTone | null): string;
-}
-
-const TONE_LABELS: Record<FileTone, string> = { good: 'passed', warn: 'changes requested', stop: 'escalated' };
-
-const FOCUSABLE = 'button, a[href], [tabindex]:not([tabindex="-1"])';
-const PAGE_CONTENT = '.page > :not(.drawer-root)';
+import { renderDocument } from '../board/markdown';
+import type { TaskClient, TaskDetail } from '../board/types';
+import { FOCUSABLE, PAGE_CONTENT, TONE_LABELS } from './constants';
+import type { TaskDrawer } from './types';
 
 /** The page behind the modal drawer must not be reachable by keyboard or screen reader. */
 function setPageInert(inert: boolean): void {

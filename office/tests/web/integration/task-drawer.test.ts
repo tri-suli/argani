@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PollHandlers, Poller } from '../../../src/board/board-poller';
+import type { PollHandlers, Poller } from '../../../src/board/types';
 import { createDashboard } from '../../../src/components/dashboard';
 import { createTaskDrawer } from '../../../src/components/task-drawer';
 import type { FileTone } from '../../../src/board/types';

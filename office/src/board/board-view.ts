@@ -1,41 +1,6 @@
 import { formatCount, formatDuration } from './format';
-import type { BoardAgent, BoardSnapshot, BoardTask, ReviewState, Risk, TaskSummary } from './types';
-
-export interface PipelineColumn {
-  name: string;
-  who: string;
-  tone: '' | 'human' | 'merged';
-}
-
-/** The factory pipeline, fixed and independent of the plugin's own columns. */
-export const PIPELINE: PipelineColumn[] = [
-  { name: 'Intake', who: 'intent · you approve', tone: '' },
-  { name: 'Spec', who: 'spec-writer', tone: '' },
-  { name: 'Build', who: 'builder · verify', tone: '' },
-  { name: 'Review', who: 'reviewers', tone: '' },
-  { name: 'Approve', who: 'approver · you merge', tone: '' },
-  { name: 'Needs human', who: 'you', tone: 'human' },
-  { name: 'Done', who: 'merged', tone: 'merged' },
-];
-
-// Stage names come from plugins/argani/scripts/factory_state.py decide_stage; an unknown one lands in Needs human.
-const STAGE_COLUMN: Record<string, string> = {
-  'needs-intent-approval': 'Intake',
-  'needs-spec': 'Spec',
-  'needs-spec-approval': 'Spec',
-  'needs-build': 'Build',
-  'needs-rework': 'Build',
-  'needs-review': 'Review',
-  'needs-decision': 'Approve',
-  'needs-mr': 'Approve',
-};
-
-/** Stages whose next step is the human's, besides every card in Needs human. */
-const HUMAN_STAGES = new Set(['needs-intent-approval', 'needs-spec-approval']);
-
-const NEEDS_HUMAN = 'Needs human';
-const DONE = 'Done';
-const WORKING_COLUMNS = new Set(['Build', 'Review']);
+import { DONE, HUMAN_STAGES, NEEDS_HUMAN, PIPELINE, STAGE_COLUMN, WORKING_COLUMNS } from './constants';
+import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from './types';
 
 export function columnOf(task: BoardTask): string {
   if (task.stage === 'done') {
@@ -46,39 +11,6 @@ export function columnOf(task: BoardTask): string {
 
 function waitsForHuman(task: BoardTask, column: string): boolean {
   return column === NEEDS_HUMAN || HUMAN_STAGES.has(task.stage) || (task.stage === 'done' && column !== DONE);
-}
-
-export interface ChipView {
-  reviewer: string;
-  state: ReviewState;
-  className: string;
-}
-
-export interface RoundView {
-  n: number;
-  label: string;
-  chips: ChipView[];
-}
-
-export interface CardView {
-  key: string;
-  task: BoardTask;
-  active: boolean;
-  risk: Risk | null;
-  rounds: RoundView[];
-  mrUrl: string | null;
-  time: string;
-  tokens: string;
-  flag: string | null;
-  hint: string | null;
-  dimmed: boolean;
-}
-
-export interface ColumnView {
-  name: string;
-  who: string;
-  tone: '' | 'human' | 'merged';
-  cards: CardView[];
 }
 
 export function projectNames(snapshot: BoardSnapshot): string[] {

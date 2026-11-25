@@ -1,9 +1,4 @@
-import type { TaskFile } from './types';
-
-export interface FileGroup {
-  name: string;
-  files: TaskFile[];
-}
+import type { FileGroup, TaskFile } from './types';
 
 /** Groups in order of first appearance ("Job", "Round 1", ...). */
 export function groupFiles(files: TaskFile[]): FileGroup[] {

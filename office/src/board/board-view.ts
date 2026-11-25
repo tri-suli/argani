@@ -21,6 +21,7 @@ class BoardView {
     if (task.stage === STAGE_DONE) {
       return task.merged === true ? DONE : COLUMN_APPROVE;
     }
+
     return STAGE_COLUMN[task.stage] ?? NEEDS_HUMAN;
   }
 
@@ -36,17 +37,21 @@ class BoardView {
     if (state === REVIEW_STATE_PENDING) {
       return taskInProgress ? CHIP_CLASS_WAITING : CHIP_CLASS_PENDING;
     }
+
     return state === REVIEW_STATE_INVALID ? CHIP_CLASS_INVALID : state;
   }
 
   /** One entry per pipeline column, in order, so empty columns stay visible. */
   groupTasksByColumn(snapshot: BoardSnapshot, tasks: TaskSummary[], project: string | null): ColumnView[] {
     const summaries = new Map(tasks.map((summary) => [`${summary.project}/${summary.slug}`, summary]));
+
     const updatedAt = new Map(tasks.map((summary) => [`${summary.project}/${summary.slug}`, summary.updatedAt]));
+
     const cards = snapshot.projects
       .filter((candidate) => project === null || candidate.name === project)
       .flatMap((candidate) => candidate.tasks)
       .map((task) => this.buildCard(task, summaries.get(`${task.project}/${task.slug}`), snapshot.agents));
+
     return PIPELINE.map(({ name, who, tone }) => ({
       name,
       who,
@@ -66,19 +71,25 @@ class BoardView {
   /** Newest first; tasks without a timestamp go last, ties keep a stable slug order. */
   private byNewest(left: CardView, right: CardView, updatedAt: Map<string, string | null>): number {
     const leftTime = updatedAt.get(left.key) ?? '';
+
     const rightTime = updatedAt.get(right.key) ?? '';
+
     return rightTime.localeCompare(leftTime) || left.key.localeCompare(right.key);
   }
 
   private buildCard(task: BoardTask, summary: TaskSummary | undefined, agents: BoardAgent[]): CardView {
     const column = this.columnOf(task);
+
     const inProgress = WORKING_COLUMNS.has(column);
+
     const needsHuman = this.waitsForHuman(task, column);
+
     const rounds = (summary?.rounds ?? []).map((round) => ({
       n: round.n,
       label: `R${round.n}`,
       chips: Object.entries(round.reviews).map(([reviewer, state]) => ({ reviewer, state, className: this.chipClassName(state, inProgress) })),
     }));
+
     return {
       key: `${task.project}/${task.slug}`,
       task,

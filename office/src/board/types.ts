@@ -36,7 +36,9 @@ interface BoardSnapshot {
 }
 
 type Risk = 'low' | 'medium' | 'high';
+
 type ReviewState = 'PASS' | 'CHANGES' | 'pending' | 'invalid';
+
 type FileTone = 'good' | 'warn' | 'stop';
 
 interface TaskRound {

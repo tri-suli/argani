@@ -5,8 +5,11 @@ import { defineConfig } from '@playwright/test';
 const e2eHome = join(tmpdir(), 'argani-office-e2e-home');
 
 const backendPort = 22120;
+
 const deadBackendPort = 22121;
+
 const frontendPort = 22122;
+
 const frontendPortWithDeadBackend = 22123;
 
 export default defineConfig({

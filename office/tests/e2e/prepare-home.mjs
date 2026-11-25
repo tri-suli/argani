@@ -3,12 +3,17 @@ import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const targetHome = process.argv[2];
+
 rmSync(targetHome, { recursive: true, force: true });
+
 cpSync(resolve(import.meta.dirname, '../fixtures/home'), targetHome, { recursive: true });
 
 const now = new Date();
+
 const localDate = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((part) => String(part).padStart(2, '0')).join('-');
+
 mkdirSync(join(targetHome, 'events'), { recursive: true });
+
 const spawnRecord = {
   ts: now.toISOString().slice(0, 19) + 'Z',
   event: 'spawn',
@@ -21,6 +26,7 @@ const spawnRecord = {
   parent_agent_type: null,
   cwd: '/nonexistent/office-fixture-demo',
 };
+
 const finishRecord = {
   ts: now.toISOString().slice(0, 19) + 'Z',
   event: 'finish',
@@ -35,4 +41,5 @@ const finishRecord = {
   slug: 'ship-report',
   usage: { input_tokens: 1200, output_tokens: 800, cache_creation_input_tokens: 0, cache_read_input_tokens: 4000 },
 };
+
 writeFileSync(join(targetHome, 'events', `${localDate}.jsonl`), [spawnRecord, finishRecord].map((record) => JSON.stringify(record)).join('\n') + '\n');

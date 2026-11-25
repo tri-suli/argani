@@ -6,24 +6,35 @@ const DEFAULT_TIMEOUT_MILLISECONDS = 4000;
 const DEFAULT_POLL_INTERVAL_MILLISECONDS = 5000;
 
 const MILLISECONDS_PER_SECOND = 1000;
+
 const MILLISECONDS_PER_MINUTE = 60_000;
+
 const MINUTES_PER_HOUR = 60;
+
 const MINUTES_PAD_WIDTH = 2;
 
 // counts below this are shown as they are; from here on they read in thousands ("6.0k")
 const THOUSANDS_DISPLAY_THRESHOLD = 1000;
+
 const COUNT_PER_THOUSAND = 1000;
+
 const COUNT_PER_MILLION = 1_000_000;
+
 // 999_950 would round to "1000.0k"; from here on counts are shown in millions
 const MILLIONS_DISPLAY_THRESHOLD = 999_950;
 
 const NOT_FOUND_INDEX = -1;
+
 const ALL_PROJECTS = '';
 
 const MARKDOWN_EXTENSION = '.md';
+
 const PATH_SEPARATOR = '/';
+
 const SECTION_HEADING_PREFIX = '## ';
+
 const ANCHOR_TAG_NAME = 'A';
+
 const HREF_ATTRIBUTE = 'href';
 
 // Documents are read-only text: no form controls, images, embeds or styles; Alpine-looking attributes
@@ -36,29 +47,46 @@ const SANITIZE_OPTIONS = {
 const SUMMARY_HEADING = '## Summary';
 
 const COLUMN_INTAKE = 'Intake';
+
 const COLUMN_SPEC = 'Spec';
+
 const COLUMN_BUILD = 'Build';
+
 const COLUMN_REVIEW = 'Review';
+
 const COLUMN_APPROVE = 'Approve';
+
 const NEEDS_HUMAN = 'Needs human';
+
 const DONE = 'Done';
 
 const STAGE_DONE = 'done';
+
 const STAGE_NEEDS_INTENT_APPROVAL = 'needs-intent-approval';
+
 const STAGE_NEEDS_SPEC = 'needs-spec';
+
 const STAGE_NEEDS_SPEC_APPROVAL = 'needs-spec-approval';
+
 const STAGE_NEEDS_BUILD = 'needs-build';
+
 const STAGE_NEEDS_REWORK = 'needs-rework';
+
 const STAGE_NEEDS_REVIEW = 'needs-review';
+
 const STAGE_NEEDS_DECISION = 'needs-decision';
+
 const STAGE_NEEDS_MR = 'needs-mr';
 
 const REVIEW_STATE_PENDING = 'pending' as const satisfies ReviewState;
+
 const REVIEW_STATE_INVALID = 'invalid' as const satisfies ReviewState;
 
 // Review chip classes: the state's own name, except these three.
 const CHIP_CLASS_WAITING = 'wait';
+
 const CHIP_CLASS_PENDING = 'pending';
+
 const CHIP_CLASS_INVALID = 'bad';
 
 /** The factory pipeline, fixed and independent of the plugin's own columns. */

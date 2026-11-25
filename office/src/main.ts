@@ -7,10 +7,15 @@ import createDashboard from '@/components/dashboard';
 import '@/styles.css';
 
 const fetchFunction = (url: string, init: RequestInit) => fetch(url, init);
+
 const boardClient = new FetchBoardClient(fetchFunction, '/api/board');
+
 const taskClient = new FetchTaskClient(fetchFunction, '/api/tasks');
+
 const poller = new BoardPoller(boardClient, taskClient);
+
 const boardView = new BoardView();
 
 Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, now: () => new Date() }));
+
 Alpine.start();

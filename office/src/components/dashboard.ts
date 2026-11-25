@@ -6,6 +6,7 @@ import type { Dashboard, DashboardDependencies } from '@/components/types';
 
 function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
+
   return {
     snapshot: null,
     tasks: [],
@@ -17,20 +18,28 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
 
     init() {
       this.clockMilliseconds = now().getTime();
+
       // ticks every second so the "updated … ago" label keeps counting between polls
       clockTimer = setInterval(() => {
         this.clockMilliseconds = now().getTime();
       }, CLOCK_INTERVAL_MILLISECONDS);
+
       poller.start({
         onSnapshot: (snapshot, tasks) => {
           this.snapshot = snapshot;
+
           this.tasks = tasks;
+
           if (this.selectedProject !== ALL_PROJECTS && !boardView.projectNames(snapshot).includes(this.selectedProject)) {
             this.selectedProject = ALL_PROJECTS;
           }
+
           this.errorMessage = null;
+
           this.clockMilliseconds = now().getTime();
+
           this.lastSuccessAt = new Date(this.clockMilliseconds).toISOString();
+
           void this.drawer.refresh();
         },
         onError: (error) => {
@@ -41,8 +50,10 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
 
     destroy() {
       poller.stop();
+
       if (clockTimer !== null) {
         clearInterval(clockTimer);
+
         clockTimer = null;
       }
     },
@@ -51,6 +62,7 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
       if (this.errorMessage !== null) {
         return 'Disconnected';
       }
+
       return this.snapshot === null ? 'Connecting' : 'Connected';
     },
 
@@ -58,7 +70,9 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
       if (this.lastSuccessAt === null) {
         return '';
       }
+
       const age = Math.max(0, this.clockMilliseconds - Date.parse(this.lastSuccessAt));
+
       return age < MILLISECONDS_PER_MINUTE ? `updated ${Math.floor(age / MILLISECONDS_PER_SECOND)}s ago` : `updated ${formatDuration(age)} ago`;
     },
 

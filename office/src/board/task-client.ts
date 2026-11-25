@@ -1,8 +1,8 @@
 import { DEFAULT_TIMEOUT_MILLISECONDS } from './constants';
-import { requestOk } from './http';
+import requestOk from './http';
 import type { FetchFunction, TaskClient, TaskDetail, TaskSummary } from './types';
 
-export class FetchTaskClient implements TaskClient {
+class FetchTaskClient implements TaskClient {
   constructor(
     private readonly fetchFunction: FetchFunction,
     private readonly baseUrl: string,
@@ -29,3 +29,5 @@ export class FetchTaskClient implements TaskClient {
     return requestOk(this.fetchFunction, url, this.timeoutMilliseconds);
   }
 }
+
+export default FetchTaskClient;

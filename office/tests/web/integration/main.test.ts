@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { expect, it, vi } from 'vitest';
 import { sampleSnapshot, sampleTasks } from '../sample-snapshot';
-import { pageMarkup } from './page-markup';
+import pageMarkup from './page-markup';
 
 it('wires clients, poller and dashboard against /api/board and /api/tasks', async () => {
   const fetchSpy = vi.fn(async (url: string) => Response.json(url === '/api/board' ? sampleSnapshot() : { tasks: sampleTasks() }));

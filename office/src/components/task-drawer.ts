@@ -10,7 +10,7 @@ function setPageInert(inert: boolean): void {
   document.querySelectorAll(PAGE_CONTENT).forEach((element) => element.toggleAttribute('inert', inert));
 }
 
-export function createTaskDrawer(taskClient: TaskClient): TaskDrawer {
+function createTaskDrawer(taskClient: TaskClient): TaskDrawer {
   return {
     isOpen: false,
     project: '',
@@ -154,3 +154,5 @@ export function createTaskDrawer(taskClient: TaskClient): TaskDrawer {
     },
   };
 }
+
+export default createTaskDrawer;

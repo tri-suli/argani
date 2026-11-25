@@ -2,7 +2,7 @@ import { formatCount, formatDuration } from './format';
 import { DONE, HUMAN_STAGES, NEEDS_HUMAN, PIPELINE, STAGE_COLUMN, WORKING_COLUMNS } from './constants';
 import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from './types';
 
-export class BoardView {
+class BoardView {
   columnOf(task: BoardTask): string {
     if (task.stage === 'done') {
       return task.merged === true ? DONE : 'Approve';
@@ -80,3 +80,5 @@ export class BoardView {
     };
   }
 }
+
+export default BoardView;

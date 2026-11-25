@@ -1,6 +1,6 @@
 import type { BoardAgent, BoardSnapshot, TaskClient, TaskDetail, TaskSummary } from '../../src/board/types';
 
-export const sampleAgent: BoardAgent = {
+const sampleAgent: BoardAgent = {
   ts: '2026-11-24T10:00:00Z',
   event: 'spawn',
   session_id: 's1',
@@ -13,7 +13,7 @@ export const sampleAgent: BoardAgent = {
   cwd: '/work/demo',
 };
 
-export function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
+function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
   return {
     home: '/home/user/.argani',
     generatedAt: '2026-11-24T10:00:05Z',
@@ -40,11 +40,11 @@ export function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSna
 
 const noTokens = { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 0 };
 
-export function sampleSummary(overrides: Partial<TaskSummary> & Pick<TaskSummary, 'project' | 'slug'>): TaskSummary {
+function sampleSummary(overrides: Partial<TaskSummary> & Pick<TaskSummary, 'project' | 'slug'>): TaskSummary {
   return { stage: 'build', risk: null, round: 0, rounds: [], mrUrl: null, updatedAt: null, agentMilliseconds: 0, tokens: noTokens, ...overrides };
 }
 
-export function sampleTasks(): TaskSummary[] {
+function sampleTasks(): TaskSummary[] {
   return [
     sampleSummary({
       project: 'demo',
@@ -63,7 +63,7 @@ export function sampleTasks(): TaskSummary[] {
   ];
 }
 
-export function sampleDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
+function sampleDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
   return {
     ...sampleSummary({ project: 'demo', slug: 'fix-export', risk: 'medium', round: 1, mrUrl: 'https://example.test/mr/7', agentMilliseconds: 125000, tokens: { ...noTokens, total: 6000 } }),
     stage: 'build',
@@ -81,13 +81,13 @@ export function sampleDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
   };
 }
 
-export const sampleFileTexts: Record<string, string> = {
+const sampleFileTexts: Record<string, string> = {
   'spec.md': '# Spec\n\nHello **world** <script>alert(1)</script>',
   'build.diff': '+added line\n-removed line\n',
   'review/round-1/review-code.md': 'PASS ok\n\n## Summary\n- all good\n\n## Details\nmore',
 };
 
-export class FakeTaskClient implements TaskClient {
+class FakeTaskClient implements TaskClient {
   detail: TaskDetail = sampleDetail();
   texts: Record<string, string> = { ...sampleFileTexts };
   failure: Error | null = null;
@@ -107,3 +107,5 @@ export class FakeTaskClient implements TaskClient {
     return this.texts[path];
   }
 }
+
+export { sampleAgent, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };

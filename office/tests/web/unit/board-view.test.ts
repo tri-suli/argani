@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoardView } from '../../../src/board/board-view';
+import BoardView from '../../../src/board/board-view';
 import { PIPELINE } from '../../../src/board/constants';
 import { formatCount, formatDuration } from '../../../src/board/format';
 import { fileName, groupFiles, isMarkdownFile } from '../../../src/board/file-view';

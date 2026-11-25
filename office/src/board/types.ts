@@ -1,4 +1,4 @@
-export interface BoardTask {
+interface BoardTask {
   project: string;
   slug: string;
   title: string;
@@ -8,13 +8,13 @@ export interface BoardTask {
   next: string;
 }
 
-export interface BoardProject {
+interface BoardProject {
   name: string;
   tasks: BoardTask[];
 }
 
 /** A `spawn` record of the argani event log. */
-export interface BoardAgent {
+interface BoardAgent {
   ts: string;
   event: string;
   session_id: string;
@@ -27,7 +27,7 @@ export interface BoardAgent {
   cwd: string;
 }
 
-export interface BoardSnapshot {
+interface BoardSnapshot {
   home: string;
   generatedAt: string;
   columns: string[];
@@ -35,16 +35,16 @@ export interface BoardSnapshot {
   agents: BoardAgent[];
 }
 
-export type Risk = 'low' | 'medium' | 'high';
-export type ReviewState = 'PASS' | 'CHANGES' | 'pending' | 'invalid';
-export type FileTone = 'good' | 'warn' | 'stop';
+type Risk = 'low' | 'medium' | 'high';
+type ReviewState = 'PASS' | 'CHANGES' | 'pending' | 'invalid';
+type FileTone = 'good' | 'warn' | 'stop';
 
-export interface TaskRound {
+interface TaskRound {
   n: number;
   reviews: Record<string, ReviewState>;
 }
 
-export interface TokenUsage {
+interface TokenUsage {
   input: number;
   output: number;
   cacheCreation: number;
@@ -53,7 +53,7 @@ export interface TokenUsage {
 }
 
 /** One entry of `GET /api/tasks`. */
-export interface TaskSummary {
+interface TaskSummary {
   project: string;
   slug: string;
   stage: string;
@@ -66,7 +66,7 @@ export interface TaskSummary {
   tokens: TokenUsage;
 }
 
-export interface TaskFile {
+interface TaskFile {
   path: string;
   group: string;
   firstLine: string;
@@ -74,7 +74,7 @@ export interface TaskFile {
 }
 
 /** `GET /api/tasks/<project>/<slug>`. */
-export interface TaskDetail extends TaskSummary {
+interface TaskDetail extends TaskSummary {
   next: string;
   column: string;
   reviewers: string[];
@@ -83,34 +83,34 @@ export interface TaskDetail extends TaskSummary {
   files: TaskFile[];
 }
 
-export interface BoardClient {
+interface BoardClient {
   fetchBoard(): Promise<BoardSnapshot>;
 }
 
-export interface TaskClient {
+interface TaskClient {
   fetchTasks(): Promise<TaskSummary[]>;
   fetchTask(project: string, slug: string): Promise<TaskDetail>;
   fetchFile(project: string, slug: string, path: string): Promise<string>;
 }
 
-export interface PollHandlers {
+interface PollHandlers {
   onSnapshot(snapshot: BoardSnapshot, tasks: TaskSummary[]): void;
   onError(error: Error): void;
 }
 
-export interface Poller {
+interface Poller {
   start(handlers: PollHandlers): void;
   stop(): void;
 }
 
-export type FetchFunction = (url: string, init: RequestInit) => Promise<Response>;
+type FetchFunction = (url: string, init: RequestInit) => Promise<Response>;
 
-export interface FileGroup {
+interface FileGroup {
   name: string;
   files: TaskFile[];
 }
 
-export interface RenderedDocument {
+interface RenderedDocument {
   /** First line of the file, shown as a badge, when the file has a tone. */
   verdict: string | null;
   tone: FileTone | null;
@@ -119,25 +119,25 @@ export interface RenderedDocument {
   bodyHtml: string;
 }
 
-export interface PipelineColumn {
+interface PipelineColumn {
   name: string;
   who: string;
   tone: '' | 'human' | 'merged';
 }
 
-export interface ChipView {
+interface ChipView {
   reviewer: string;
   state: ReviewState;
   className: string;
 }
 
-export interface RoundView {
+interface RoundView {
   n: number;
   label: string;
   chips: ChipView[];
 }
 
-export interface CardView {
+interface CardView {
   key: string;
   task: BoardTask;
   active: boolean;
@@ -151,9 +151,11 @@ export interface CardView {
   dimmed: boolean;
 }
 
-export interface ColumnView {
+interface ColumnView {
   name: string;
   who: string;
   tone: '' | 'human' | 'merged';
   cards: CardView[];
 }
+
+export type { BoardTask, BoardProject, BoardAgent, BoardSnapshot, Risk, ReviewState, FileTone, TaskRound, TokenUsage, TaskSummary, TaskFile, TaskDetail, BoardClient, TaskClient, PollHandlers, Poller, FetchFunction, FileGroup, RenderedDocument, PipelineColumn, ChipView, RoundView, CardView, ColumnView };

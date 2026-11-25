@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import BoardView from '../../../src/board/board-view';
-import { PIPELINE } from '../../../src/board/constants';
-import { formatCount, formatDuration } from '../../../src/board/format';
-import { fileName, groupFiles, isMarkdownFile } from '../../../src/board/file-view';
+import BoardView from '@/board/board-view';
+import { PIPELINE } from '@/board/constants';
+import { formatCount, formatDuration } from '@/board/format';
+import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
 import { sampleAgent, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';
 
 const boardView = new BoardView();

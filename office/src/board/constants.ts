@@ -1,4 +1,4 @@
-import type { PipelineColumn, ReviewState } from './types';
+import type { PipelineColumn, ReviewState } from '@/board/types';
 
 // Shorter than the poll interval: a backend that never answers must surface as a failure, not a hang.
 const DEFAULT_TIMEOUT_MILLISECONDS = 4000;

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { renderDocument, renderMarkdown } from '../../../src/board/markdown';
+import { renderDocument, renderMarkdown } from '@/board/markdown';
 
 describe('renderMarkdown', () => {
   it('renders markdown to html', () => {

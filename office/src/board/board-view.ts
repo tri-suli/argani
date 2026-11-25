@@ -1,4 +1,4 @@
-import { formatCount, formatDuration } from './format';
+import { formatCount, formatDuration } from '@/board/format';
 import {
   CHIP_CLASS_INVALID,
   CHIP_CLASS_PENDING,
@@ -13,8 +13,8 @@ import {
   STAGE_COLUMN,
   STAGE_DONE,
   WORKING_COLUMNS,
-} from './constants';
-import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from './types';
+} from '@/board/constants';
+import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from '@/board/types';
 
 class BoardView {
   columnOf(task: BoardTask): string {

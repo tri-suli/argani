@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import FetchBoardClient from '../../../src/board/board-client';
-import FetchTaskClient from '../../../src/board/task-client';
+import FetchBoardClient from '@/board/board-client';
+import FetchTaskClient from '@/board/task-client';
 import { sampleDetail, sampleSnapshot, sampleTasks } from '../sample-snapshot';
 
 const clientReturning = (response: Response) => new FetchBoardClient(vi.fn(async () => response), '/api/board');

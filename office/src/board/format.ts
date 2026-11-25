@@ -6,7 +6,7 @@ import {
   MINUTES_PAD_WIDTH,
   MINUTES_PER_HOUR,
   THOUSANDS_DISPLAY_THRESHOLD,
-} from './constants';
+} from '@/board/constants';
 
 /** "12m", "1h05m". */
 function formatDuration(milliseconds: number): string {

@@ -1,6 +1,6 @@
-import { DEFAULT_TIMEOUT_MILLISECONDS } from './constants';
-import requestOk from './http';
-import type { FetchFunction, TaskClient, TaskDetail, TaskSummary } from './types';
+import { DEFAULT_TIMEOUT_MILLISECONDS } from '@/board/constants';
+import requestOk from '@/board/http';
+import type { FetchFunction, TaskClient, TaskDetail, TaskSummary } from '@/board/types';
 
 class FetchTaskClient implements TaskClient {
   constructor(

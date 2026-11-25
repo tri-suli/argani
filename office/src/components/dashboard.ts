@@ -1,3 +1,4 @@
+import { ALL_PROJECTS, MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '../board/constants';
 import { formatCount, formatDuration } from '../board/format';
 import { CLOCK_INTERVAL_MILLISECONDS } from './constants';
 import createTaskDrawer from './task-drawer';
@@ -11,7 +12,7 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
     errorMessage: null,
     lastSuccessAt: null,
     clockMilliseconds: 0,
-    selectedProject: '',
+    selectedProject: ALL_PROJECTS,
     drawer: createTaskDrawer(taskClient),
 
     init() {
@@ -24,8 +25,8 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
         onSnapshot: (snapshot, tasks) => {
           this.snapshot = snapshot;
           this.tasks = tasks;
-          if (this.selectedProject !== '' && !boardView.projectNames(snapshot).includes(this.selectedProject)) {
-            this.selectedProject = '';
+          if (this.selectedProject !== ALL_PROJECTS && !boardView.projectNames(snapshot).includes(this.selectedProject)) {
+            this.selectedProject = ALL_PROJECTS;
           }
           this.errorMessage = null;
           this.clockMilliseconds = now().getTime();
@@ -58,7 +59,7 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
         return '';
       }
       const age = Math.max(0, this.clockMilliseconds - Date.parse(this.lastSuccessAt));
-      return age < 60_000 ? `updated ${Math.floor(age / 1000)}s ago` : `updated ${formatDuration(age)} ago`;
+      return age < MILLISECONDS_PER_MINUTE ? `updated ${Math.floor(age / MILLISECONDS_PER_SECOND)}s ago` : `updated ${formatDuration(age)} ago`;
     },
 
     get projects() {

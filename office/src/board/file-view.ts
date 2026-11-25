@@ -1,3 +1,4 @@
+import { MARKDOWN_EXTENSION, PATH_SEPARATOR } from './constants';
 import type { FileGroup, TaskFile } from './types';
 
 /** Groups in order of first appearance ("Job", "Round 1", ...). */
@@ -10,11 +11,11 @@ function groupFiles(files: TaskFile[]): FileGroup[] {
 }
 
 function fileName(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1);
+  return path.slice(path.lastIndexOf(PATH_SEPARATOR) + 1);
 }
 
 function isMarkdownFile(path: string): boolean {
-  return path.toLowerCase().endsWith('.md');
+  return path.toLowerCase().endsWith(MARKDOWN_EXTENSION);
 }
 
 export { groupFiles, fileName, isMarkdownFile };

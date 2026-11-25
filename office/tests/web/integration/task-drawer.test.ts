@@ -7,6 +7,7 @@ import createDashboard from '@/components/dashboard';
 import createTaskDrawer from '@/components/task-drawer';
 import type { FileTone } from '@/types/task';
 import { FakeTaskClient, sampleDetail, sampleSnapshot, sampleTasks } from '../sample-snapshot';
+import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
 
 class FakePoller implements Poller {
@@ -21,6 +22,8 @@ class FakePoller implements Poller {
 
 // Alpine renders nested x-for templates over several ticks, so assertions on rendered output retry with vi.waitFor;
 // "nothing happened" assertions first let Alpine and the pending promises flush with Alpine.nextTick().
+const markdownRenderer = sampleMarkdownRenderer();
+
 const eventually = (assertions: () => void) => vi.waitFor(assertions);
 
 const flush = () => Alpine.nextTick();
@@ -57,7 +60,7 @@ let poller: FakePoller;
 let taskClient: FakeTaskClient;
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), now: () => new Date() }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now: () => new Date() }));
 
   Alpine.start();
 });
@@ -116,7 +119,7 @@ describe('task drawer', () => {
   });
 
   it('labels every tone', () => {
-    const drawer = createTaskDrawer(taskClient);
+    const drawer = createTaskDrawer(taskClient, markdownRenderer);
 
     expect(['good', 'warn', 'stop', null].map((tone) => drawer.toneLabel(tone as FileTone | null))).toEqual(
       ['passed', 'changes requested', 'escalated', '']);

@@ -17,6 +17,14 @@ const ANCHOR_TAG_NAME = 'A';
 
 const HREF_ATTRIBUTE = 'href';
 
+const LINK_TARGET_ATTRIBUTE = 'target';
+
+const LINK_TARGET_VALUE = '_blank';
+
+const LINK_REL_ATTRIBUTE = 'rel';
+
+const LINK_REL_VALUE = 'noopener noreferrer';
+
 const NOT_FOUND_INDEX = -1;
 
 export {
@@ -27,5 +35,9 @@ export {
   SECTION_HEADING_PREFIX,
   ANCHOR_TAG_NAME,
   HREF_ATTRIBUTE,
+  LINK_TARGET_ATTRIBUTE,
+  LINK_TARGET_VALUE,
+  LINK_REL_ATTRIBUTE,
+  LINK_REL_VALUE,
   NOT_FOUND_INDEX,
 };

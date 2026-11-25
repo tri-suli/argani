@@ -6,7 +6,7 @@ import createTaskDrawer from '@/components/task-drawer';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
-function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, markdownRenderer, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
@@ -16,7 +16,7 @@ function createDashboard({ poller, taskClient, boardView, now }: DashboardDepend
     lastSuccessAt: null,
     clockMilliseconds: 0,
     selectedProject: ALL_PROJECTS,
-    drawer: createTaskDrawer(taskClient),
+    drawer: createTaskDrawer(taskClient, markdownRenderer),
 
     init() {
       this.clockMilliseconds = now().getTime();

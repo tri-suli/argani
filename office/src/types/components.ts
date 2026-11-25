@@ -1,4 +1,5 @@
 import type BoardView from '@/board/board-view';
+import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
@@ -9,6 +10,7 @@ interface DashboardDependencies {
   poller: Poller;
   taskClient: TaskClient;
   boardView: BoardView;
+  markdownRenderer: MarkdownRenderer;
   now: () => Date;
 }
 

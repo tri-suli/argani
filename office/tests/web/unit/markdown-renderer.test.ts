@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { renderDocument, renderMarkdown } from '@/board/markdown';
+import sampleMarkdownRenderer from '../sample-markdown-renderer';
+
+const renderer = sampleMarkdownRenderer();
 
 describe('renderMarkdown', () => {
   it('renders markdown to html', () => {
-    expect(renderMarkdown('# Title\n\n**bold**')).toContain('<h1>Title</h1>');
+    expect(renderer.renderMarkdown('# Title\n\n**bold**')).toContain('<h1>Title</h1>');
   });
 
   it('strips script elements and event handlers', () => {
-    const html = renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror="alert(2)">\n\n[x](javascript:alert(3))');
+    const html = renderer.renderMarkdown('<script>alert(1)</script>\n\n<img src=x onerror="alert(2)">\n\n[x](javascript:alert(3))');
 
     expect(html).not.toContain('<script');
 
@@ -18,19 +20,19 @@ describe('renderMarkdown', () => {
   });
 
   it('opens links in a new tab safely and leaves other elements alone', () => {
-    const html = renderMarkdown('[docs](https://example.test) and `code`');
+    const html = renderer.renderMarkdown('[docs](https://example.test) and `code`');
 
     expect(html).toContain('target="_blank"');
 
     expect(html).toContain('rel="noopener noreferrer"');
 
-    expect(renderMarkdown('<a name="anchor">x</a>')).not.toContain('target');
+    expect(renderer.renderMarkdown('<a name="anchor">x</a>')).not.toContain('target');
   });
 });
 
 describe('renderDocument', () => {
   it('shows the first line as verdict when the file has a tone', () => {
-    const document = renderDocument('PASS ok\n\nbody', 'good');
+    const document = renderer.renderDocument('PASS ok\n\nbody', 'good');
 
     expect(document).toMatchObject({ verdict: 'PASS ok', tone: 'good', summaryHtml: null });
 
@@ -40,7 +42,7 @@ describe('renderDocument', () => {
   });
 
   it('keeps the first line when there is no tone', () => {
-    const document = renderDocument('# Spec', null);
+    const document = renderer.renderDocument('# Spec', null);
 
     expect(document.verdict).toBeNull();
 
@@ -48,7 +50,7 @@ describe('renderDocument', () => {
   });
 
   it('moves the Summary section out of the body, up to the next heading', () => {
-    const document = renderDocument('# T\n\n## Summary\n- one\n\n## Details\nmore', null);
+    const document = renderer.renderDocument('# T\n\n## Summary\n- one\n\n## Details\nmore', null);
 
     expect(document.summaryHtml).toContain('<li>one</li>');
 
@@ -58,7 +60,7 @@ describe('renderDocument', () => {
   });
 
   it('takes a Summary section that runs to the end', () => {
-    const document = renderDocument('## Summary\nlast words', null);
+    const document = renderer.renderDocument('## Summary\nlast words', null);
 
     expect(document.summaryHtml).toContain('last words');
 
@@ -66,20 +68,20 @@ describe('renderDocument', () => {
   });
 
   it('survives an empty tone-bearing file', () => {
-    expect(renderDocument('', 'warn')).toMatchObject({ verdict: '', summaryHtml: null });
+    expect(renderer.renderDocument('', 'warn')).toMatchObject({ verdict: '', summaryHtml: null });
   });
 });
 
 describe('sanitizer hardening', () => {
   it.each(['form', 'input', 'button', 'select', 'textarea', 'img', 'style', 'iframe', 'object', 'embed'])(
     'removes <%s>', (tag) => {
-      const html = renderMarkdown(`before <${tag} src="https://evil.test/x">inner</${tag}> after`);
+      const html = renderer.renderMarkdown(`before <${tag} src="https://evil.test/x">inner</${tag}> after`);
 
       expect(html).not.toContain(`<${tag}`);
     });
 
   it('removes the style attribute but keeps the element', () => {
-    const html = renderMarkdown('<p style="position:fixed;inset:0">covers the page</p>');
+    const html = renderer.renderMarkdown('<p style="position:fixed;inset:0">covers the page</p>');
 
     expect(html).toContain('covers the page');
 
@@ -87,7 +89,7 @@ describe('sanitizer hardening', () => {
   });
 
   it('never keeps Alpine-looking attributes', () => {
-    const html = renderMarkdown('<div x-init="alert(1)" x-data="{a:1}" @click="alert(2)" :class="alert(3)" x-html="y" x-on:click="z">text</div>');
+    const html = renderer.renderMarkdown('<div x-init="alert(1)" x-data="{a:1}" @click="alert(2)" :class="alert(3)" x-html="y" x-on:click="z">text</div>');
 
     expect(html).toContain('text');
 

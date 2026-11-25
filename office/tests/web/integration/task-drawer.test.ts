@@ -6,7 +6,6 @@ import { createDashboard } from '../../../src/components/dashboard';
 import { createTaskDrawer } from '../../../src/components/task-drawer';
 import type { FileTone } from '../../../src/board/types';
 import { FakeTaskClient, sampleDetail, sampleSnapshot, sampleTasks } from '../sample-snapshot';
-import { classesOf, hasClass } from './class-of';
 import { pageMarkup } from './page-markup';
 
 class FakePoller implements Poller {
@@ -69,10 +68,10 @@ describe('task drawer', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(text('[data-testid=drawer-title]')).toBe('Fix export');
     expect(text('[data-testid=drawer-headline]')).toBe('demo · fix-export · build · round 1 · medium · 2m · 6.0k tok');
-    expect([...document.querySelectorAll('.files .group')].map((group) => group.textContent)).toEqual(['Job', 'Round 1']);
+    expect([...document.querySelectorAll('[data-testid=file-group]')].map((group) => group.textContent)).toEqual(['Job', 'Round 1']);
     expect(fileButtons().map((button) => button.querySelector('span:nth-child(2)')?.textContent)).toEqual(['spec.md', 'build.diff', 'review-code.md']);
-    expect(hasClass(fileButtons()[0], 'on')).toBe(true);
-    expect(hasClass(fileButtons()[2].querySelector('.v'), 'good')).toBe(true);
+    expect(fileButtons()[0].getAttribute('aria-current')).toBe('true');
+    expect(fileButtons()[2].querySelector('[data-testid=file-tone]')?.getAttribute('data-tone') === 'good').toBe(true);
     await eventually(() => expect(document.activeElement).toBe(document.querySelector('.close')));
   });
 
@@ -167,7 +166,7 @@ describe('task drawer', () => {
     await eventually(() => {
       expect(isShown('[data-testid=drawer-markdown]')).toBe(true);
       expect(text('[data-testid=drawer-verdict]')).toBe('PASS ok');
-      expect(hasClass(document.querySelector('[data-testid=drawer-verdict]'), 'good')).toBe(true);
+      expect(document.querySelector('[data-testid=drawer-verdict]')?.getAttribute('data-tone') === 'good').toBe(true);
       expect(isShown('[data-testid=drawer-summary]')).toBe(true);
       expect(text('[data-testid=drawer-summary]')).toContain('all good');
       expect(text('[data-testid=drawer-body]')).toContain('Details');
@@ -188,7 +187,7 @@ describe('task drawer', () => {
     taskClient.detail = sampleDetail({ updatedAt: '2026-11-24T11:00:00Z' });
     pollAgain();
     await eventually(() => expect(document.querySelector('[data-testid=drawer-plain]')?.textContent).toBe('+changed\n'));
-    expect(hasClass(fileButtons()[1], 'on')).toBe(true);
+    expect(fileButtons()[1].getAttribute('aria-current')).toBe('true');
   });
 
   it('refetches the file only when the task or the file entry changed', async () => {
@@ -253,12 +252,12 @@ describe('task drawer', () => {
   it('falls back to the first file when the selected one disappears', async () => {
     await openDrawer();
     selectFile(1);
-    await eventually(() => expect(hasClass(fileButtons()[1], 'on')).toBe(true));
+    await eventually(() => expect(fileButtons()[1].getAttribute('aria-current')).toBe('true'));
     taskClient.detail = sampleDetail({ files: [sampleDetail().files[0]] });
     pollAgain();
     await eventually(() => {
       expect(fileButtons().map((button) => button.querySelector('span:nth-child(2)')?.textContent)).toEqual(['spec.md']);
-      expect(hasClass(fileButtons()[0], 'on')).toBe(true);
+      expect(fileButtons()[0].getAttribute('aria-current')).toBe('true');
       expect(isShown('[data-testid=drawer-markdown]')).toBe(true);
     });
   });
@@ -321,7 +320,7 @@ describe('task drawer', () => {
     selectFile(1);
     selectFile(0);
     await flush();
-    expect(hasClass(fileButtons()[0], 'on')).toBe(true);
+    expect(fileButtons()[0].getAttribute('aria-current')).toBe('true');
     expect(isShown('[data-testid=drawer-markdown]')).toBe(true);
   });
 

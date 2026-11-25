@@ -19,11 +19,14 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.5",
     "@types/alpinejs": "^3.17.0",
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.1",
     "happy-dom": "^21.0.4",
     "jsdom": "^29.1.1",
+    "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"

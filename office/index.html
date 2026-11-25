@@ -7,48 +7,49 @@
     <link rel="icon" href="data:," />
     <title>argani office</title>
   </head>
-  <body>
+  <body class="bg-bg font-sans text-[14px] text-ink antialiased">
     <div x-data="dashboard" class="page">
-      <header class="page-header">
-        <div class="title">
-          <h1>argani office</h1>
-          <p class="home mono" data-testid="home" x-text="snapshot ? snapshot.home : '-'"></p>
+      <header class="flex flex-wrap items-end gap-x-6 gap-y-3 px-6 pt-6 pb-2 narrow:px-4 narrow:pt-5 narrow:pb-1">
+        <div>
+          <h1 class="text-[18px] font-semibold tracking-[-0.01em]">argani office</h1>
+          <p class="font-mono text-[12px] text-muted [overflow-wrap:anywhere]" data-testid="home" x-text="snapshot ? snapshot.home : '-'"></p>
         </div>
-        <label class="filter">Project
-          <select data-testid="project-filter" x-model="selectedProject">
+        <label class="grid gap-0.5 text-[11px] text-muted">Project
+          <select class="rounded-md border border-line bg-card px-2 py-1" data-testid="project-filter" x-model="selectedProject">
             <option value="">All projects</option>
             <template x-for="name in projects" :key="name">
               <option :value="name" x-text="name"></option>
             </template>
           </select>
         </label>
-        <p class="status mono" :class="{ error: errorMessage !== null }" role="status" aria-live="polite">
-          <span class="dot" aria-hidden="true"></span>
+        <p class="group/status ml-auto font-mono text-[12px] text-muted data-[error=true]:text-human narrow:ml-0" :data-error="errorMessage !== null" role="status" aria-live="polite">
+          <span class="mr-1.5 inline-block size-[7px] rounded-full bg-pass align-[1px] group-data-[error=true]/status:bg-human" aria-hidden="true"></span>
           <span data-testid="status" x-text="status"></span>
           <span data-testid="updated" x-show="updatedLabel !== ''" x-text="'· ' + updatedLabel"></span>
           <span data-testid="status-error" x-show="errorMessage !== null" x-text="'· ' + errorMessage"></span>
         </p>
       </header>
 
-      <p class="banner mono" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
+      <p class="mx-6 mt-3 rounded-lg border border-human px-3.5 py-2.5 font-mono text-[12px] text-human narrow:mx-4" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
         Last refresh failed: <span x-text="errorMessage"></span>. Showing the last data received<span x-show="lastSuccessAt"> at <span x-text="lastSuccessAt"></span></span>.
       </p>
 
-      <p class="empty" data-testid="loading" x-show="snapshot === null &amp;&amp; errorMessage === null">Loading the board...</p>
+      <p class="px-6 py-3 text-[12px] text-faint" data-testid="loading" x-show="snapshot === null &amp;&amp; errorMessage === null">Loading the board...</p>
 
-      <main class="board" aria-label="Board">
+      <main class="grid grid-cols-[repeat(7,minmax(150px,1fr))] items-start gap-3 overflow-x-auto px-6 pt-5 pb-6 narrow:grid-cols-1 narrow:p-4" aria-label="Board">
         <template x-for="column in columns" :key="column.name">
-          <section class="col" :class="column.tone" :data-column="column.name">
-            <div class="col-head">
-              <h2 x-text="column.name"></h2>
-              <span class="count" x-text="String(column.cards.length)"></span>
-              <span class="who" x-text="column.who"></span>
+          <section class="col group/col min-w-0" :data-tone="column.tone" :data-column="column.name">
+            <div class="col-head relative mb-3 grid grid-cols-[1fr_auto] border-b border-line px-0.5 pb-2.5 group-data-[tone=human]/col:border-human/55 after:absolute after:-top-0.5 after:-right-2.5 after:text-[16px] after:text-faint after:content-['›'] group-[:nth-last-child(-n+2)]/col:after:hidden narrow:after:hidden">
+              <h2 class="text-[13px] font-semibold group-data-[tone=human]/col:text-human group-data-[tone=merged]/col:text-merged" x-text="column.name"></h2>
+              <span class="font-mono text-[11px] leading-[normal] text-muted" x-text="String(column.cards.length)"></span>
+              <span class="col-span-full overflow-hidden font-mono text-[11px] leading-[normal] text-ellipsis whitespace-nowrap text-faint" x-text="column.who"></span>
             </div>
-            <p class="empty" x-show="column.cards.length === 0">No tasks</p>
+            <p class="empty px-0.5 py-1 text-[12px] text-faint" x-show="column.cards.length === 0">No tasks</p>
             <template x-for="card in column.cards" :key="card.key">
               <article
-                class="card"
-                :class="{ live: card.active, human: card.flag !== null, done: card.dimmed }"
+                class="card mb-2.5 block cursor-pointer rounded-[10px] border border-line bg-card px-3 pt-3 pb-2.5 transition duration-150 [overflow-wrap:anywhere] hover:-translate-y-px hover:bg-hover motion-reduce:transition-none data-[active=true]:border-[color-mix(in_srgb,var(--color-active)_45%,var(--color-line))] data-[dimmed=true]:opacity-80 data-[flagged=true]:border-human data-[flagged=true]:shadow-flagged"
+                :data-flagged="card.flag !== null"
+                :data-dimmed="card.dimmed"
                 :data-active="card.active"
                 :data-task="card.key"
                 tabindex="0"
@@ -59,81 +60,81 @@
                 @keydown.enter.self.prevent="drawer.open(card.task)"
                 @keydown.space.self.prevent="drawer.open(card.task)"
               >
-                <div class="card-top">
-                  <span class="pulse" data-testid="agent-marker" role="img" aria-label="Agent working" x-show="card.active"></span>
-                  <span class="num mono" x-text="card.task.project + ' · ' + card.task.slug"></span>
-                  <span class="flag" data-testid="card-flag" x-show="card.flag !== null" x-text="card.flag"></span>
+                <div class="mb-1 flex items-center gap-2">
+                  <span class="size-[7px] flex-none animate-agent rounded-full bg-active motion-reduce:animate-none" data-testid="agent-marker" role="img" aria-label="Agent working" x-show="card.active"></span>
+                  <span class="num min-w-0 overflow-hidden font-mono text-[12px] text-ellipsis whitespace-nowrap text-muted" x-text="card.task.project + ' · ' + card.task.slug"></span>
+                  <span class="ml-auto text-[10px] font-semibold tracking-[0.06em] whitespace-nowrap text-human uppercase" data-testid="card-flag" x-show="card.flag !== null" x-text="card.flag"></span>
                 </div>
-                <h3 class="feature" x-text="card.task.title"></h3>
-                <p class="links mono" x-show="card.mrUrl !== null">
-                  <a :href="card.mrUrl" target="_blank" rel="noopener noreferrer" @click.stop>MR</a>
+                <h3 class="feature mb-1.5 text-[13px] leading-[1.4] font-medium" x-text="card.task.title"></h3>
+                <p class="flex gap-2.5 font-mono text-[11px]" data-testid="card-links" x-show="card.mrUrl !== null">
+                  <a :href="card.mrUrl" class="text-active hover:underline" target="_blank" rel="noopener noreferrer" @click.stop>MR</a>
                 </p>
-                <div class="rounds" x-show="card.rounds.length > 0">
+                <div class="mt-2.5 grid gap-[5px]" x-show="card.rounds.length > 0">
                   <template x-for="round in card.rounds" :key="round.n">
-                    <div class="round">
-                      <span class="r mono" x-text="round.label"></span>
+                    <div class="round flex min-w-0 items-center gap-1">
+                      <span class="w-5 flex-none font-mono text-[10px] text-faint" x-text="round.label"></span>
                       <template x-for="chip in round.chips" :key="chip.reviewer">
-                        <span class="chip mono" :class="chip.className" :title="chip.reviewer + ': ' + chip.state">
+                        <span class="chip min-w-0 flex-1 overflow-hidden rounded-sm border border-dashed border-faint px-[3px] py-0.5 text-center font-mono text-[10px] text-ellipsis whitespace-nowrap text-faint data-[state=bad]:border-solid data-[state=bad]:border-human data-[state=bad]:text-human data-[state=CHANGES]:border-solid data-[state=CHANGES]:border-transparent data-[state=CHANGES]:bg-changes/16 data-[state=CHANGES]:text-changes data-[state=PASS]:border-solid data-[state=PASS]:border-transparent data-[state=PASS]:bg-pass/14 data-[state=PASS]:text-pass motion-safe:data-[state=wait]:animate-breathe" :data-state="chip.className" :title="chip.reviewer + ': ' + chip.state">
                           <span x-text="chip.reviewer"></span><span class="sr-only" x-text="': ' + chip.state"></span>
                         </span>
                       </template>
                     </div>
                   </template>
                 </div>
-                <div class="meta mono">
-                  <span data-testid="card-risk" x-show="card.risk !== null" :class="'risk-' + card.risk" x-text="card.risk"></span>
+                <div class="mt-2 flex gap-2.5 font-mono text-[10.5px] text-muted">
+                  <span class="data-[risk=high]:text-human data-[risk=low]:text-pass data-[risk=medium]:text-changes" data-testid="card-risk" x-show="card.risk !== null" :data-risk="card.risk" x-text="card.risk"></span>
                   <span data-testid="card-time" x-show="card.time !== ''" x-text="card.time"></span>
                   <span data-testid="card-tokens" x-show="card.tokens !== ''" x-text="card.tokens"></span>
                 </div>
-                <p class="hint mono" data-testid="card-hint" x-show="card.hint !== null" x-text="card.hint"></p>
+                <p class="mt-2.5 border-t border-line pt-2 font-mono text-[10.5px] leading-[1.6] text-muted" data-testid="card-hint" x-show="card.hint !== null" x-text="card.hint"></p>
               </article>
             </template>
           </section>
         </template>
       </main>
 
-      <footer class="page-footer mono">
+      <footer class="flex flex-wrap gap-x-5 gap-y-2 px-6 pb-7 font-mono text-[11px] text-faint narrow:px-4 narrow:pb-6">
         <span>/argani:board</span>
         <span>/argani:factory &lt;slug&gt;</span>
         <span>/argani:intent approve &lt;slug&gt;</span>
         <span>/argani:spec approve &lt;slug&gt;</span>
-        <span class="totals" data-testid="totals"><span x-text="String(agentsRunning)"></span> agents running · <span x-text="tokensLabel"></span> tokens</span>
+        <span class="ml-auto text-muted narrow:ml-0" data-testid="totals"><span x-text="String(agentsRunning)"></span> agents running · <span x-text="tokensLabel"></span> tokens</span>
       </footer>
 
-      <div class="drawer-root" data-testid="drawer" x-show="drawer.isOpen" x-cloak
+      <div class="drawer-root fixed inset-0 z-10" data-testid="drawer" x-show="drawer.isOpen" x-cloak
            @keydown.escape.window="drawer.close()"
            x-effect="drawer.isOpen && $nextTick(() => drawer.isOpen && $refs.close?.focus())">
-        <div class="scrim" data-testid="scrim" @click="drawer.close()"></div>
-        <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" @keydown.tab="drawer.trapFocus($event, $el)">
-          <header class="d-head">
-            <p class="num mono" data-testid="drawer-headline" x-text="drawer.headline"></p>
-            <h2 id="drawer-title" class="d-title" data-testid="drawer-title" x-text="drawer.title"></h2>
-            <p class="links mono" x-show="drawer.detail && drawer.detail.mrUrl">
-              <a :href="drawer.detail ? drawer.detail.mrUrl : null" target="_blank" rel="noopener noreferrer">MR</a>
+        <div class="absolute inset-0 bg-scrim" data-testid="scrim" @click="drawer.close()"></div>
+        <section class="absolute inset-y-0 right-0 grid w-[min(920px,100vw)] animate-slide-in grid-rows-[auto_1fr] border-l border-line bg-panel motion-reduce:animate-none" role="dialog" aria-modal="true" aria-labelledby="drawer-title" @keydown.tab="drawer.trapFocus($event, $el)">
+          <header class="d-head relative border-b border-line px-6 pt-5 pb-4 narrow:p-4">
+            <p class="num font-mono text-[12px] text-muted" data-testid="drawer-headline" x-text="drawer.headline"></p>
+            <h2 id="drawer-title" class="mt-1 mr-10 mb-1.5 text-[16px] leading-[1.35] font-semibold" data-testid="drawer-title" x-text="drawer.title"></h2>
+            <p class="links flex gap-2.5 font-mono text-[11px]" x-show="drawer.detail && drawer.detail.mrUrl">
+              <a class="text-active hover:underline" :href="drawer.detail ? drawer.detail.mrUrl : null" target="_blank" rel="noopener noreferrer">MR</a>
             </p>
-            <button type="button" class="close" x-ref="close" aria-label="Close" @click="drawer.close()">×</button>
+            <button type="button" class="close absolute top-4 right-4 size-8 cursor-pointer rounded-lg border border-line text-[18px] leading-none text-muted hover:border-muted hover:text-ink" x-ref="close" aria-label="Close" @click="drawer.close()">×</button>
           </header>
-          <div class="d-body">
-            <nav class="files" aria-label="Task files">
+          <div class="grid min-h-0 grid-cols-[200px_1fr] narrow:grid-cols-1 narrow:grid-rows-[auto_1fr]">
+            <nav class="files overflow-y-auto border-r border-line px-2.5 py-3.5 narrow:flex narrow:gap-1 narrow:overflow-x-auto narrow:border-r-0 narrow:border-b narrow:p-2" aria-label="Task files">
               <template x-for="group in drawer.groups" :key="group.name">
-                <div role="group" :aria-label="group.name">
-                  <p class="group" x-text="group.name"></p>
+                <div class="narrow:flex narrow:gap-1" role="group" :aria-label="group.name">
+                  <p data-testid="file-group" class="mx-2 mt-3 mb-1 text-[10px] tracking-[0.08em] text-faint uppercase narrow:hidden" x-text="group.name"></p>
                   <template x-for="file in group.files" :key="file.path">
-                    <button type="button" class="file mono" :class="{ on: file.path === drawer.selectedPath }" :title="file.path" :aria-current="file.path === drawer.selectedPath" @click="drawer.select(file.path)">
-                      <span class="v" :class="file.tone"></span><span x-text="drawer.fileLabel(file)"></span><span class="sr-only" x-text="file.tone ? ': ' + drawer.toneLabel(file.tone) : ''"></span>
+                    <button type="button" class="file flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] text-left font-mono text-[12px] text-muted hover:bg-hover hover:text-ink aria-[current=true]:bg-hover aria-[current=true]:text-ink narrow:w-auto narrow:whitespace-nowrap" :title="file.path" :aria-current="file.path === drawer.selectedPath" @click="drawer.select(file.path)">
+                      <span class="size-1.5 flex-none rounded-full bg-faint data-[tone=good]:bg-pass data-[tone=stop]:bg-human data-[tone=warn]:bg-changes" data-testid="file-tone" :data-tone="file.tone"></span><span x-text="drawer.fileLabel(file)"></span><span class="sr-only" x-text="file.tone ? ': ' + drawer.toneLabel(file.tone) : ''"></span>
                     </button>
                   </template>
                 </div>
               </template>
             </nav>
-            <div class="doc">
-              <p class="note" data-testid="drawer-error" x-show="drawer.errorMessage !== null" x-text="drawer.errorMessage"></p>
-              <div class="md" data-testid="drawer-markdown" x-show="drawer.rendered !== null">
-                <p class="verdict" :class="drawer.rendered ? drawer.rendered.tone : ''" data-testid="drawer-verdict" x-show="drawer.rendered && drawer.rendered.verdict !== null" x-text="drawer.rendered ? drawer.rendered.verdict : ''"></p>
-                <div class="summary" data-testid="drawer-summary" x-show="drawer.rendered && drawer.rendered.summaryHtml !== null" x-html="drawer.rendered ? drawer.rendered.summaryHtml : ''"></div>
-                <div data-testid="drawer-body" x-html="drawer.rendered ? drawer.rendered.bodyHtml : ''"></div>
+            <div class="min-w-0 overflow-y-auto px-7 pt-[22px] pb-[60px] narrow:px-4 narrow:pt-[18px] narrow:pb-12">
+              <p class="mb-3 text-[13px] text-human" data-testid="drawer-error" x-show="drawer.errorMessage !== null" x-text="drawer.errorMessage"></p>
+              <div class="prose prose-argani max-w-[680px] text-[14px] leading-[1.65] prose-headings:mt-[1.6em] prose-headings:mb-[0.5em] prose-headings:leading-[1.3] prose-headings:font-bold prose-h1:text-[20px] prose-h1:font-semibold prose-h2:text-[15px] prose-h3:text-[14px] prose-h3:text-muted prose-h4:text-[14px] prose-p:mt-0 prose-p:mb-[0.9em] prose-p:before:content-none prose-p:after:content-none prose-ul:mt-0 prose-ul:mb-[0.9em] prose-ul:pl-[1.3em] prose-ol:mt-0 prose-ol:mb-[0.9em] prose-ol:pl-[1.3em] prose-li:my-0 prose-li:pl-0 prose-a:font-normal prose-code:rounded-sm prose-code:bg-hover prose-code:px-[5px] prose-code:py-px prose-code:font-mono prose-code:text-[12px] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-pre:mt-0 prose-pre:mb-[0.9em] prose-pre:rounded-lg prose-pre:leading-[1.65] [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 prose-pre:border prose-pre:border-line prose-pre:px-3.5 prose-pre:py-3 prose-pre:text-[14px] [&_ul_ul]:list-[circle] prose-blockquote:mt-0 prose-blockquote:mb-[0.9em] prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-blockquote:font-normal prose-blockquote:not-italic prose-table:mt-0 prose-table:mb-[0.9em] prose-table:block prose-table:leading-[1.65] prose-thead:border-b-0 prose-tr:border-b-0 prose-table:overflow-x-auto prose-table:text-[13px] prose-th:border prose-th:border-line prose-th:px-[9px] prose-th:py-[5px] prose-td:border prose-td:border-line prose-td:px-[9px] prose-td:py-[5px]" data-testid="drawer-markdown" x-show="drawer.rendered !== null">
+                <p class="not-prose mb-3.5 inline-block rounded-md px-2.5 py-1 font-mono text-[12px] leading-[normal] font-semibold data-[tone=good]:bg-pass/14 data-[tone=good]:text-pass data-[tone=stop]:bg-human/16 data-[tone=stop]:text-human data-[tone=warn]:bg-changes/16 data-[tone=warn]:text-changes" :data-tone="drawer.rendered ? drawer.rendered.tone : ''" data-testid="drawer-verdict" x-show="drawer.rendered && drawer.rendered.verdict !== null" x-text="drawer.rendered ? drawer.rendered.verdict : ''"></p>
+                <div class="mb-[22px] rounded-lg border border-line bg-hover px-4 pt-3 pb-1 [&>:first-child]:mt-0" data-testid="drawer-summary" x-show="drawer.rendered && drawer.rendered.summaryHtml !== null" x-html="drawer.rendered ? drawer.rendered.summaryHtml : ''"></div>
+                <div class="[&>:first-child]:mt-0" data-testid="drawer-body" x-html="drawer.rendered ? drawer.rendered.bodyHtml : ''"></div>
               </div>
-              <pre class="plain" data-testid="drawer-plain" x-show="drawer.rendered === null" x-text="drawer.fileText"></pre>
+              <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="drawer-plain" x-show="drawer.rendered === null" x-text="drawer.fileText"></pre>
             </div>
           </div>
         </section>

@@ -55,7 +55,7 @@ test.describe('with a live backend', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByTestId('drawer-headline')).toContainText('demo · ship-report');
     await expect(page.getByTestId('drawer-headline')).toContainText('6.0k tok');
-    await expect(drawer.locator('.files .group')).toHaveText(['Job', 'Round 1', 'Round 2']);
+    await expect(drawer.locator('[data-testid=file-group]')).toHaveText(['Job', 'Round 1', 'Round 2']);
     await expect(drawer.locator('.file').first()).toHaveText('intent.md');
     await expect(page.getByTestId('drawer-body').locator('h1')).toHaveText('Intent: Ship report');
     await drawer.locator('.file', { hasText: 'review-code.md' }).first().click();

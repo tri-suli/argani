@@ -1,7 +1,8 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { ANCHOR_TAG_NAME, HREF_ATTRIBUTE, NOT_FOUND_INDEX, SANITIZE_OPTIONS, SECTION_HEADING_PREFIX, SUMMARY_HEADING } from '@/board/constants';
-import type { FileTone, RenderedDocument } from '@/board/types';
+import { ANCHOR_TAG_NAME, HREF_ATTRIBUTE, NOT_FOUND_INDEX, SANITIZE_OPTIONS, SECTION_HEADING_PREFIX, SUMMARY_HEADING } from '@/constants/markdown';
+import type { FileTone } from '@/types/task';
+import type { RenderedDocument } from '@/types/view';
 
 // Artifacts are untrusted text: every rendered string goes through DOMPurify before it reaches x-html.
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {

@@ -1,5 +1,6 @@
-import { DEFAULT_POLL_INTERVAL_MILLISECONDS } from '@/board/constants';
-import type { BoardClient, Poller, PollHandlers, TaskClient } from '@/board/types';
+import { DEFAULT_POLL_INTERVAL_MILLISECONDS } from '@/constants/http';
+import type { BoardClient, TaskClient } from '@/types/client';
+import type { Poller, PollHandlers } from '@/types/poller';
 
 class BoardPoller implements Poller {
   private timer: ReturnType<typeof setInterval> | null = null;

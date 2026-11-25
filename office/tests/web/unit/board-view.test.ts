@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import BoardView from '@/board/board-view';
-import { PIPELINE } from '@/board/constants';
+import { PIPELINE } from '@/constants/pipeline';
 import { formatCount, formatDuration } from '@/board/format';
 import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
 import { sampleAgent, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';

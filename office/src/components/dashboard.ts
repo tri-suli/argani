@@ -1,9 +1,11 @@
-import { ALL_PROJECTS, MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/board/constants';
+import { ALL_PROJECTS } from '@/constants/dashboard';
+import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
 import { formatCount, formatDuration } from '@/board/format';
-import { CLOCK_INTERVAL_MILLISECONDS } from '@/components/constants';
+import { CLOCK_INTERVAL_MILLISECONDS } from '@/constants/dashboard';
 import createTaskDrawer from '@/components/task-drawer';
-import type { Dashboard, DashboardDependencies } from '@/components/types';
+import type { Dashboard, DashboardDependencies } from '@/types/components';
 
+/** UI state only: all polling and grouping logic lives in injected or pure modules. */
 function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 

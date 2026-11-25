@@ -1,5 +1,9 @@
 import type BoardView from '@/board/board-view';
-import type { BoardSnapshot, BoardTask, ColumnView, FileGroup, FileTone, Poller, RenderedDocument, TaskClient, TaskDetail, TaskFile, TaskSummary } from '@/board/types';
+import type { BoardSnapshot, BoardTask } from '@/types/board';
+import type { TaskClient } from '@/types/client';
+import type { Poller } from '@/types/poller';
+import type { FileTone, TaskDetail, TaskFile, TaskSummary } from '@/types/task';
+import type { ColumnView, FileGroup, RenderedDocument } from '@/types/view';
 
 interface DashboardDependencies {
   poller: Poller;

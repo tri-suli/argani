@@ -1,20 +1,9 @@
 import { formatCount, formatDuration } from '@/board/format';
-import {
-  CHIP_CLASS_INVALID,
-  CHIP_CLASS_PENDING,
-  CHIP_CLASS_WAITING,
-  COLUMN_APPROVE,
-  DONE,
-  HUMAN_STAGES,
-  NEEDS_HUMAN,
-  PIPELINE,
-  REVIEW_STATE_INVALID,
-  REVIEW_STATE_PENDING,
-  STAGE_COLUMN,
-  STAGE_DONE,
-  WORKING_COLUMNS,
-} from '@/board/constants';
-import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from '@/board/types';
+import { COLUMN_APPROVE, DONE, HUMAN_STAGES, NEEDS_HUMAN, PIPELINE, STAGE_COLUMN, STAGE_DONE, WORKING_COLUMNS } from '@/constants/pipeline';
+import { CHIP_CLASS_INVALID, CHIP_CLASS_PENDING, CHIP_CLASS_WAITING, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
+import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
+import type { ReviewState, TaskSummary } from '@/types/task';
+import type { CardView, ColumnView } from '@/types/view';
 
 class BoardView {
   columnOf(task: BoardTask): string {

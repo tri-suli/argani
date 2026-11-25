@@ -1,15 +1,16 @@
 """Where the office gets the board snapshot from."""
+
 import os
 import sys
 from pathlib import Path
 from typing import Protocol
 
-SCRIPTS_DIR_ENV_VAR = "ARGANI_SCRIPTS_DIR"
-DEFAULT_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "plugins" / "argani" / "scripts"
+from constants import DEFAULT_SCRIPTS_DIR, SCRIPTS_DIR_ENV_VAR
 
 
 def ensure_importable(scripts_dir):
     """The plugin modules import each other by plain name, so their folder must be importable."""
+
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
 
@@ -24,10 +25,13 @@ class PluginBoardSource:
 
     def __init__(self, scripts_dir=None):
         raw = scripts_dir or os.environ.get(SCRIPTS_DIR_ENV_VAR)
+
         self.scripts_dir = Path(raw) if raw else DEFAULT_SCRIPTS_DIR
 
     def snapshot(self) -> dict:
         ensure_importable(self.scripts_dir)
+
         import argani_home
         import board
+
         return board.board(argani_home.home_path())

@@ -4,7 +4,6 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PollHandlers, Poller } from '../../../src/board/board-poller';
 import { createDashboard } from '../../../src/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
-import { classesOf, hasClass } from './class-of';
 import { pageMarkup } from './page-markup';
 
 class FakePoller implements Poller {
@@ -72,8 +71,8 @@ describe('dashboard board', () => {
       'Needs human 1 you',
       'Done 1 merged',
     ]);
-    expect(hasClass(document.querySelector('[data-column="Needs human"]'), 'human')).toBe(true);
-    expect(hasClass(document.querySelector('[data-column="Done"]'), 'merged')).toBe(true);
+    expect(document.querySelector('[data-column="Needs human"]')?.getAttribute('data-tone')).toBe('human');
+    expect(document.querySelector('[data-column="Done"]')?.getAttribute('data-tone')).toBe('merged');
     expect(text('[data-testid=totals]')).toBe('1 agents running · 1.2M tokens');
     expect(visible('[data-testid=loading]')).toBe(false);
   });
@@ -88,16 +87,16 @@ describe('dashboard board', () => {
       expect(text(`${fix} .num`)).toBe('demo · fix-export');
       expect(text(`${fix} .feature`)).toBe('Fix export');
       expect(text(`${fix} .round`)).toContain('R1');
-      expect([...card('demo/fix-export').querySelectorAll('.chip')].map((chip) => classesOf(chip).filter((name) => name !== 'chip' && name !== 'mono')[0])).toEqual(['PASS', 'wait']);
+      expect([...card('demo/fix-export').querySelectorAll('.chip')].map((chip) => chip.getAttribute('data-state'))).toEqual(['PASS', 'wait']);
       expect(text(`${fix} [data-testid=card-risk]`)).toBe('medium');
-      expect(hasClass(within('demo/fix-export', '[data-testid=card-risk]'), 'risk-medium')).toBe(true);
+      expect(within('demo/fix-export', '[data-testid=card-risk]').getAttribute('data-risk')).toBe('medium');
       expect(text(`${fix} [data-testid=card-time]`)).toBe('2m');
       expect(text(`${fix} [data-testid=card-tokens]`)).toBe('48.2k tok');
       const link = within('demo/fix-export', 'a');
       expect(link.getAttribute('href')).toBe('https://example.test/mr/7');
       expect(link.getAttribute('target')).toBe('_blank');
       expect(showing(within('demo/add-login', '[data-testid=card-time]'))).toBe(false);
-      expect(showing(within('demo/add-login', '.links'))).toBe(false);
+      expect(showing(within('demo/add-login', '[data-testid=card-links]'))).toBe(false);
     
     });
   });
@@ -114,11 +113,12 @@ describe('dashboard board', () => {
     await deliver();
     expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('your call');
     expect(text('[data-task="demo/stuck"] [data-testid=card-hint]')).toBe('decide the schema');
-    expect(hasClass(card('demo/stuck'), 'human')).toBe(true);
+    expect(card('demo/stuck').getAttribute('data-flagged')).toBe('true');
+    expect(card('demo/fix-export').hasAttribute('data-flagged')).toBe(false);
     expect(text('[data-task="demo/add-login"] [data-testid=card-flag]')).toBe('your call');
     expect(text('[data-task="demo/add-login"] [data-testid=card-hint]')).toBe('approve intent');
     expect(showing(within('demo/fix-export', '[data-testid=card-flag]'))).toBe(false);
-    expect(hasClass(card('other/ship'), 'done')).toBe(true);
+    expect(card('other/ship').getAttribute('data-dimmed')).toBe('true');
     expect([...document.querySelectorAll('[data-column="Build"] .card')].map((element) => element.getAttribute('data-task'))).toEqual(['demo/fix-export']);
   });
 

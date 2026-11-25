@@ -1,3 +1,4 @@
+import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 
 const frontendPort = Number(process.env.OFFICE_FRONTEND_PORT ?? 1222);
@@ -5,6 +6,7 @@ const backendPort = Number(process.env.OFFICE_BACKEND_PORT ?? 2212);
 const apiProxy = { '/api': `http://127.0.0.1:${backendPort}` };
 
 export default defineConfig({
+  plugins: [tailwindcss()],
   server: { host: '127.0.0.1', port: frontendPort, proxy: apiProxy },
   preview: { host: '127.0.0.1', port: frontendPort, proxy: apiProxy },
   test: {

@@ -1,6 +1,6 @@
 import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
 import { formatCount, formatDuration } from '@/board/format';
-import { renderDocument } from '@/board/markdown';
+import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { TaskClient } from '@/types/client';
 import type { TaskDetail } from '@/types/task';
 import { FOCUSABLE, PAGE_CONTENT, TONE_LABELS } from '@/constants/drawer';
@@ -11,7 +11,7 @@ function setPageInert(inert: boolean): void {
   document.querySelectorAll(PAGE_CONTENT).forEach((element) => element.toggleAttribute('inert', inert));
 }
 
-function createTaskDrawer(taskClient: TaskClient): TaskDrawer {
+function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRenderer): TaskDrawer {
   return {
     isOpen: false,
     project: '',
@@ -117,7 +117,7 @@ function createTaskDrawer(taskClient: TaskClient): TaskDrawer {
         if (this.loadedPath !== file.path || text !== this.fileText) {
           this.fileText = text;
 
-          this.rendered = isMarkdownFile(file.path) ? renderDocument(text, file.tone) : null;
+          this.rendered = isMarkdownFile(file.path) ? markdownRenderer.renderDocument(text, file.tone) : null;
         }
 
         this.loadedPath = file.path;

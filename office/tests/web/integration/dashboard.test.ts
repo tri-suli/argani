@@ -5,6 +5,7 @@ import type { PollHandlers, Poller } from '@/types/poller';
 import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
+import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
 
 class FakePoller implements Poller {
@@ -22,6 +23,8 @@ class FakePoller implements Poller {
 }
 
 // Alpine renders nested x-for templates over several ticks, so assertions on rendered output retry with vi.waitFor.
+const markdownRenderer = sampleMarkdownRenderer();
+
 const eventually = (assertions: () => void) => vi.waitFor(assertions);
 
 const text = (selector: string) => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
@@ -41,7 +44,7 @@ let taskClient: FakeTaskClient;
 const now = () => new Date('2026-11-24T10:00:10Z');
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), now }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now }));
 
   Alpine.start();
 });
@@ -260,7 +263,7 @@ describe('dashboard board', () => {
 
       const handlers: PollHandlers[] = [];
 
-      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), now: () => new Date(clock) });
+      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), markdownRenderer, now: () => new Date(clock) });
 
       ticking.init();
 
@@ -297,7 +300,7 @@ describe('dashboard board', () => {
   });
 
   it('stops polling when destroyed and has empty derived state before data', () => {
-    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), now: vi.fn() });
+    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now: vi.fn() });
 
     expect(dashboard.projects).toEqual([]);
 

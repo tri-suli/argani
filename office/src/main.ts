@@ -1,7 +1,11 @@
 import Alpine from 'alpinejs';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import FetchBoardClient from '@/board/board-client';
 import BoardPoller from '@/board/board-poller';
 import BoardView from '@/board/board-view';
+import addLinkHook from '@/board/link-hook';
+import MarkdownRenderer from '@/board/markdown-renderer';
 import FetchTaskClient from '@/board/task-client';
 import createDashboard from '@/components/dashboard';
 import '@/styles.css';
@@ -16,6 +20,12 @@ const poller = new BoardPoller(boardClient, taskClient);
 
 const boardView = new BoardView();
 
-Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, now: () => new Date() }));
+const purify = DOMPurify(window);
+
+addLinkHook(purify);
+
+const markdownRenderer = new MarkdownRenderer(purify, marked);
+
+Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, markdownRenderer, now: () => new Date() }));
 
 Alpine.start();

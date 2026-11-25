@@ -1,4 +1,4 @@
-import type { FetchFunction } from './types';
+import type { FetchFunction } from '@/board/types';
 
 /** Resolves with an ok response; otherwise throws the backend's `{error}` message or the HTTP status. */
 async function requestOk(fetchFunction: FetchFunction, url: string, timeoutMilliseconds: number): Promise<Response> {

@@ -1,4 +1,4 @@
-import type { FileTone } from '../board/types';
+import type { FileTone } from '@/board/types';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
 const CLOCK_INTERVAL_MILLISECONDS = 1000;

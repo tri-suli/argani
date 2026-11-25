@@ -1,11 +1,25 @@
 import { formatCount, formatDuration } from './format';
-import { DONE, HUMAN_STAGES, NEEDS_HUMAN, PIPELINE, STAGE_COLUMN, WORKING_COLUMNS } from './constants';
+import {
+  CHIP_CLASS_INVALID,
+  CHIP_CLASS_PENDING,
+  CHIP_CLASS_WAITING,
+  COLUMN_APPROVE,
+  DONE,
+  HUMAN_STAGES,
+  NEEDS_HUMAN,
+  PIPELINE,
+  REVIEW_STATE_INVALID,
+  REVIEW_STATE_PENDING,
+  STAGE_COLUMN,
+  STAGE_DONE,
+  WORKING_COLUMNS,
+} from './constants';
 import type { BoardAgent, BoardSnapshot, BoardTask, CardView, ColumnView, ReviewState, TaskSummary } from './types';
 
 class BoardView {
   columnOf(task: BoardTask): string {
-    if (task.stage === 'done') {
-      return task.merged === true ? DONE : 'Approve';
+    if (task.stage === STAGE_DONE) {
+      return task.merged === true ? DONE : COLUMN_APPROVE;
     }
     return STAGE_COLUMN[task.stage] ?? NEEDS_HUMAN;
   }
@@ -19,10 +33,10 @@ class BoardView {
   }
 
   chipClassName(state: ReviewState, taskInProgress: boolean): string {
-    if (state === 'pending') {
-      return taskInProgress ? 'wait' : 'pending';
+    if (state === REVIEW_STATE_PENDING) {
+      return taskInProgress ? CHIP_CLASS_WAITING : CHIP_CLASS_PENDING;
     }
-    return state === 'invalid' ? 'bad' : state;
+    return state === REVIEW_STATE_INVALID ? CHIP_CLASS_INVALID : state;
   }
 
   /** One entry per pipeline column, in order, so empty columns stay visible. */
@@ -46,7 +60,7 @@ class BoardView {
   }
 
   private waitsForHuman(task: BoardTask, column: string): boolean {
-    return column === NEEDS_HUMAN || HUMAN_STAGES.has(task.stage) || (task.stage === 'done' && column !== DONE);
+    return column === NEEDS_HUMAN || HUMAN_STAGES.has(task.stage) || (task.stage === STAGE_DONE && column !== DONE);
   }
 
   /** Newest first; tasks without a timestamp go last, ties keep a stable slug order. */

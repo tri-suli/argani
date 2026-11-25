@@ -1,19 +1,28 @@
+import {
+  COUNT_PER_MILLION,
+  COUNT_PER_THOUSAND,
+  MILLIONS_DISPLAY_THRESHOLD,
+  MILLISECONDS_PER_MINUTE,
+  MINUTES_PAD_WIDTH,
+  MINUTES_PER_HOUR,
+  THOUSANDS_DISPLAY_THRESHOLD,
+} from './constants';
+
 /** "12m", "1h05m". */
 function formatDuration(milliseconds: number): string {
-  const minutes = Math.floor(milliseconds / 60000);
-  if (minutes < 60) {
+  const minutes = Math.floor(milliseconds / MILLISECONDS_PER_MINUTE);
+  if (minutes < MINUTES_PER_HOUR) {
     return `${minutes}m`;
   }
-  return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}m`;
+  return `${Math.floor(minutes / MINUTES_PER_HOUR)}h${String(minutes % MINUTES_PER_HOUR).padStart(MINUTES_PAD_WIDTH, '0')}m`;
 }
 
 /** "950", "6.0k", "1.2M". */
 function formatCount(count: number): string {
-  if (count < 1000) {
+  if (count < THOUSANDS_DISPLAY_THRESHOLD) {
     return String(count);
   }
-  // 999_950 would round to "1000.0k"; switch to millions there
-  return count < 999_950 ? `${(count / 1000).toFixed(1)}k` : `${(count / 1_000_000).toFixed(1)}M`;
+  return count < MILLIONS_DISPLAY_THRESHOLD ? `${(count / COUNT_PER_THOUSAND).toFixed(1)}k` : `${(count / COUNT_PER_MILLION).toFixed(1)}M`;
 }
 
 export { formatDuration, formatCount };

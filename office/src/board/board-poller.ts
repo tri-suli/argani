@@ -1,3 +1,4 @@
+import { DEFAULT_POLL_INTERVAL_MILLISECONDS } from './constants';
 import type { BoardClient, Poller, PollHandlers, TaskClient } from './types';
 
 class BoardPoller implements Poller {
@@ -7,7 +8,7 @@ class BoardPoller implements Poller {
   constructor(
     private readonly boardClient: BoardClient,
     private readonly taskClient: Pick<TaskClient, 'fetchTasks'>,
-    private readonly intervalMilliseconds = 5000,
+    private readonly intervalMilliseconds = DEFAULT_POLL_INTERVAL_MILLISECONDS,
   ) {}
 
   start(handlers: PollHandlers): void {

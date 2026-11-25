@@ -1,5 +1,6 @@
-import { MARKDOWN_EXTENSION, PATH_SEPARATOR } from '@/board/constants';
-import type { FileGroup, TaskFile } from '@/board/types';
+import { MARKDOWN_EXTENSION, PATH_SEPARATOR } from '@/constants/markdown';
+import type { TaskFile } from '@/types/task';
+import type { FileGroup } from '@/types/view';
 
 /** Groups in order of first appearance ("Job", "Round 1", ...). */
 function groupFiles(files: TaskFile[]): FileGroup[] {

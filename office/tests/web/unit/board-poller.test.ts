@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import BoardPoller from '@/board/board-poller';
-import type { BoardClient } from '@/board/types';
+import type { BoardClient } from '@/types/client';
 import { sampleSnapshot, sampleTasks } from '../sample-snapshot';
 
 const taskClient = { fetchTasks: vi.fn(async () => sampleTasks()) };

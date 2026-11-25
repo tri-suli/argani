@@ -1,6 +1,7 @@
-import { DEFAULT_TIMEOUT_MILLISECONDS } from '@/board/constants';
+import { DEFAULT_TIMEOUT_MILLISECONDS } from '@/constants/http';
 import requestOk from '@/board/http';
-import type { BoardClient, BoardSnapshot, FetchFunction } from '@/board/types';
+import type { BoardSnapshot } from '@/types/board';
+import type { BoardClient, FetchFunction } from '@/types/client';
 
 class FetchBoardClient implements BoardClient {
   constructor(

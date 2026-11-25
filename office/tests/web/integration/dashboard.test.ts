@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PollHandlers, Poller } from '@/board/types';
+import type { PollHandlers, Poller } from '@/types/poller';
 import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';

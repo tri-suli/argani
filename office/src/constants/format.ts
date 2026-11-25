@@ -1,0 +1,28 @@
+const MILLISECONDS_PER_SECOND = 1000;
+
+const MILLISECONDS_PER_MINUTE = 60_000;
+
+const MINUTES_PER_HOUR = 60;
+
+const MINUTES_PAD_WIDTH = 2;
+
+// counts below this are shown as they are; from here on they read in thousands ("6.0k")
+const THOUSANDS_DISPLAY_THRESHOLD = 1000;
+
+const COUNT_PER_THOUSAND = 1000;
+
+const COUNT_PER_MILLION = 1_000_000;
+
+// 999_950 would round to "1000.0k"; from here on counts are shown in millions
+const MILLIONS_DISPLAY_THRESHOLD = 999_950;
+
+export {
+  MILLISECONDS_PER_SECOND,
+  MILLISECONDS_PER_MINUTE,
+  MINUTES_PER_HOUR,
+  MINUTES_PAD_WIDTH,
+  THOUSANDS_DISPLAY_THRESHOLD,
+  COUNT_PER_THOUSAND,
+  COUNT_PER_MILLION,
+  MILLIONS_DISPLAY_THRESHOLD,
+};

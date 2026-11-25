@@ -1,9 +1,10 @@
 import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
 import { formatCount, formatDuration } from '@/board/format';
 import { renderDocument } from '@/board/markdown';
-import type { TaskClient, TaskDetail } from '@/board/types';
-import { FOCUSABLE, PAGE_CONTENT, TONE_LABELS } from '@/components/constants';
-import type { TaskDrawer } from '@/components/types';
+import type { TaskClient } from '@/types/client';
+import type { TaskDetail } from '@/types/task';
+import { FOCUSABLE, PAGE_CONTENT, TONE_LABELS } from '@/constants/drawer';
+import type { TaskDrawer } from '@/types/components';
 
 /** The page behind the modal drawer must not be reachable by keyboard or screen reader. */
 function setPageInert(inert: boolean): void {

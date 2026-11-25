@@ -62,7 +62,7 @@ describe('dashboard board', () => {
     await deliver();
     expect(text('[data-testid=status]')).toBe('Connected');
     expect(text('[data-testid=home]')).toBe('/home/user/.argani');
-    expect(text('[data-testid=updated]')).toMatch(/^· \d\d:\d\d:\d\d$/);
+    expect(text('[data-testid=updated]')).toBe('· updated 0s ago');
     expect([...document.querySelectorAll('.col-head')].map((head) => head.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
       'Intake 1 intent · you approve',
       'Spec 0 spec-writer',
@@ -170,6 +170,32 @@ describe('dashboard board', () => {
       expect(text('[data-testid=error-banner]')).toContain('never up');
       expect(visible('[data-testid=loading]')).toBe(false);
     });
+  });
+
+  it('counts the seconds since the last good poll every second, then minutes', () => {
+    vi.useFakeTimers();
+    try {
+      let clock = Date.parse('2026-11-24T10:00:00Z');
+      const handlers: PollHandlers[] = [];
+      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, now: () => new Date(clock) });
+      ticking.init();
+      handlers[0].onSnapshot(sampleSnapshot(), sampleTasks());
+      expect(ticking.updatedLabel).toBe('updated 0s ago');
+      clock += 3000;
+      vi.advanceTimersByTime(3000);
+      expect(ticking.updatedLabel).toBe('updated 3s ago');
+      clock += 87_000;
+      vi.advanceTimersByTime(87_000);
+      expect(ticking.updatedLabel).toBe('updated 1m ago');
+      handlers[0].onSnapshot(sampleSnapshot(), sampleTasks());
+      expect(ticking.updatedLabel).toBe('updated 0s ago');
+      ticking.destroy();
+      clock += 5000;
+      vi.advanceTimersByTime(5000);
+      expect(ticking.updatedLabel).toBe('updated 0s ago');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('stops polling when destroyed and has empty derived state before data', () => {

@@ -2,10 +2,10 @@
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PollHandlers, Poller } from '../../../src/board/types';
-import { BoardView } from '../../../src/board/board-view';
-import { createDashboard } from '../../../src/components/dashboard';
+import BoardView from '../../../src/board/board-view';
+import createDashboard from '../../../src/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
-import { pageMarkup } from './page-markup';
+import pageMarkup from './page-markup';
 
 class FakePoller implements Poller {
   handlers!: PollHandlers;

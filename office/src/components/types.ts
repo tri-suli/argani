@@ -1,14 +1,14 @@
-import type { BoardView } from '../board/board-view';
+import type BoardView from '../board/board-view';
 import type { BoardSnapshot, BoardTask, ColumnView, FileGroup, FileTone, Poller, RenderedDocument, TaskClient, TaskDetail, TaskFile, TaskSummary } from '../board/types';
 
-export interface DashboardDependencies {
+interface DashboardDependencies {
   poller: Poller;
   taskClient: TaskClient;
   boardView: BoardView;
   now: () => Date;
 }
 
-export interface Dashboard {
+interface Dashboard {
   snapshot: BoardSnapshot | null;
   tasks: TaskSummary[];
   errorMessage: string | null;
@@ -26,7 +26,7 @@ export interface Dashboard {
   readonly tokensLabel: string;
 }
 
-export interface TaskDrawer {
+interface TaskDrawer {
   isOpen: boolean;
   project: string;
   slug: string;
@@ -58,3 +58,5 @@ export interface TaskDrawer {
   fileLabel(file: TaskFile): string;
   toneLabel(tone: FileTone | null): string;
 }
+
+export type { DashboardDependencies, Dashboard, TaskDrawer };

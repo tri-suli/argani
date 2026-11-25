@@ -1,8 +1,8 @@
 import { DEFAULT_TIMEOUT_MILLISECONDS } from './constants';
-import { requestOk } from './http';
+import requestOk from './http';
 import type { BoardClient, BoardSnapshot, FetchFunction } from './types';
 
-export class FetchBoardClient implements BoardClient {
+class FetchBoardClient implements BoardClient {
   constructor(
     private readonly fetchFunction: FetchFunction,
     private readonly url: string,
@@ -14,3 +14,5 @@ export class FetchBoardClient implements BoardClient {
     return (await response.json()) as BoardSnapshot;
   }
 }
+
+export default FetchBoardClient;

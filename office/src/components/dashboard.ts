@@ -1,9 +1,9 @@
 import { formatCount, formatDuration } from '../board/format';
 import { CLOCK_INTERVAL_MILLISECONDS } from './constants';
-import { createTaskDrawer } from './task-drawer';
+import createTaskDrawer from './task-drawer';
 import type { Dashboard, DashboardDependencies } from './types';
 
-export function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   return {
     snapshot: null,
@@ -78,3 +78,5 @@ export function createDashboard({ poller, taskClient, boardView, now }: Dashboar
     },
   };
 }
+
+export default createDashboard;

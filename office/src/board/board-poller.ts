@@ -1,9 +1,6 @@
 import type { BoardClient, Poller, PollHandlers, TaskClient } from './types';
 
-export class BoardPoller implements Poller {
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private requestInFlight = false;
-
+class BoardPoller implements Poller {
   constructor(
     private readonly boardClient: BoardClient,
     private readonly taskClient: Pick<TaskClient, 'fetchTasks'>,
@@ -23,6 +20,9 @@ export class BoardPoller implements Poller {
     }
   }
 
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private requestInFlight = false;
+
   private async poll(handlers: PollHandlers): Promise<void> {
     if (this.requestInFlight) {
       return;
@@ -39,3 +39,5 @@ export class BoardPoller implements Poller {
     }
   }
 }
+
+export default BoardPoller;

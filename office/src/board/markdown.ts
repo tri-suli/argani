@@ -11,11 +11,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 });
 
-export function renderMarkdown(markdown: string): string {
+function renderMarkdown(markdown: string): string {
   return DOMPurify.sanitize(marked.parse(markdown, { async: false }), SANITIZE_OPTIONS);
 }
 
-export function renderDocument(text: string, tone: FileTone | null): RenderedDocument {
+function renderDocument(text: string, tone: FileTone | null): RenderedDocument {
   const lines = text.split('\n');
   const verdict = tone === null ? null : lines.shift() as string; // split always yields one entry
   const start = lines.findIndex((line) => line.trim() === SUMMARY_HEADING);
@@ -28,3 +28,5 @@ export function renderDocument(text: string, tone: FileTone | null): RenderedDoc
   }
   return { verdict, tone, summaryHtml, bodyHtml: renderMarkdown(lines.join('\n')) };
 }
+
+export { renderMarkdown, renderDocument };

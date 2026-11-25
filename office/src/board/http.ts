@@ -1,7 +1,7 @@
 import type { FetchFunction } from './types';
 
 /** Resolves with an ok response; otherwise throws the backend's `{error}` message or the HTTP status. */
-export async function requestOk(fetchFunction: FetchFunction, url: string, timeoutMilliseconds: number): Promise<Response> {
+async function requestOk(fetchFunction: FetchFunction, url: string, timeoutMilliseconds: number): Promise<Response> {
   const response = await fetchFunction(url, { signal: AbortSignal.timeout(timeoutMilliseconds) });
   if (!response.ok) {
     throw new Error(await describeFailure(response));
@@ -20,3 +20,5 @@ async function describeFailure(response: Response): Promise<string> {
   }
   return `HTTP ${response.status}`;
 }
+
+export default requestOk;

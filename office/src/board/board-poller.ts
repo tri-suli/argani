@@ -3,6 +3,7 @@ import type { BoardClient, Poller, PollHandlers, TaskClient } from '@/board/type
 
 class BoardPoller implements Poller {
   private timer: ReturnType<typeof setInterval> | null = null;
+
   private requestInFlight = false;
 
   constructor(
@@ -13,13 +14,16 @@ class BoardPoller implements Poller {
 
   start(handlers: PollHandlers): void {
     this.stop();
+
     void this.poll(handlers);
+
     this.timer = setInterval(() => void this.poll(handlers), this.intervalMilliseconds);
   }
 
   stop(): void {
     if (this.timer !== null) {
       clearInterval(this.timer);
+
       this.timer = null;
     }
   }
@@ -28,10 +32,13 @@ class BoardPoller implements Poller {
     if (this.requestInFlight) {
       return;
     }
+
     this.requestInFlight = true;
+
     try {
       // Both succeed or the whole cycle fails, so the page never mixes a new board with old task data.
       const [snapshot, tasks] = await Promise.all([this.boardClient.fetchBoard(), this.taskClient.fetchTasks()]);
+
       handlers.onSnapshot(snapshot, tasks);
     } catch (error) {
       handlers.onError(error instanceof Error ? error : new Error(String(error)));

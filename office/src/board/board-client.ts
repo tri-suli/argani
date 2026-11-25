@@ -11,6 +11,7 @@ class FetchBoardClient implements BoardClient {
 
   async fetchBoard(): Promise<BoardSnapshot> {
     const response = await requestOk(this.fetchFunction, this.url, this.timeoutMilliseconds);
+
     return (await response.json()) as BoardSnapshot;
   }
 }

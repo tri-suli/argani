@@ -89,21 +89,32 @@ const sampleFileTexts: Record<string, string> = {
 
 class FakeTaskClient implements TaskClient {
   detail: TaskDetail = sampleDetail();
+
   texts: Record<string, string> = { ...sampleFileTexts };
+
   failure: Error | null = null;
+
   fileCalls: string[] = [];
+
   taskCalls = 0;
+
   async fetchTasks() {
     return sampleTasks();
   }
+
   async fetchTask() {
     this.taskCalls += 1;
+
     if (this.failure) throw this.failure;
+
     return this.detail;
   }
+
   async fetchFile(_project: string, _slug: string, path: string) {
     this.fileCalls.push(path);
+
     if (this.failure) throw this.failure;
+
     return this.texts[path];
   }
 }

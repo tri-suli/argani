@@ -1,10 +1,9 @@
-import { groupTasksByColumn, projectNames, totalTokens } from '../board/board-view';
 import { formatCount, formatDuration } from '../board/format';
 import { CLOCK_INTERVAL_MILLISECONDS } from './constants';
 import { createTaskDrawer } from './task-drawer';
 import type { Dashboard, DashboardDependencies } from './types';
 
-export function createDashboard({ poller, taskClient, now }: DashboardDependencies): Dashboard {
+export function createDashboard({ poller, taskClient, boardView, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
   return {
     snapshot: null,
@@ -25,7 +24,7 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
         onSnapshot: (snapshot, tasks) => {
           this.snapshot = snapshot;
           this.tasks = tasks;
-          if (this.selectedProject !== '' && !projectNames(snapshot).includes(this.selectedProject)) {
+          if (this.selectedProject !== '' && !boardView.projectNames(snapshot).includes(this.selectedProject)) {
             this.selectedProject = '';
           }
           this.errorMessage = null;
@@ -63,11 +62,11 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
     },
 
     get projects() {
-      return this.snapshot === null ? [] : projectNames(this.snapshot);
+      return this.snapshot === null ? [] : boardView.projectNames(this.snapshot);
     },
 
     get columns() {
-      return this.snapshot === null ? [] : groupTasksByColumn(this.snapshot, this.tasks, this.selectedProject || null);
+      return this.snapshot === null ? [] : boardView.groupTasksByColumn(this.snapshot, this.tasks, this.selectedProject || null);
     },
 
     get agentsRunning() {
@@ -75,7 +74,7 @@ export function createDashboard({ poller, taskClient, now }: DashboardDependenci
     },
 
     get tokensLabel() {
-      return formatCount(totalTokens(this.tasks));
+      return formatCount(boardView.totalTokens(this.tasks));
     },
   };
 }

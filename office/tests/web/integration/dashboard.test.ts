@@ -2,6 +2,7 @@
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PollHandlers, Poller } from '../../../src/board/types';
+import { BoardView } from '../../../src/board/board-view';
 import { createDashboard } from '../../../src/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
 import { pageMarkup } from './page-markup';
@@ -30,7 +31,7 @@ let taskClient: FakeTaskClient;
 const now = () => new Date('2026-11-24T10:00:10Z');
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, now }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), now }));
   Alpine.start();
 });
 
@@ -177,7 +178,7 @@ describe('dashboard board', () => {
     try {
       let clock = Date.parse('2026-11-24T10:00:00Z');
       const handlers: PollHandlers[] = [];
-      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, now: () => new Date(clock) });
+      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), now: () => new Date(clock) });
       ticking.init();
       handlers[0].onSnapshot(sampleSnapshot(), sampleTasks());
       expect(ticking.updatedLabel).toBe('updated 0s ago');
@@ -199,7 +200,7 @@ describe('dashboard board', () => {
   });
 
   it('stops polling when destroyed and has empty derived state before data', () => {
-    const dashboard = createDashboard({ poller, taskClient, now: vi.fn() });
+    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), now: vi.fn() });
     expect(dashboard.projects).toEqual([]);
     expect(dashboard.columns).toEqual([]);
     expect(dashboard.agentsRunning).toBe(0);

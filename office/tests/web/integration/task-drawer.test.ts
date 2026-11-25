@@ -2,6 +2,7 @@
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PollHandlers, Poller } from '../../../src/board/types';
+import { BoardView } from '../../../src/board/board-view';
 import { createDashboard } from '../../../src/components/dashboard';
 import { createTaskDrawer } from '../../../src/components/task-drawer';
 import type { FileTone } from '../../../src/board/types';
@@ -41,7 +42,7 @@ let poller: FakePoller;
 let taskClient: FakeTaskClient;
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, now: () => new Date() }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), now: () => new Date() }));
   Alpine.start();
 });
 

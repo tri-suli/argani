@@ -26,6 +26,7 @@ BOARD_FILE = "board.md"
 BOARD_JSON_FILE = "board.json"
 
 STAGE_COLUMNS = {
+    "needs-intake": "Backlog",
     "needs-intent-approval": "Backlog",
     "needs-spec": "Design",
     "needs-spec-approval": "Design",
@@ -34,7 +35,8 @@ STAGE_COLUMNS = {
     "needs-review": "In progress",
     "needs-decision": "In progress",
     "needs-mr": "Ready for MR",
-    "escalate": "Needs human",
+    "needs-merge": "In review",
+    "needs-human": "Needs human",
 }
 
 

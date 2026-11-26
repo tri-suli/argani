@@ -4,6 +4,7 @@
     "/nonexistent/office-fixture-demo"
   ],
   "verifyCommand": "pytest",
+  "mergeCommand": "tool merge {url}",
   "reviewers": [
     "code",
     "docs"

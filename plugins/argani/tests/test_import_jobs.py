@@ -12,7 +12,7 @@ from test_factory_state import APPROVED, BUILD_DONE, INTENT, SPEC
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "import_jobs.py"
 SKILL = Path(__file__).resolve().parents[1] / "skills" / "import" / "SKILL.md"
-PROJECT_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code"]}
+PROJECT_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code"], "mrCommand": "tool --title {title}"}
 
 
 def job_files(intent_header=""):

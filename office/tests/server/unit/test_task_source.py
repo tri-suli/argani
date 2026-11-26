@@ -159,9 +159,10 @@ def test_detail_of_a_done_task(source):
 
     assert (detail["stage"], detail["column"], detail["reviewers"]) == ("done", "Done", ["code", "docs"])
 
-    assert detail["decision"] == {"exists": True, "complete": True, "verdict": "APPROVE"}
+    assert detail["decision"] == {"exists": True, "complete": True, "verdict": "APPROVE", "round": None,
+                                "stale": False}
 
-    assert set(detail["models"]) == {"spec-writer", "builder", "approver", "reviewers"}
+    assert set(detail["models"]) == {"spec-writer", "builder", "approver", "intake", "reviewers"}
 
     assert "merged" in detail["next"]
 

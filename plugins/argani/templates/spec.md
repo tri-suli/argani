@@ -47,6 +47,12 @@ Date: {{YYYY-MM-DD}}
 
 - {{question}}
 
+## Questions for human
+
+<!-- Only questions a human can answer, each specific, with options when possible. Write "None" if empty. -->
+
+- None
+
 ## Out of scope
 
 <!-- What this spec deliberately does not cover. -->

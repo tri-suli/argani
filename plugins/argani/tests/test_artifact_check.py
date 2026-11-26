@@ -159,3 +159,36 @@ def test_acceptance_criteria_are_listed_with_number_claim_and_verification():
 def test_acceptance_criteria_are_empty_without_the_section():
     import artifact_check
     assert artifact_check.acceptance_criteria("# Intent: x\n\n## Problem\np\n") == []
+
+
+INTAKE_INTENT = VALID_INTENT.replace("Author: Someone", "Author: argani:intake")
+REVIEW_ONLY_AC = "2. [ ] Docs read well — verify: manual: the user reviews the diff in the MR"
+
+
+def swap_manual_criterion(text):
+    manual_line = next(line for line in text.splitlines() if line.startswith("2. [ ]"))
+    return text.replace(manual_line, REVIEW_ONLY_AC)
+
+
+def test_intake_intent_rejects_review_only_manual_ac(tmp_path):
+    text = swap_manual_criterion(INTAKE_INTENT)
+    result = run_check("intent", write(tmp_path, text))
+    assert result.returncode == 1
+    assert "AC-2: manual verification may not be a review; reviewers do that, use a command or test" in result.stdout
+
+
+def test_manual_ac_with_answer_key_is_allowed(tmp_path):
+    assert run_check("intent", write(tmp_path, INTAKE_INTENT)).returncode == 0
+
+
+def test_human_written_intent_keeps_review_manual_ac_valid(tmp_path):
+    text = swap_manual_criterion(VALID_INTENT)
+    assert run_check("intent", write(tmp_path, text)).returncode == 0
+
+
+def test_questions_section_is_optional(tmp_path):
+    assert run_check("intent", write(tmp_path, VALID_INTENT)).returncode == 0
+    with_section = VALID_INTENT + "\n## Questions for human\n- Which login provider, A or B?\n"
+    assert run_check("intent", write(tmp_path, with_section)).returncode == 0
+    spec = VALID_SPEC + "\n## Questions for human\n- None\n"
+    assert run_check("spec", write(tmp_path, spec, "spec.md")).returncode == 0

@@ -121,3 +121,11 @@ def test_latest_answer_wins_for_extra_round(tmp_path):
 def test_note_excludes_the_answer_word():
     entry = human_gate.parse_answers("## error x 2026-11-20\n\nFAIL the page is blank\n")[0]
     assert (entry["word"], entry["note"]) == ("FAIL", "the page is blank")
+
+
+def test_write_blocked_writes_a_readable_file_with_a_fresh_id_per_failure(tmp_path):
+    from datetime import datetime, timezone
+    first = human_gate.write_blocked(tmp_path, "merge-missing", "exit 1", datetime(2026, 11, 26, 10, 0, tzinfo=timezone.utc))
+    assert human_gate.read_blocked(tmp_path) == {"reason": "merge-missing", "id": first, "summary": "exit 1"}
+    second = human_gate.write_blocked(tmp_path, "merge-missing", "exit 1", datetime(2026, 11, 26, 10, 1, tzinfo=timezone.utc))
+    assert second != first and first.startswith("merge-missing-r0-")

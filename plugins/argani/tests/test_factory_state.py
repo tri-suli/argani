@@ -562,8 +562,10 @@ def test_a_directory_that_does_not_exist_exits_one(job, tmp_path):
 
 # ---- the autonomous stage machine: one human gate (needs-human) ----
 
-import human_gate
+import os
 from datetime import datetime, timezone
+
+import human_gate
 
 QUESTIONS = "\n## Questions for human\n- Which database?\n- Which region?\n"
 MANUAL_CRITERIA = ["AC-1: open the page", "AC-2: press the button"]
@@ -789,10 +791,10 @@ def test_decision_of_an_earlier_round_is_stale_and_rerun(job):
 
 
 def test_record_flag_appends_history(job):
-    job.run_record = subprocess.run([sys.executable, str(SCRIPT), "demo", str(job.root), "--record"],
-                                    capture_output=True, text=True)
-    assert job.run_record.returncode == 0
-    assert json.loads(job.run_record.stdout)["stage"] == "needs-intake"
+    recorded = subprocess.run([sys.executable, str(SCRIPT), "demo", str(job.root), "--record"],
+                              capture_output=True, text=True)
+    assert recorded.returncode == 0
+    assert json.loads(recorded.stdout)["stage"] == "needs-intake"
     lines = (job.path / "history.jsonl").read_text().splitlines()
     assert json.loads(lines[0])["stage"] == "needs-intake" and len(lines) == 1
     subprocess.run([sys.executable, str(SCRIPT), "demo", str(job.root), "--record"], capture_output=True, text=True)
@@ -807,3 +809,62 @@ def test_without_record_nothing_is_written(job):
 def test_state_reports_the_intake_model(job):
     job.set_config(agentModels={"intake": "haiku"})
     assert job.state()["models"]["intake"] == "haiku"
+
+
+NOW = datetime(2026, 11, 26, 10, 0, tzinfo=timezone.utc)
+
+
+def test_manual_fail_without_round_line_ends_in_the_builder(job):
+    at_approval(job, f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    answer(job, "manual-verification", job.state()["question_id"], "FAIL button is broken")
+    job.write("review/round-2/review-human.md", f"CHANGES button is broken\n\n{REVIEW_END}\n")
+    state = job.state()
+    assert state["decision"]["stale"] is True
+    assert (state["stage"], state["rework_from"]) == ("needs-rework", 2)
+
+
+def test_escalate_without_round_line_ends_in_the_builder(job):
+    at_approval(job, "ESCALATE the scope is unclear\n\n=== END OF DECISION ===\n")
+    answer(job, "review-escalate", job.state()["question_id"], "narrow it down")
+    assert job.state()["stage"] == "needs-rework"
+    job.write("review/round-2/review-human.md", f"CHANGES narrow it down\n\n{REVIEW_END}\n")
+    state = job.state()
+    assert (state["stage"], state["rework_from"]) == ("needs-rework", 2)
+
+
+def test_empty_escalation_answer_is_not_an_answer(job):
+    at_approval(job, "ESCALATE unclear\n\n=== END OF DECISION ===\n")
+    answer(job, "review-escalate", job.state()["question_id"], "   ")
+    assert job.state()["stage"] == "needs-human"
+
+
+def test_a_new_failure_gets_a_fresh_blocked_id_after_retry(job):
+    at_approval(job)
+    first = human_gate.write_blocked(job.path, "agent-failed", "builder crashed", NOW)
+    answer(job, "agent-failed", first, "RETRY")
+    assert job.state()["reason"] != "agent-failed"
+    second = human_gate.write_blocked(job.path, "agent-failed", "builder crashed", NOW.replace(minute=5))
+    assert second != first
+    state = job.state()
+    assert (state["stage"], state["question_id"]) == ("needs-human", second)
+
+
+def test_a_rewrite_that_keeps_answered_questions_needs_the_human_again(job):
+    job.write("intent.md", INTENT.format(status="draft") + QUESTIONS)
+    answer(job, "intake-question", job.state()["question_id"], "Postgres")
+    answers_time = (job.path / "answers.md").stat().st_mtime
+    os.utime(job.path / "intent.md", (answers_time - 10, answers_time - 10))
+    assert job.state()["stage"] == "needs-intake"
+    os.utime(job.path / "intent.md", (answers_time + 10, answers_time + 10))
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "intake-question")
+    assert "kept the questions" in state["next"]
+
+
+def test_a_spec_rewrite_that_keeps_answered_questions_needs_the_human_again(job):
+    job.intent()
+    job.write("spec.md", SPEC.format(status="draft") + QUESTIONS)
+    answer(job, "spec-question", job.state()["question_id"], "Postgres")
+    answers_time = (job.path / "answers.md").stat().st_mtime
+    os.utime(job.path / "spec.md", (answers_time + 10, answers_time + 10))
+    assert job.state()["stage"] == "needs-human"

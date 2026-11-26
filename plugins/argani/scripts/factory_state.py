@@ -100,9 +100,10 @@ def collect_rounds(job_dir, reviewers):
     return [round_state(path, reviewers) for _, path in round_folders(job_dir)]
 
 
-def decision_state(path, latest_round=0):
-    """stale: the decision names a round (`Round: N`) other than the latest round folder; a decision
-    without a Round line is never stale."""
+def decision_state(path, latest_round=0, human_note_latest=False):
+    """stale: the decision names a round (`Round: N`) other than the latest round folder, or it names
+    none and the latest round holds a human note (that note was only written after the decision's
+    question was answered)."""
     if not path.is_file():
         return {"exists": False, "complete": False, "verdict": None, "round": None, "stale": False}
     word = first_word(path)
@@ -113,7 +114,7 @@ def decision_state(path, latest_round=0):
         "complete": has_closing_line(path, CLOSING_DECISION),
         "verdict": word if word in ("APPROVE", "ESCALATE") else "INVALID",
         "round": number,
-        "stale": number is not None and number != latest_round,
+        "stale": number != latest_round if number is not None else human_note_latest,
     }
 
 
@@ -248,7 +249,16 @@ def rework_with_human_note(reason, question, qid, entry, number):
         answer=entry["note"], human_note_round=number)
 
 
-def document_stage(document, questions, gate, names):
+def mtime_ns(path):
+    return path.stat().st_mtime_ns if path.is_file() else 0
+
+
+def has_reply(entry):
+    """A reply is a word, or a non-empty note."""
+    return bool(entry) and (entry["word"] is not None or bool(entry["note"]))
+
+
+def document_stage(document, document_mtime, questions, gate, names):
     """The stage of intent or spec; None once approved. names = (write stage, approve stage, reason,
     what to do to write it, what to do to approve it)."""
     write_stage, approve_stage, reason, write_next, approve_next = names
@@ -261,17 +271,21 @@ def document_stage(document, questions, gate, names):
     text = "\n".join(questions)
     qid = human_gate.question_id(reason, text, None)
     entry = human_gate.answer_for(gate["answers"], qid)
-    if entry:
+    if entry and document_mtime <= gate["answers_mtime"]:
         return outcome(write_stage, f"{write_next} Answer from the human: see `answer`.", reason=reason,
                        question=text, question_id=qid, answered=True, answer=entry["note"])
-    return needs_human(gate, reason, text, qid, ANSWER_NOTE + " | CANCEL")
+    waiting = needs_human(gate, reason, text, qid, ANSWER_NOTE + " | CANCEL")
+    if entry:  # the document is newer than the answer yet still asks it
+        waiting["next"] = ("The agent rewrote the document but kept the questions the human already answered. "
+                           + waiting["next"] + " (answer again, or CANCEL)")
+    return waiting
 
 
 def escalation_stage(gate, number, text):
     """review-escalate: a human note grants one more round; without an answer the task waits."""
     qid = human_gate.question_id("review-escalate", text, number)
     entry = human_gate.answer_for(gate["answers"], qid)
-    if entry and entry["word"] in (None, "FAIL", "RETRY"):
+    if has_reply(entry) and entry["word"] in (None, "FAIL", "RETRY"):
         return rework_with_human_note("review-escalate", text, qid, entry, number + 1)
     return needs_human(gate, "review-escalate", text, qid, f"{ANSWER_NOTE} (more rounds) | CANCEL")
 
@@ -283,7 +297,7 @@ def manual_stage(gate, number):
     entry = human_gate.answer_for(gate["answers"], qid)
     if entry and entry["word"] == "PASS":
         return None
-    if entry and entry["word"] == "FAIL":  # the FAIL answer itself grants the next round
+    if has_reply(entry) and entry["word"] == "FAIL":  # the FAIL answer itself grants the next round
         return rework_with_human_note("manual-verification", text, qid, entry, number + 1)
     return needs_human(gate, "manual-verification", text, qid, f"PASS | FAIL {ANSWER_NOTE} | CANCEL")
 
@@ -303,7 +317,8 @@ def merge_request_stage(gate, config, answered):
     if blocked or not config["mrCommand"]:
         question = (blocked or {}).get("summary") or MR_QUESTION
         return needs_human(gate, "mr-missing", question, qid, "<merge request url> | CANCEL")
-    return outcome("needs-mr", "Create the merge request (mrCommand), write mr.md, then stop.", answered=answered)
+    return outcome("needs-mr", "Create the merge request (mrCommand), write mr.md, then stop. If it fails, write blocked.md "
+                   "with human_gate.write_blocked (reason mr-missing).", answered=answered)
 
 
 def merge_stage(gate, config):
@@ -321,7 +336,7 @@ def merge_stage(gate, config):
         question = (blocked or {}).get("summary") or MERGE_QUESTION
         return needs_human(gate, "merge-missing", question, qid, "MERGED | RETRY | CANCEL")
     return outcome("needs-merge", "Run mergeCommand for the url in mr.md; on exit 0 append `Merged: <today>` "
-                   "to mr.md, else write blocked.md as merge-missing.")
+                   "to mr.md, else write blocked.md with human_gate.write_blocked (reason merge-missing).")
 
 
 def agent_failed_stage(gate):
@@ -371,11 +386,11 @@ def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, m
         if mr["merged"]:
             return outcome("done", "Nothing to do: the merge request is merged.")
         return merge_stage(gate, config)
-    stage = document_stage(intent, gate["intent_questions"], gate, (
+    stage = document_stage(intent, gate["intent_mtime"], gate["intent_questions"], gate, (
         "needs-intake", "needs-intent-approval", "intake-question",
         "Spawn argani:intake to write (or rewrite) intent.md, then stop for approval.",
         f"Stop: intent is draft. Human runs /argani:intent approve {slug}, then /argani:factory {slug}."))
-    stage = stage or document_stage(spec, gate["spec_questions"], gate, (
+    stage = stage or document_stage(spec, gate["spec_mtime"], gate["spec_questions"], gate, (
         "needs-spec", "needs-spec-approval", "spec-question",
         "Spawn argani:spec-writer, then stop for spec approval.",
         f"Stop: spec is draft. Human runs /argani:spec approve {slug} then /argani:factory {slug}."))
@@ -422,7 +437,8 @@ def build_state(slug, start_dir=".", config=None):
     config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
     rounds = collect_rounds(job_dir, reviewers)
     latest_round = rounds[-1]["n"] if rounds else 0
-    decision = decision_state(job_dir / "decision.md", latest_round)
+    human_note_latest = bool(rounds) and "human" in rounds[-1]["present"]
+    decision = decision_state(job_dir / "decision.md", latest_round, human_note_latest)
     mr_file = job_dir / "mr.md"
     mr_text = read_text(mr_file) if mr_file.is_file() else ""
     url_match = URL_PATTERN.search(mr_text)
@@ -434,6 +450,9 @@ def build_state(slug, start_dir=".", config=None):
         "slug": slug,
         "answers": human_gate.parse_answers(read_text(answers_file)) if answers_file.is_file() else [],
         "blocked": human_gate.read_blocked(job_dir),
+        "answers_mtime": mtime_ns(answers_file),
+        "intent_mtime": mtime_ns(intent_path),
+        "spec_mtime": mtime_ns(spec_path),
         "intent_questions": human_gate.questions_for_human(intent_text) if intent["status"] == "draft" else [],
         "spec_questions": human_gate.questions_for_human(spec_text) if spec["status"] == "draft" else [],
         "criteria": manual_criteria(job_dir / "decision.md") if current_decision else [],

@@ -108,6 +108,15 @@ def read_blocked(job_dir):
     return {"reason": parts[0], "id": parts[1], "summary": "\n".join(lines[1:]).strip()}
 
 
+def write_blocked(job_dir, reason, summary, now):
+    """Write blocked.md (`<reason> <id>`, then the summary) with an id fresh for this failure, so an
+    earlier RETRY answer never covers a new one. now is tz-aware. Returns the id."""
+    stamp = now.astimezone(datetime.timezone.utc).isoformat()
+    qid = question_id(reason, f"{summary}\n{stamp}", None)
+    (Path(job_dir) / BLOCKED_FILE).write_text(f"{reason} {qid}\n{summary}\n")
+    return qid
+
+
 def questions_for_human(markdown):
     questions = []
     in_section = False

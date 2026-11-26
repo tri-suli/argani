@@ -123,11 +123,11 @@ def active_agents(home):
     return [spawn for spawn in spawns if spawn["tool_use_id"] not in finished]
 
 
-def board(home, names=None):
+def board(home, names=None, now=None):
     entries = project_registry.list_projects(home)
     if names is not None:
         entries = [entry for entry in entries if entry["name"] in names]
-    now = datetime.now(timezone.utc)
+    now = now or datetime.now(timezone.utc)
     projects = [{"name": entry["name"], "tasks": project_tasks(home, entry, now)} for entry in entries]
     generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     return {"home": str(home), "generatedAt": generated_at,
@@ -206,7 +206,10 @@ def main(argv):
             names = [project]
         board_data = board(home, names)
         if "--write" in flags:
-            record_history(board_data, home, datetime.now(timezone.utc))
+            # record first, then rebuild with the same now, so the snapshot shows the entry just recorded
+            now = datetime.now(timezone.utc)
+            record_history(board(home, names, now), home, now)
+            board_data = board(home, names, now)
             write_board_file(home, BOARD_FILE, render_markdown(board_data))
             write_board_file(home, BOARD_JSON_FILE, json.dumps(board_data, indent=2) + "\n")
     except (argani_home.HomeError, project_registry.ProjectError, ValueError, OSError) as error:

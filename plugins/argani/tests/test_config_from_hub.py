@@ -251,7 +251,7 @@ def test_board_skill_is_read_only_and_runs_board_py():
     assert "name: board\n" in frontmatter
     assert 'argument-hint: "[--all]"' in frontmatter
     assert "allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read\n" in frontmatter
-    for column in ("Backlog", "Design", "In progress", "Ready for MR", "In review", "Done", "Needs human"):
+    for column in ("Intake", "Spec", "Build", "Review", "Approve", "Needs human", "Done"):
         assert column in frontmatter + text
     for required in ("board.py", "--all", "/argani:init"):
         assert required in text, required

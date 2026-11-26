@@ -11,7 +11,8 @@ import board
 from test_factory_state import APPROVED, BUILD_DONE, INTENT, REVIEW_END, SPEC
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "board.py"
-JOB_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code"]}
+JOB_CONFIG = {"verifyCommand": "pytest", "reviewers": ["code"], "mrCommand": "tool --title {title}",
+              "mergeCommand": "tool merge {url}"}
 
 
 @pytest.fixture
@@ -108,7 +109,7 @@ def test_ready_for_mr(project, hub):
 def test_in_review_while_mr_md_has_no_merged_line(project, hub):
     project.task().finish()
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["stage"], task["column"], task["merged"]) == ("done", "In review", False)
+    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "In review", None)
 
 
 def test_done_only_through_the_merged_line_of_mr_md(project, hub):
@@ -148,7 +149,7 @@ def test_in_review_without_any_directory_registered(make_project, hub, register_
     (folder / "decision.md").write_text("APPROVE ok\n\n=== END OF DECISION ===\n")
     (folder / "mr.md").write_text("url\nfeature/login\n")
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["stage"], task["column"], task["merged"]) == ("done", "In review", False)
+    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "In review", None)
 
 
 def test_needs_human_on_escalate(project, hub):

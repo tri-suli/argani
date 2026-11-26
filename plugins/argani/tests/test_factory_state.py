@@ -141,9 +141,9 @@ def test_missing_slug_folder_exits_one(job):
 
 def test_no_intent(job):
     state = job.state()
-    assert state["stage"] == "needs-intent-approval"
+    assert state["stage"] == "needs-intake"
     assert state["intent"] == {"exists": False, "status": "missing"}
-    assert "/argani:intent" in state["next"]
+    assert "argani:intake" in state["next"]
 
 
 def test_draft_intent(job):
@@ -275,12 +275,13 @@ def test_round_two_with_changes_escalates(job):
     job.build(BUILD_DONE.replace("ok", "ok\n\n## Rework after round 1\n- fixed"))
     job.round(2, {"code": "PASS", "security": "CHANGES"})
     state = job.state()
-    assert state["stage"] == "escalate"
-    assert "security" in state["next"]
-    assert "round 3" in state["next"]
+    assert (state["stage"], state["reason"]) == ("needs-human", "review-escalate")
+    assert "security" in state["question"]
+    assert "/argani:factory answer demo" in state["next"]
 
 
 def test_decision_approve_without_mr(job):
+    job.set_config(mrCommand="tool --title {title}")
     job.intent()
     job.spec()
     job.build()
@@ -288,7 +289,8 @@ def test_decision_approve_without_mr(job):
     job.decision("APPROVE")
     state = job.state()
     assert state["stage"] == "needs-mr"
-    assert state["decision"] == {"exists": True, "complete": True, "verdict": "APPROVE"}
+    assert state["decision"] == {"exists": True, "complete": True, "verdict": "APPROVE",
+                                 "round": None, "stale": False}
 
 
 def test_partial_decision_reruns_approver(job):
@@ -302,7 +304,8 @@ def test_partial_decision_reruns_approver(job):
     assert state["partial"] == ["decision"]
 
 
-def test_mr_exists_is_done(job):
+def test_unmerged_mr_with_merge_command_needs_merge(job):
+    job.set_config(mergeCommand="tool merge {url}")
     job.intent()
     job.spec()
     job.build()
@@ -310,8 +313,8 @@ def test_mr_exists_is_done(job):
     job.decision("APPROVE")
     job.write("mr.md", "https://example.test/mr/1\nargani/demo\n")
     state = job.state()
-    assert state["stage"] == "done"
-    assert state["mr"] == {"exists": True, "merged": False}
+    assert state["stage"] == "needs-merge"
+    assert state["mr"] == {"exists": True, "merged": False, "url": "https://example.test/mr/1"}
 
 
 def test_decision_escalate(job):
@@ -320,7 +323,8 @@ def test_decision_escalate(job):
     job.build()
     job.round(1, {"code": "PASS", "security": "PASS"})
     job.decision("ESCALATE")
-    assert job.state()["stage"] == "escalate"
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "review-escalate")
 
 
 def test_config_reviewers_override(make_project):
@@ -390,8 +394,8 @@ def test_round_three_present_escalates(job):
     job.round(1, {"code": "PASS", "security": "PASS"})
     job.write("review/round-3/review-code.md", f"PASS\n{REVIEW_END}\n")
     state = job.state()
-    assert state["stage"] == "escalate"
-    assert "round-3" in state["next"]
+    assert (state["stage"], state["reason"]) == ("needs-human", "review-escalate")
+    assert "round-3" in state["question"]
 
 
 @pytest.mark.parametrize("ending", ["\r\n", "   \n", "\n\n\n"])
@@ -446,7 +450,7 @@ def test_invalid_intent(job):
     job.write("intent.md", "# Intent: Demo\n\nStatus: approved by Tri on 2026-10-24\n")
     state = job.state()
     assert state["intent"]["status"] == "invalid"
-    assert state["stage"] == "needs-intent-approval"
+    assert state["stage"] == "needs-intake"
 
 
 def test_unlisted_reviewer_changes_is_reported(job):
@@ -530,7 +534,7 @@ def finished_job(job, mr_text):
 
 def test_merged_line_in_mr_md_marks_the_merge_request_merged(job):
     state = finished_job(job, "https://example.test/mr/1\n\nMerged: 2026-10-29\n")
-    assert state["mr"] == {"exists": True, "merged": True}
+    assert state["mr"] == {"exists": True, "merged": True, "url": "https://example.test/mr/1"}
     assert state["stage"] == "done"
 
 
@@ -554,3 +558,252 @@ def test_a_directory_that_does_not_exist_exits_one(job, tmp_path):
     result = subprocess.run([sys.executable, str(SCRIPT), "demo", str(missing)], capture_output=True, text=True)
     assert result.returncode == 1
     assert result.stdout.strip() == f"{missing} is not a directory"
+
+
+# ---- the autonomous stage machine: one human gate (needs-human) ----
+
+import human_gate
+from datetime import datetime, timezone
+
+QUESTIONS = "\n## Questions for human\n- Which database?\n- Which region?\n"
+MANUAL_CRITERIA = ["AC-1: open the page", "AC-2: press the button"]
+MANUAL_SECTION = "\n## Human verification before merge\n" + "".join(f"- [ ] {c}\n" for c in MANUAL_CRITERIA)
+MR_URL = "https://example.test/mr/7"
+
+
+def answer(job, reason, qid, text):
+    with open(job.path / "answers.md", "a", encoding="utf-8") as handle:
+        handle.write(human_gate.render_answer(reason, qid, "2026-11-26", text))
+
+
+def blocked(job, reason, qid, summary="it failed"):
+    job.write("blocked.md", f"{reason} {qid}\n{summary}\n")
+
+
+def passed_round(job, number=1):
+    job.round(number, {"code": "PASS", "security": "PASS"})
+
+
+def at_approval(job, decision_text=None, round_line=""):
+    job.intent()
+    job.spec()
+    job.build()
+    passed_round(job)
+    job.write("decision.md", decision_text or f"APPROVE fine\n{round_line}\n=== END OF DECISION ===\n")
+
+
+def at_cap(job):
+    """Round 2 still has CHANGES, so a third round needs a human answer."""
+    job.intent()
+    job.spec()
+    job.round(1, {"code": "CHANGES", "security": "PASS"})
+    job.build(BUILD_DONE.replace("ok", "ok\n\n## Rework after round 1\n- fixed"))
+    job.round(2, {"code": "PASS", "security": "CHANGES"})
+    return human_gate.question_id("review-escalate", "round 2 still has CHANGES from security", 2)
+
+
+def test_cancel_answer_is_terminal(job):
+    at_approval(job)
+    answer(job, "mr-missing", "mr-missing-r0-x", "CANCEL no longer needed")
+    state = job.state()
+    assert state["stage"] == "cancelled"
+    assert state["column"] == "Done"
+
+
+def test_unmerged_mr_with_merge_command_needs_merge_with_the_url(job):
+    job.set_config(mergeCommand="tool merge {url}")
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["reason"], state["mr"]["url"]) == ("needs-merge", None, MR_URL)
+
+
+def test_old_unmerged_mr_without_merge_command_needs_human(job):
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["reason"]) == ("needs-human", "merge-missing")
+    assert state["question_id"] == human_gate.question_id("merge-missing", "", None)
+    assert state["column"] == "Needs human"
+    assert "MERGED" in state["next"]
+
+
+def test_merge_missing_blocked_without_answer_needs_human(job):
+    job.set_config(mergeCommand="tool merge {url}")
+    job.write("mr.md", MR_URL + "\n")
+    blocked(job, "merge-missing", "merge-missing-r0-abc", "merge command exited 1")
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["question_id"]) == ("needs-human", "merge-missing-r0-abc")
+    assert "exited 1" in state["question"]
+
+
+def test_merged_answer_makes_needs_merge_answered(job):
+    answer(job, "merge-missing", human_gate.question_id("merge-missing", "", None), "MERGED done by hand")
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["answered"], state["column"]) == ("needs-merge", True, "Approve")
+
+
+@pytest.mark.parametrize("command, stage", [("tool merge {url}", "needs-merge"), (None, "needs-human")])
+def test_retry_answer_runs_the_merge_command_only_when_configured(job, command, stage):
+    if command:
+        job.set_config(mergeCommand=command)
+    answer(job, "merge-missing", human_gate.question_id("merge-missing", "", None), "RETRY")
+    assert finished_job(job, MR_URL + "\n")["stage"] == stage
+
+
+def test_intent_draft_with_questions_needs_human(job):
+    job.write("intent.md", INTENT.format(status="draft") + QUESTIONS)
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "intake-question")
+    assert state["question"] == "Which database?\nWhich region?"
+    assert state["question_id"] == human_gate.question_id("intake-question", state["question"], None)
+
+
+def test_intent_questions_answered_go_back_to_intake(job):
+    job.write("intent.md", INTENT.format(status="draft") + QUESTIONS)
+    answer(job, "intake-question", job.state()["question_id"], "Postgres, eu-west")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["answer"]) == ("needs-intake", True, "Postgres, eu-west")
+    assert state["column"] == "Approve"
+
+
+def test_approved_intent_ignores_questions(job):
+    job.write("intent.md", INTENT.format(status=APPROVED) + QUESTIONS)
+    assert job.state()["stage"] == "needs-spec"
+
+
+def test_spec_missing_needs_spec_and_invalid_spec_needs_spec(job):
+    job.intent()
+    assert job.state()["stage"] == "needs-spec"
+    job.write("spec.md", "# Spec: Demo\n")
+    assert job.state()["stage"] == "needs-spec"
+
+
+def test_spec_draft_with_questions_needs_human_then_answered(job):
+    job.intent()
+    job.write("spec.md", SPEC.format(status="draft") + QUESTIONS)
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "spec-question")
+    answer(job, "spec-question", state["question_id"], "use postgres")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["answer"]) == ("needs-spec", True, "use postgres")
+
+
+def test_agent_failed_needs_human_until_retry(job):
+    at_approval(job)
+    blocked(job, "agent-failed", "agent-failed-r1-abc", "builder crashed")
+    state = job.state()
+    assert (state["stage"], state["reason"], state["question_id"]) == ("needs-human", "agent-failed", "agent-failed-r1-abc")
+    answer(job, "agent-failed", "agent-failed-r1-abc", "RETRY")
+    assert job.state()["reason"] == "mr-missing"  # blocked.md is ignored; the normal stage follows
+
+
+def test_manual_criteria_without_answer_needs_human(job):
+    at_approval(job, f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    state = job.state()
+    assert state["manual_criteria"] == MANUAL_CRITERIA
+    assert (state["stage"], state["reason"]) == ("needs-human", "manual-verification")
+    assert state["question"] == "\n".join(MANUAL_CRITERIA)
+    assert state["question_id"] == human_gate.question_id("manual-verification", state["question"], 1)
+
+
+def test_manual_pass_continues_to_the_merge_request(job):
+    job.set_config(mrCommand="tool --title {title}")
+    at_approval(job, f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    answer(job, "manual-verification", job.state()["question_id"], "PASS looks good")
+    state = job.state()
+    assert (state["stage"], state["answered"]) == ("needs-mr", True)
+
+
+def test_manual_fail_asks_for_rework_with_the_note(job):
+    at_approval(job, f"APPROVE fine\nRound: 1\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    answer(job, "manual-verification", job.state()["question_id"], "FAIL button is broken")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["answer"]) == ("needs-rework", True, "button is broken")
+    assert state["human_note_round"] == 2
+    job.write("review/round-2/review-human.md", f"CHANGES button is broken\n\n{REVIEW_END}\n")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["human_note_round"]) == ("needs-rework", False, None)
+
+
+def test_mr_missing_without_command_needs_human_and_url_answer_unblocks(job):
+    at_approval(job)
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "mr-missing")
+    qid = human_gate.question_id("mr-missing", "", None)
+    assert state["question_id"] == qid
+    answer(job, "mr-missing", qid, "no link yet")
+    assert job.state()["stage"] == "needs-human"
+    answer(job, "mr-missing", qid, f"opened {MR_URL}")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["answer"]) == ("needs-mr", True, f"opened {MR_URL}")
+
+
+def test_mr_missing_blocked_overrides_a_configured_command(job):
+    job.set_config(mrCommand="tool --title {title}")
+    at_approval(job)
+    assert job.state()["stage"] == "needs-mr"
+    blocked(job, "mr-missing", "mr-missing-r0-zzz", "the command failed")
+    state = job.state()
+    assert (state["stage"], state["question_id"]) == ("needs-human", "mr-missing-r0-zzz")
+
+
+def test_escalate_decision_needs_human_with_its_first_line(job):
+    at_approval(job, "ESCALATE the scope is unclear\n\n=== END OF DECISION ===\n")
+    state = job.state()
+    assert (state["stage"], state["reason"]) == ("needs-human", "review-escalate")
+    assert state["question"] == "the scope is unclear"
+    assert state["question_id"] == human_gate.question_id("review-escalate", "the scope is unclear", 1)
+
+
+def test_escalation_answer_gives_the_orchestrator_a_human_note_round(job):
+    qid = at_cap(job)
+    answer(job, "review-escalate", qid, "keep going, fix the security finding")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["human_note_round"]) == ("needs-rework", True, 3)
+    assert state["answer"] == "keep going, fix the security finding"
+
+
+def test_round_three_allowed_after_escalation_answer(job):
+    qid = at_cap(job)
+    answer(job, "review-escalate", qid, "keep going")
+    job.write("review/round-3/review-human.md", f"CHANGES keep going\n\n{REVIEW_END}\n")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["rework_from"]) == ("needs-rework", False, 3)
+
+
+def test_answer_for_stale_question_is_ignored(job):
+    at_cap(job)
+    answer(job, "review-escalate", human_gate.question_id("review-escalate", "old", 1), "keep going")
+    assert job.state()["stage"] == "needs-human"
+
+
+def test_decision_without_round_line_is_current(job):
+    at_approval(job)
+    assert job.state()["decision"]["stale"] is False
+
+
+def test_decision_of_an_earlier_round_is_stale_and_rerun(job):
+    at_approval(job, "APPROVE fine\nRound: 1\n\n=== END OF DECISION ===\n")
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    job.build(BUILD_DONE.replace("ok", "ok\n\n## Rework after round 1\n- f"))
+    state = job.state()
+    assert state["decision"]["round"] == 1 and state["decision"]["stale"] is True
+    assert state["stage"] == "needs-decision"
+
+
+def test_record_flag_appends_history(job):
+    job.run_record = subprocess.run([sys.executable, str(SCRIPT), "demo", str(job.root), "--record"],
+                                    capture_output=True, text=True)
+    assert job.run_record.returncode == 0
+    assert json.loads(job.run_record.stdout)["stage"] == "needs-intake"
+    lines = (job.path / "history.jsonl").read_text().splitlines()
+    assert json.loads(lines[0])["stage"] == "needs-intake" and len(lines) == 1
+    subprocess.run([sys.executable, str(SCRIPT), "demo", str(job.root), "--record"], capture_output=True, text=True)
+    assert len((job.path / "history.jsonl").read_text().splitlines()) == 1
+
+
+def test_without_record_nothing_is_written(job):
+    job.state()
+    assert not (job.path / "history.jsonl").exists()
+
+
+def test_state_reports_the_intake_model(job):
+    job.set_config(agentModels={"intake": "haiku"})
+    assert job.state()["models"]["intake"] == "haiku"

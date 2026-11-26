@@ -45,7 +45,7 @@ def test_scripts_dir_comes_from_argument_env_or_default(monkeypatch, tmp_path):
 def test_list_has_every_task_of_every_project(source):
     tasks = by_slug(source.list_tasks())
 
-    assert set(tasks) == {("demo", "add-login"), ("demo", "fix-export"), ("demo", "ship-report"),
+    assert set(tasks) == {("demo", "add-login"), ("demo", "fix-export"), ("demo", "ship-report"), ("demo", "pick-database"),
                           ("other", "write-docs")}
 
     shipped = tasks[("demo", "ship-report")]

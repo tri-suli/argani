@@ -26,13 +26,61 @@ test.describe('with a live backend', () => {
 
     await expect(column(page, 'Intake').locator('[data-task="other/write-docs"]')).toBeVisible();
 
-    await expect(taskCard(page, 'demo/add-login').getByTestId('card-flag')).toHaveText('your call');
+    await expect(taskCard(page, 'demo/add-login').getByTestId('card-flag')).toBeHidden();
 
     await expect(column(page, 'Build').locator('[data-task="demo/fix-export"]')).toBeVisible();
 
     await expect(column(page, 'Done').locator('[data-task="demo/ship-report"]')).toBeVisible();
 
     await expect(column(page, 'Spec').getByText('No tasks')).toBeVisible();
+  });
+
+  test('shows the question, reason and badge on the Needs human card from board.json', async ({ page }) => {
+    const card = taskCard(page, 'demo/pick-database');
+
+    await expect(column(page, 'Needs human').locator('[data-task="demo/pick-database"]')).toBeVisible();
+
+    await expect(card.getByTestId('card-flag')).toHaveText('intake-question');
+
+    await expect(card.getByTestId('card-hint')).toHaveText('Which database should the report use?');
+
+    await expect(card.getByTestId('card-badge')).toHaveText('2× you');
+
+    await expect(taskCard(page, 'demo/add-login').getByTestId('card-hint')).toBeHidden();
+  });
+
+  test('shows manual criteria and waiting time in the footer totals', async ({ page }) => {
+    await expect(page.getByTestId('totals')).toContainText('1 manual ACs');
+
+    await expect(page.getByTestId('totals')).toContainText('waiting for you');
+  });
+
+  test('lists the column history and metrics of a task in the drawer', async ({ page }) => {
+    await taskCard(page, 'demo/pick-database').click();
+
+    const rows = page.getByTestId('history-row');
+
+    await expect(rows).toHaveCount(4);
+
+    await expect(rows.nth(0)).toHaveText('Intake30m');
+
+    await expect(rows.nth(1)).toHaveText('Needs human1h00m');
+
+    await expect(rows.nth(2)).toHaveText('Intake15m');
+
+    await expect(rows.nth(3)).toContainText('Needs human');
+
+    await expect(page.getByTestId('drawer-metrics')).toContainText('1 manual ACs');
+
+    await expect(page.getByTestId('drawer-metrics')).toContainText('2× in Needs human');
+  });
+
+  test('shows a dash for a task without history in the drawer', async ({ page }) => {
+    await taskCard(page, 'demo/add-login').click();
+
+    await expect(page.getByTestId('history-empty')).toHaveText('—');
+
+    await expect(page.getByTestId('history-row')).toHaveCount(0);
   });
 
   test('lays the seven columns out left to right in one row, Needs human before Done', async ({ page }) => {
@@ -116,7 +164,7 @@ test.describe('with a live backend', () => {
   test('filters by project', async ({ page }) => {
     await page.getByTestId('project-filter').selectOption('demo');
 
-    await expect(page.locator(".card")).toHaveCount(3);
+    await expect(page.locator(".card")).toHaveCount(4);
 
     await page.getByTestId('project-filter').selectOption('other');
 
@@ -124,7 +172,7 @@ test.describe('with a live backend', () => {
 
     await page.getByTestId('project-filter').selectOption('');
 
-    await expect(page.locator('.card')).toHaveCount(4);
+    await expect(page.locator('.card')).toHaveCount(5);
   });
 
   test('keeps the old data and shows a banner when the backend starts failing', async ({ page }) => {
@@ -134,7 +182,7 @@ test.describe('with a live backend', () => {
 
     await expect(page.getByTestId('status')).toHaveText('Disconnected');
 
-    await expect(page.locator('.card')).toHaveCount(4);
+    await expect(page.locator('.card')).toHaveCount(5);
   });
 });
 

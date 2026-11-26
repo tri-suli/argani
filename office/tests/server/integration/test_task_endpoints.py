@@ -35,7 +35,7 @@ def test_tasks_list(request_api):
 
     assert response.getheader(CONTENT_TYPE_HEADER) == JSON_TYPE
 
-    assert len(tasks) == 4
+    assert len(tasks) == 5
 
     assert tasks[("demo", "ship-report")]["tokens"] == {"input": 1, "output": 2, "cacheCreation": 3, "cacheRead": 4,
                                                         "total": 10}

@@ -1,0 +1,4 @@
+{"ts": "2026-11-20T10:00:00Z", "stage": "needs-intent-approval", "column": "Intake", "reason": null}
+{"ts": "2026-11-20T10:30:00Z", "stage": "needs-human", "column": "Needs human", "reason": "intake-question"}
+{"ts": "2026-11-20T11:30:00Z", "stage": "needs-intent-approval", "column": "Intake", "reason": null}
+{"ts": "2026-11-20T11:45:00Z", "stage": "needs-human", "column": "Needs human", "reason": "intake-question"}

@@ -3,7 +3,7 @@ import BoardView from '@/board/board-view';
 import { PIPELINE } from '@/constants/pipeline';
 import { formatCount, formatDuration } from '@/board/format';
 import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
-import { sampleAgent, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';
+import { sampleAgent, sampleTask, sampleDetail, sampleSnapshot, sampleSummary, sampleTasks } from '../sample-snapshot';
 
 const boardView = new BoardView();
 
@@ -22,7 +22,7 @@ describe('board view', () => {
     expect(boardView.projectNames(sampleSnapshot())).toEqual(['demo', 'other']);
   });
 
-  it('groups cards into the pipeline columns, newest first, ignoring the plugin columns', () => {
+  it('groups cards into the pipeline columns, newest first, by the column of board.json', () => {
     const columns = boardView.groupTasksByColumn(sampleSnapshot(), sampleTasks(), null);
 
     expect(columns.map((column) => column.name)).toEqual(['Intake', 'Spec', 'Build', 'Review', 'Approve', 'Needs human', 'Done']);
@@ -31,7 +31,7 @@ describe('board view', () => {
   });
 
   it('puts tasks without a timestamp last and orders ties by key', () => {
-    const tasks = ['b', 'a', 'dated'].map((slug) => ({ project: 'p', slug, title: slug, stage: 'needs-build', column: 'Backlog', merged: null, next: '-' }));
+    const tasks = ['b', 'a', 'dated'].map((slug) => sampleTask({ project: 'p', slug }));
 
     const snapshot = sampleSnapshot({ projects: [{ name: 'p', tasks }] });
 
@@ -40,23 +40,12 @@ describe('board view', () => {
     expect(boardView.groupTasksByColumn(snapshot, dated, null)[2].cards.map((card) => card.key)).toEqual(['p/dated', 'p/a', 'p/b']);
   });
 
-  it.each([
-    ['needs-intent-approval', null, 'Intake'],
-    ['needs-spec', null, 'Spec'],
-    ['needs-spec-approval', null, 'Spec'],
-    ['needs-build', null, 'Build'],
-    ['needs-rework', null, 'Build'],
-    ['needs-review', null, 'Review'],
-    ['needs-decision', null, 'Approve'],
-    ['needs-mr', null, 'Approve'],
-    ['done', null, 'Approve'],
-    ['done', false, 'Approve'],
-    ['done', true, 'Done'],
-    ['escalate', null, 'Needs human'],
-    ['error', null, 'Needs human'],
-    ['something-new', null, 'Needs human'],
-  ])('maps stage %s (merged %s) to %s', (stage, merged, expected) => {
-    expect(boardView.columnOf({ project: 'p', slug: 's', title: 't', stage, column: 'Backlog', merged, next: '-' })).toBe(expected);
+  it.each([['Intake'], ['Spec'], ['Build'], ['Review'], ['Approve'], ['Needs human'], ['Done']])('takes the column %s from the task', (column) => {
+    expect(boardView.columnOf(sampleTask({ project: 'p', slug: 's', stage: 'whatever', column }))).toBe(column);
+  });
+
+  it.each([['Backlog'], [''], ['something-new']])('puts the unknown column "%s" in Needs human', (column) => {
+    expect(boardView.columnOf(sampleTask({ project: 'p', slug: 's', column }))).toBe('Needs human');
   });
 
   it('labels the pipeline columns and tones the last two', () => {
@@ -64,31 +53,63 @@ describe('board view', () => {
 
     expect(columns.map((column) => column.who)).toEqual(PIPELINE.map((column) => column.who));
 
-    expect(columns.map((column) => column.who)).toEqual(['intent · you approve', 'spec-writer', 'builder · verify', 'reviewers', 'approver · you merge', 'you', 'merged']);
+    expect(columns.map((column) => column.who)).toEqual(['intake', 'spec-writer', 'builder · verify', 'reviewers', 'approver · merge', 'you', 'merged']);
 
     expect(columns.map((column) => column.tone)).toEqual(['', '', '', '', '', 'human', 'merged']);
   });
 
-  it('flags the cards whose next step is the human', () => {
-    const stages: [string, boolean | null][] = [
-      ['needs-intent-approval', null], ['needs-spec', null], ['needs-spec-approval', null], ['needs-build', null], ['needs-review', null],
-      ['needs-decision', null], ['done', null], ['done', true], ['escalate', null], ['error', null], ['unknown', null],
-      ['needs-mr', null], ['needs-rework', null],
+  it('flags only the cards in Needs human, with the reason as label and the question as hint', () => {
+    const tasks = [
+      sampleTask({ project: 'p', slug: 'asked', column: 'Needs human', reason: 'manual-verification', question: 'Does it work?', next: 'ignored' }),
+      sampleTask({ project: 'p', slug: 'no-reason', column: 'Needs human' }),
+      sampleTask({ project: 'p', slug: 'intake', column: 'Intake', stage: 'needs-intent-approval', next: 'approve', reason: 'intake-question', question: 'not shown' }),
+      sampleTask({ project: 'p', slug: 'merged', column: 'Done', merged: true }),
     ];
 
-    const tasks = stages.map(([stage, merged], index) => ({ project: 'p', slug: `t${index}`, title: 't', stage, column: 'Backlog', merged, next: `next ${index}` }));
+    const cards = boardView.groupTasksByColumn(sampleSnapshot({ projects: [{ name: 'p', tasks }] }), [], null).flatMap((column) => column.cards);
 
-    const snapshot = sampleSnapshot({ projects: [{ name: 'p', tasks }] });
+    const byKey = (key: string) => cards.find((card) => card.key === `p/${key}`);
 
-    const cards = boardView.groupTasksByColumn(snapshot, [], null).flatMap((column) => column.cards);
+    expect(byKey('asked')).toMatchObject({ flag: 'manual-verification', hint: 'Does it work?', dimmed: false });
 
-    const flagged = cards.filter((card) => card.flag !== null).map((card) => card.task.slug).sort();
+    expect(byKey('no-reason')).toMatchObject({ flag: 'Needs human', hint: null });
 
-    expect(flagged).toEqual(['t0', 't10', 't2', 't6', 't8', 't9']);
+    expect(byKey('intake')).toMatchObject({ flag: null, hint: null });
 
-    expect(cards.find((card) => card.task.slug === 't6')).toMatchObject({ flag: 'your call', hint: 'next 6', dimmed: false });
+    expect(byKey('merged')).toMatchObject({ flag: null, hint: null, dimmed: true });
+  });
 
-    expect(cards.find((card) => card.task.slug === 't7')).toMatchObject({ flag: null, hint: null, dimmed: true });
+  it('shows a badge with the number of visits to Needs human once there is one', () => {
+    const tasks = [
+      sampleTask({ project: 'p', slug: 'twice', metrics: { manualAcceptanceCriteria: 0, needsHumanCount: 2, needsHumanMilliseconds: 0 } }),
+      sampleTask({ project: 'p', slug: 'never' }),
+    ];
+
+    const cards = boardView.groupTasksByColumn(sampleSnapshot({ projects: [{ name: 'p', tasks }] }), [], null).flatMap((column) => column.cards);
+
+    expect(cards.map((card) => [card.key, card.badge]).sort()).toEqual([['p/never', ''], ['p/twice', '2× you']]);
+  });
+
+  it('sums manual criteria and waiting time over the shown project', () => {
+    expect(boardView.totalsOf(sampleSnapshot(), null)).toEqual({ manualAcceptanceCriteria: 3, needsHumanMilliseconds: 2_100_000 });
+
+    expect(boardView.totalsOf(sampleSnapshot(), 'other')).toEqual({ manualAcceptanceCriteria: 1, needsHumanMilliseconds: 600_000 });
+  });
+
+  it('finds a task by project and slug', () => {
+    expect(boardView.findTask(sampleSnapshot(), 'demo', 'stuck')?.title).toBe('Stuck task');
+
+    expect(boardView.findTask(sampleSnapshot(), 'demo', 'missing')).toBeNull();
+
+    expect(boardView.findTask(null, 'demo', 'stuck')).toBeNull();
+  });
+
+  it('lists the history rows in order with formatted durations', () => {
+    const task = sampleSnapshot().projects[0].tasks[3];
+
+    expect(boardView.historyRows(task)).toEqual([{ column: 'Build', duration: '1h00m' }, { column: 'Needs human', duration: '25m' }]);
+
+    expect(boardView.historyRows(sampleSnapshot().projects[0].tasks[0])).toEqual([]);
   });
 
   it('builds card details from the task summary', () => {
@@ -96,7 +117,7 @@ describe('board view', () => {
 
     const card = build.cards[0];
 
-    expect(card).toMatchObject({ active: true, risk: 'medium', mrUrl: 'https://example.test/mr/7', time: '2m', tokens: '48.2k tok', flag: null, hint: null, dimmed: false });
+    expect(card).toMatchObject({ active: true, risk: 'medium', mrUrl: 'https://example.test/mr/7', time: '2m', tokens: '48.2k tok', flag: null, badge: '', hint: null, dimmed: false });
 
     expect(card.rounds).toEqual([
       { n: 1, label: 'R1', chips: [{ reviewer: 'code', state: 'PASS', className: 'PASS' }, { reviewer: 'compliance', state: 'pending', className: 'wait' }] },
@@ -106,7 +127,7 @@ describe('board view', () => {
 
     expect(done.cards[0]).toMatchObject({ dimmed: true, time: '1h05m', tokens: '1.2M tok', active: false });
 
-    expect(needsHuman.cards[0]).toMatchObject({ flag: 'your call', hint: 'decide the schema', risk: 'high' });
+    expect(needsHuman.cards[0]).toMatchObject({ flag: 'manual-verification', badge: '2× you', hint: 'decide the schema', risk: 'high' });
   });
 
   it('shows no details for a task without summary or usage', () => {

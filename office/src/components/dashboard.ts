@@ -1,4 +1,4 @@
-import { ALL_PROJECTS } from '@/constants/dashboard';
+import { ALL_PROJECTS, NO_TOTALS } from '@/constants/dashboard';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
 import { formatCount, formatDuration } from '@/board/format';
 import { CLOCK_INTERVAL_MILLISECONDS } from '@/constants/dashboard';
@@ -92,6 +92,30 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, now 
 
     get tokensLabel() {
       return formatCount(boardView.totalTokens(this.tasks));
+    },
+
+    get manualLabel() {
+      return this.visibleTotals.manualAcceptanceCriteria.toString();
+    },
+
+    get waitingLabel() {
+      return formatDuration(this.visibleTotals.needsHumanMilliseconds);
+    },
+
+    get visibleTotals() {
+      return this.snapshot === null ? NO_TOTALS : boardView.totalsOf(this.snapshot, this.selectedProject || null);
+    },
+
+    get drawerTask() {
+      return boardView.findTask(this.snapshot, this.drawer.project, this.drawer.slug);
+    },
+
+    get drawerWaiting() {
+      return formatDuration(this.drawerTask?.metrics.needsHumanMilliseconds ?? 0);
+    },
+
+    get drawerHistory() {
+      return this.drawerTask === null ? [] : boardView.historyRows(this.drawerTask);
     },
   };
 }

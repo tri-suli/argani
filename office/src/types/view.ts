@@ -29,8 +29,20 @@ interface CardView {
   time: string;
   tokens: string;
   flag: string | null;
+  /** "2× you" once the task has waited for the human; empty before. */
+  badge: string;
   hint: string | null;
   dimmed: boolean;
+}
+
+interface BoardTotals {
+  manualAcceptanceCriteria: number;
+  needsHumanMilliseconds: number;
+}
+
+interface HistoryRow {
+  column: string;
+  duration: string;
 }
 
 interface ColumnView {
@@ -54,4 +66,4 @@ interface RenderedDocument {
   bodyHtml: string;
 }
 
-export type { PipelineColumn, ChipView, RoundView, CardView, ColumnView, FileGroup, RenderedDocument };
+export type { BoardTotals, HistoryRow, PipelineColumn, ChipView, RoundView, CardView, ColumnView, FileGroup, RenderedDocument };

@@ -1,17 +1,13 @@
 import { formatCount, formatDuration } from '@/board/format';
-import { COLUMN_APPROVE, DONE, HUMAN_STAGES, NEEDS_HUMAN, PIPELINE, STAGE_COLUMN, STAGE_DONE, WORKING_COLUMNS } from '@/constants/pipeline';
+import { DONE, NEEDS_HUMAN, PIPELINE, PIPELINE_NAMES, WORKING_COLUMNS } from '@/constants/pipeline';
 import { CHIP_CLASS_INVALID, CHIP_CLASS_PENDING, CHIP_CLASS_WAITING, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
 import type { ReviewState, TaskSummary } from '@/types/task';
-import type { CardView, ColumnView } from '@/types/view';
+import type { BoardTotals, CardView, ColumnView, HistoryRow } from '@/types/view';
 
 class BoardView {
   columnOf(task: BoardTask): string {
-    if (task.stage === STAGE_DONE) {
-      return task.merged === true ? DONE : COLUMN_APPROVE;
-    }
-
-    return STAGE_COLUMN[task.stage] ?? NEEDS_HUMAN;
+    return PIPELINE_NAMES.has(task.column) ? task.column : NEEDS_HUMAN;
   }
 
   projectNames(snapshot: BoardSnapshot): string[] {
@@ -53,8 +49,23 @@ class BoardView {
     return tasks.reduce((sum, summary) => sum + summary.tokens.total, 0);
   }
 
-  private waitsForHuman(task: BoardTask, column: string): boolean {
-    return column === NEEDS_HUMAN || HUMAN_STAGES.has(task.stage) || (task.stage === STAGE_DONE && column !== DONE);
+  /** Manual acceptance criteria and time spent in Needs human over the tasks of the shown project (every project when null). */
+  totalsOf(snapshot: BoardSnapshot, project: string | null): BoardTotals {
+    const tasks = snapshot.projects.filter((candidate) => project === null || candidate.name === project).flatMap((candidate) => candidate.tasks);
+
+    return {
+      manualAcceptanceCriteria: tasks.reduce((sum, task) => sum + task.metrics.manualAcceptanceCriteria, 0),
+      needsHumanMilliseconds: tasks.reduce((sum, task) => sum + task.metrics.needsHumanMilliseconds, 0),
+    };
+  }
+
+  findTask(snapshot: BoardSnapshot | null, project: string, slug: string): BoardTask | null {
+    return snapshot?.projects.flatMap((candidate) => candidate.tasks).find((task) => task.project === project && task.slug === slug) ?? null;
+  }
+
+  /** The columns the task has been through, in order, each with the time it stayed. */
+  historyRows(task: BoardTask): HistoryRow[] {
+    return task.durations.map(({ column, milliseconds }) => ({ column, duration: formatDuration(milliseconds) }));
   }
 
   /** Newest first; tasks without a timestamp go last, ties keep a stable slug order. */
@@ -71,7 +82,9 @@ class BoardView {
 
     const inProgress = WORKING_COLUMNS.has(column);
 
-    const needsHuman = this.waitsForHuman(task, column);
+    const needsHuman = column === NEEDS_HUMAN;
+
+    const waited = task.metrics.needsHumanCount;
 
     const rounds = (summary?.rounds ?? []).map((round) => ({
       n: round.n,
@@ -88,8 +101,9 @@ class BoardView {
       mrUrl: summary?.mrUrl ?? null,
       time: summary && summary.agentMilliseconds > 0 ? formatDuration(summary.agentMilliseconds) : '',
       tokens: summary && summary.tokens.total > 0 ? `${formatCount(summary.tokens.total)} tok` : '',
-      flag: needsHuman ? 'your call' : null,
-      hint: needsHuman ? task.next : null,
+      flag: needsHuman ? (task.reason ?? NEEDS_HUMAN) : null,
+      badge: waited > 0 ? `${waited}× you` : '',
+      hint: needsHuman ? task.question : null,
       dimmed: column === DONE,
     };
   }

@@ -6,7 +6,7 @@ below. A directory that is not registered as a project gets the defaults, and `t
 The old per-repository `.claude/argani.json` is no longer read (since 1.0.0). A broken home or
 project registry never blocks a project: it is ignored with a note on stderr, even in strict mode.
 
-argani never runs git and has no setting about branches, worktrees or commits: those belong
+argani never runs git (the only exception is the four read-only scan commands of `/argani:init`) and has no setting about branches, worktrees or commits: those belong
 to the project and its own tools (merging goes through `mergeCommand`). Keys of argani 1.x that were about them (`defaultBranch`,
 `baseBranch`, `protectedBranches`, `branchPattern`, `branchTypes`, `baseBranchByType`,
 `branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`,

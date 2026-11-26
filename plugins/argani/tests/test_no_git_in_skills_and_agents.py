@@ -24,7 +24,7 @@ def relative(path):
 def test_the_git_word_appears_only_in_allowed_examples(path):
     text = path.read_text(encoding="utf-8")
     if relative(path) == "skills/init/SKILL.md":
-        return
+        return  # checked by test_init_names_only_allowed_git_commands
     assert not GIT_WORD.search(text), relative(path)
 
 
@@ -79,3 +79,11 @@ def test_the_factory_prompts_carry_the_change_and_no_branch_inputs():
 def test_the_intent_template_has_no_type_or_number_line():
     text = (PLUGIN_ROOT / "templates" / "intent.md").read_text(encoding="utf-8")
     assert "\nType:" not in text and "\nNumber:" not in text and "Risk:" in text
+
+
+def test_init_names_only_allowed_git_commands():
+    text = (PLUGIN_ROOT / "skills" / "init" / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2]
+    allowed = {"git remote -v", "git branch -r", "git tag --list", "git log --merges -n 20 --format=%s",
+               "git diff origin/main...HEAD", "git diff origin/main", "git add -N"}
+    named = set(re.findall(r"`(git [^`]*?)(?: <[^`]*)?`", text))
+    assert named and named <= allowed, named - allowed

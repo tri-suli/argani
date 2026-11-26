@@ -70,9 +70,10 @@ def test_merge_request_command_candidates_cover_both_hosts_without_placeholders_
 def test_merge_command_question_offers_candidates(make_project):
     item = question(propose(make_project()), "mergeCommand")
     assert len(item["candidates"]) == 2
-    assert item["candidates"][0].startswith("test ") and "gh pr merge {url}" in item["candidates"][0]
-    assert "glab mr merge {url}" in item["candidates"][1]
+    assert "gh pr merge {url} --squash --auto" in item["candidates"][0]
+    assert "glab mr merge {url} --squash --yes" in item["candidates"][1]
     for candidate in item["candidates"]:
+        assert "sleep 30" in candidate and "-ge 120" in candidate and "exit 1" in candidate
         assert argani_config.COERCERS["mergeCommand"](candidate) == candidate
         assert "{url}" in candidate
     for phrase in ("Exit 0 must mean merged", "safe to run again", "background", "Needs human"):

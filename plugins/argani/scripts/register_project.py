@@ -159,6 +159,8 @@ def update(name, raw_config):
     entry = project_registry.read_project(file)
     entry.pop("remotes", None)
     entry.update(config)
+    if "mergeCommand" in config:
+        entry.pop("mergePolicy", None)  # a 1.x mergePolicy would make argani_config ignore the new mergeCommand
     try:
         argani_config.validate_overrides({key: value for key, value in entry.items() if key in argani_config.DEFAULTS})
     except ValueError as error:

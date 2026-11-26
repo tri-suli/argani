@@ -128,20 +128,23 @@ MR_COMMAND_CANDIDATES = [
     "gh pr create --title {title} --body-file {bodyFile}",
     "glab mr create --title {title} --description-file {bodyFile}",
 ]
-# Each returns only when merged and exits 0 when already merged. gh pr merge without --auto merges at once, so
-# the checks are awaited first; glab mr merge --auto-merge=false merges at once and fails while the pipeline
-# must still succeed (glab has no wait-by-URL command), so that form is the conservative one.
+# Both schedule the merge with the host's auto-merge, then poll the state every 30 s until merged, so exit 0 means
+# merged and an already merged request exits 0 at once; closed, or no merge within 120 polls (1 h), exits 1.
+# `--squash` stands for the merge method the interview settles. GitHub falls back to an immediate merge for
+# repositories without auto-merge. glab's documented arguments are <id|branch>; URL acceptance is unconfirmed.
+_MERGE_POLL = ("{{ {schedule}; n=0; until test \"$(s)\" = {merged}; do test \"$(s)\" = {closed} && exit 1; "
+               "n=$((n+1)); test $n -ge 120 && exit 1; sleep 30; done; }}")
 MERGE_COMMAND_CANDIDATES = [
-    'test "$(gh pr view {url} --json state --jq .state)" = MERGED '
-    "|| { gh pr checks {url} --watch --required && gh pr merge {url} --squash; }",
-    'test "$(glab mr view {url} --output json --jq .state)" = merged '
-    "|| glab mr merge {url} --auto-merge=false --squash --yes",
+    's() { gh pr view {url} --json state --jq .state; }; test "$(s)" = MERGED || ' + _MERGE_POLL.format(
+        schedule="gh pr merge {url} --squash --auto || gh pr merge {url} --squash", merged="MERGED", closed="CLOSED"),
+    's() { glab mr view {url} --output json --jq .state; }; test "$(s)" = merged || ' + _MERGE_POLL.format(
+        schedule="glab mr merge {url} --squash --yes", merged="merged", closed="closed"),
 ]
 MERGE_COMMAND_ASK = ("Which command merges the merge request, so the factory can finish on its own? argani runs it "
                      "after the merge request exists, with {url} (the merge request URL, shell-quoted by argani; "
                      "write it without quotes). Exit 0 must mean merged, not merely that auto-merge is scheduled; "
                      "the command must be safe to run again (an already merged request exits 0). The factory runs "
-                     "it in the background. Leave it out to merge by hand: the task then waits in Needs human.")
+                     "it in the background. Leave it out to merge by hand: the task then waits in Needs human. In the candidates `--squash` stands for the merge method the interview settles (merge, squash or rebase); check once that glab accepts the merge request URL.")
 DIFF_COMMAND_CANDIDATES = ["git diff origin/main...HEAD", "git diff origin/main"]
 DIFF_COMMAND_NOTE = ("`git diff origin/main...HEAD` shows committed work only; `git diff origin/main` shows the "
                      "working tree but not untracked files. Pick the one that matches how the builder keeps its "

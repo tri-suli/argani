@@ -144,6 +144,7 @@ def test_no_intent(job):
     assert state["stage"] == "needs-intake"
     assert state["intent"] == {"exists": False, "status": "missing"}
     assert "argani:intake" in state["next"]
+    assert "stop" not in state["next"].lower()
 
 
 def test_draft_intent(job):
@@ -151,7 +152,7 @@ def test_draft_intent(job):
     state = job.state()
     assert state["stage"] == "needs-intent-approval"
     assert state["intent"]["status"] == "draft"
-    assert "/argani:intent approve demo" in state["next"]
+    assert state["next"] == "Run factory_actions.py approve demo <dir> intent."
 
 
 def test_approved_intent_without_spec(job):
@@ -166,7 +167,7 @@ def test_draft_spec(job):
     job.spec("draft")
     state = job.state()
     assert state["stage"] == "needs-spec-approval"
-    assert "/argani:spec approve demo then /argani:factory demo" in state["next"]
+    assert state["next"] == "Run factory_actions.py approve demo <dir> spec."
 
 
 def test_invalid_spec_is_reported(job):
@@ -606,7 +607,7 @@ def at_cap(job):
 
 def test_cancel_answer_is_terminal(job):
     at_approval(job)
-    answer(job, "mr-missing", "mr-missing-r0-x", "CANCEL no longer needed")
+    answer(job, "mr-missing", "mr-missing-r0-x", "CANCEL")
     state = job.state()
     assert state["stage"] == "cancelled"
     assert state["column"] == "Done"
@@ -623,7 +624,7 @@ def test_old_unmerged_mr_without_merge_command_needs_human(job):
     assert (state["stage"], state["reason"]) == ("needs-human", "merge-missing")
     assert state["question_id"] == human_gate.question_id("merge-missing", "", None)
     assert state["column"] == "Needs human"
-    assert "MERGED" in state["next"]
+    assert "MERGED | CANCEL" in state["next"] and "RETRY" not in state["next"]
 
 
 def test_merge_missing_blocked_without_answer_needs_human(job):
@@ -735,6 +736,8 @@ def test_mr_missing_without_command_needs_human_and_url_answer_unblocks(job):
     assert (state["stage"], state["reason"]) == ("needs-human", "mr-missing")
     qid = human_gate.question_id("mr-missing", "", None)
     assert state["question_id"] == qid
+    assert f"{job.path}/mr-body.md" in state["question"]
+    assert "RETRY" in state["next"]
     answer(job, "mr-missing", qid, "no link yet")
     assert job.state()["stage"] == "needs-human"
     answer(job, "mr-missing", qid, f"opened {MR_URL}")
@@ -749,6 +752,26 @@ def test_mr_missing_blocked_overrides_a_configured_command(job):
     blocked(job, "mr-missing", "mr-missing-r0-zzz", "the command failed")
     state = job.state()
     assert (state["stage"], state["question_id"]) == ("needs-human", "mr-missing-r0-zzz")
+
+
+def test_mr_missing_retry_runs_mrcommand_again_only_when_configured(job):
+    job.set_config(mrCommand="tool --title {title}")
+    at_approval(job)
+    blocked(job, "mr-missing", "mr-missing-r0-zzz", "the command failed")
+    answer(job, "mr-missing", "mr-missing-r0-zzz", "RETRY")
+    assert job.state()["stage"] == "needs-mr"
+
+
+def test_mr_missing_retry_without_command_stays_with_the_human(job):
+    at_approval(job)
+    answer(job, "mr-missing", human_gate.question_id("mr-missing", "", None), "RETRY")
+    assert job.state()["stage"] == "needs-human"
+
+
+def test_merge_missing_offers_retry_only_with_a_merge_command(job):
+    job.set_config(mergeCommand="tool merge {url}")
+    blocked(job, "merge-missing", "merge-missing-r0-abc", "merge command exited 1")
+    assert "MERGED | RETRY | CANCEL" in finished_job(job, MR_URL + "\n")["next"]
 
 
 def test_escalate_decision_needs_human_with_its_first_line(job):

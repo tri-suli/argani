@@ -38,6 +38,19 @@ ARGUMENT_COUNT_FOR_ACTION = 4
 APPROVAL_STAGES = {"intent": "needs-intent-approval", "spec": "needs-spec-approval"}
 DRAFT_LINE = "Status: draft"
 APPROVED_STATUS = "approved"
+FREE_TEXT_REASONS = ("review-escalate", "intake-question", "spec-question", "error")
+ANSWER_WORDS_FOR_REASON = {
+    "manual-verification": ("PASS", "FAIL"),
+    "merge-missing": ("MERGED", "RETRY"),
+    "agent-failed": ("RETRY",),
+    "mr-missing": ("RETRY",),
+}
+VALID_FORMS = {
+    "manual-verification": "PASS | FAIL <note> | CANCEL",
+    "merge-missing": "MERGED | RETRY | CANCEL",
+    "agent-failed": "RETRY | CANCEL",
+    "mr-missing": "a reply containing an http(s) URL | RETRY | CANCEL",
+}
 NOTE_SUMMARY_LENGTH = 60
 FAILURE_EXIT_CODE = 1
 USAGE_EXIT_CODE = 2
@@ -83,9 +96,26 @@ def write_review_note(job_dir, number, note):
                     encoding="utf-8")
 
 
+def normalize_answer(reason, text):
+    """The reply as it is stored: the answer word uppercase, or the free text. Refuses what the
+    state would ignore, listing the valid forms."""
+    text = text.strip()
+    words = text.split(maxsplit=1)
+    word = words[0].upper()
+    note = words[1].strip() if len(words) > 1 else ""
+    if word == human_gate.CANCEL_WORD and not note:
+        return word
+    if reason in FREE_TEXT_REASONS or (reason == "mr-missing" and factory_state.URL_PATTERN.search(text)):
+        return text
+    if word in ANSWER_WORDS_FOR_REASON.get(reason, ()) and (word != "FAIL" or note):
+        return f"{word} {note}".strip()
+    raise ActionError(f"refused: a {reason} answer is {VALID_FORMS[reason]}")
+
+
 def answer(state, job_dir, text):
     require_text(text, "the answer")
     require_stage(state, "needs-human")
+    text = normalize_answer(state["reason"], text)
     entry = human_gate.render_answer(state["reason"], state["question_id"], today(), text)
     with (job_dir / human_gate.ANSWERS_FILE).open("a", encoding="utf-8") as file:
         file.write(entry)
@@ -153,8 +183,7 @@ def merge_command(config, state, directory):
 
 
 def merged(state, job_dir):
-    if not state["mr"]["exists"] or state["mr"]["merged"]:
-        raise ActionError("refused: mr.md is missing or already has a Merged line")
+    require_stage(state, "needs-merge")
     with (job_dir / "mr.md").open("a", encoding="utf-8") as file:
         file.write(f"Merged: {today()}\n")
     return {"merged": today()}

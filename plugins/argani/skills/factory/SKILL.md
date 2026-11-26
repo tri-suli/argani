@@ -1,7 +1,7 @@
 ---
 name: factory
-description: Run an argani job autonomously from a one-sentence description (or an existing slug) through intake, spec, build, review rounds, decision, merge request and the project's merge command, stopping only when a human must answer. Also takes a human answer or rework note. Slash form /argani:factory <description | slug> [in <dir>], /argani:factory answer <slug> [in <dir>] <answer> or /argani:factory rework <slug> [in <dir>] <note>.
-argument-hint: "<description | slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>"
+description: Run an argani job autonomously from a one-sentence description (or an existing slug) through intake, spec, build, review rounds, decision, merge request and the project's merge command, stopping only when a human must answer. Also takes a human answer or rework note. Slash form /argani:factory [in <dir>] <description>, /argani:factory <slug> [in <dir>], /argani:factory answer <slug> [in <dir>] <answer> or /argani:factory rework <slug> [in <dir>] <note>.
+argument-hint: "[in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
@@ -36,15 +36,16 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 
 ## Step 1
 
-1. Parse `$ARGUMENTS`. `in <dir>` is recognised only immediately after the slug: words 2 and 3 of
-   `<slug> in <dir>`, words 3 and 4 of `answer|rework <slug> in <dir> <text>`; after a description it is
-   the last two words (`... in <dir>`). Everything after that is the answer or note, whatever words it
+1. Parse `$ARGUMENTS`. `in <dir>` is recognised only in these places: at the very start of a description
+   (`in <dir> <description>`: words 1 and 2, the rest is the description, so a sentence such as "Fix typo in
+   README" is never cut), words 2 and 3 of `<slug> in <dir>`, and words 3 and 4 of
+   `answer|rework <slug> in <dir> <text>`. Everything after that is the answer or note, whatever words it
    contains. `<dir>` is a single token without spaces (a trailing `,` or `.` is dropped, since users type
    `in <dir>, <note>`): absolute, or relative
    to the session directory (`~` is expanded by the shell). It is **the working directory** and is
    `<dir>` below; without it `<dir>` is `.`, the directory the session runs in. Every command and
    agent below uses it. After the optional `in <dir>`:
-   - empty: **stop** and print the usage `/argani:factory <description | slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>`;
+   - empty: **stop** and print the usage `/argani:factory [in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>`;
    - first word `answer`: `answer <slug> <answer>`;
    - first word `rework`: `rework <slug> <note>`;
    - exactly one word: `<slug>`;
@@ -93,7 +94,7 @@ re-run the state (it shows `needs-human`). Act on the table until a stage says s
 | `needs-decision`        | Spawn `argani:approver` ([below](#approver)), then re-run state.                                                                                                                                        |
 | `needs-mr`              | [Merge request](#merge-request-needs-mr), then re-run state.                                                                                                                                            |
 | `needs-merge`           | [Merge](#merge-needs-merge), then re-run state.                                                                                                                                                         |
-| `needs-human`           | Stop. Print `reason`, `question` and how to answer: `/argani:factory answer <slug> <answer>`, with the words from `next` (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, or free text) where they apply. |
+| `needs-human`           | Stop. When `reason` is `mr-missing` and `mrCommand` is not configured, first run `mr_description.py <slug> <dir> --write` so `mr-body.md` exists. Print `reason`, `question` and how to answer: `/argani:factory answer <slug> <answer>`, with the words from `next` (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, or free text) where they apply. |
 | `done`, `cancelled`     | Say so, print `next`. Terminal: stop.                                                                                                                                                                   |
 
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
@@ -195,7 +196,8 @@ same empty-output rule as above, then spawn the approver.
   `command` verbatim with Bash (it starts with `cd` into the working directory); never rebuild or re-quote it.
   On success: `factory_actions.py mr <slug> <dir> "<its output>"`. On failure:
   `factory_actions.py block <slug> <dir> mr-missing "<short stderr>"`. Without `mrCommand` the state is
-  already `needs-human` (`mr-missing`) and this section is not reached.
+  already `needs-human` (`mr-missing`) and this section is not reached: there, first run
+  `mr_description.py <slug> <dir> --write` so `mr-body.md` exists, then print the question.
 
 When the printed `warnings` is non-empty, repeat them in the final message to the human.
 

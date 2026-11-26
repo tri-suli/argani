@@ -9,9 +9,24 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
-- `/argani:factory` runs autonomously from a one-sentence description to the merge: the intake agent writes the intent, the orchestrator approves intent and spec, a human is asked only specific questions (`/argani:factory answer <slug> <answer>`), the merge request and the merge run through `mrCommand` and `mergeCommand`. `scripts/factory_actions.py` writes the orchestrator's own files (`answers.md`, `blocked.md`, approvals, `mr.md`, `review-human.md`); the manual skills record the task history.
-
+- `/argani:factory <description>` runs autonomously from a one-sentence description to the merge: the new `argani:intake` agent writes the intent, the orchestrator approves intent and spec, and a human is asked only specific questions.
+- The Needs human gate: `/argani:factory answer <slug> <answer>` records the reply in `answers.md`; `blocked.md` records a failed agent, merge request or merge. Replies are validated per reason (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, an http(s) URL for a missing merge request, or free text), and `CANCEL` cancels only as the whole reply.
+- `mergeCommand`: the command that merges the merge request, run in the background after the merge request exists; `/argani:init` offers candidates for GitHub and GitLab.
+- `scripts/factory_actions.py` writes the orchestrator's own files (`answers.md`, `blocked.md`, approvals, `mr.md`, `Merged:`, `review-human.md`); the manual skills record the task history.
+- `history.jsonl` per task (stage, column and reason changes) and metrics in `board.json` (needs-human count and time, manual acceptance criteria).
+- `/argani:init` scans the project's git workflow (read-only) and interviews for the merge request and merge settings; `register_project.py --update` changes a registered project.
+- `agentModels.intake`, the model of the intake agent per risk.
 - `office/`: argani office v1, a read-only monitoring dashboard of the argani board at the repository root (not part of the plugin yet). A Python standard-library API (`GET /api/board`, the `board.json` snapshot computed live by `scripts/board.py`) on port 2212 and an Alpine.js + TypeScript page on port 1222 with a kanban of the factory pipeline (Intake, Spec, Build, Review, Approve, Needs human, Done; Needs human cards show the reason, the question and the number of visits, and the drawer shows the column history and metrics, all read from board.json), an active-agent pulse on cards and a project filter. A click on a card opens a task detail drawer with the task's files, verdict chips, and agent time and tokens per task, served by read-only task endpoints. Runs with Docker Compose (`office/compose.yaml`, `.env.example`) or directly. Tests under `office/tests/` (unit, integration, Playwright e2e) with a 100% coverage gate, run by `scripts/check.sh`.
+
+### Changed
+
+- The board columns are Intake, Spec, Build, Review, Approve, Needs human and Done, in `board.md` and `board.json` (a schema change for consumers); a multi-line question is shown on one line in `board.md`.
+- The stage `escalate` is replaced by `needs-human` with the reason `review-escalate`.
+- An `mr.md` without a `Merged:` line is `needs-merge` (or Needs human without `mergeCommand`); without `mrCommand` the task waits in Needs human with the generated description (`mr-body.md`).
+- `/argani:factory <slug>` approves valid intent and spec drafts itself and rewrites invalid ones; in a description, `in <dir>` is recognised only at the start (`/argani:factory in <dir> <description>`).
+- Review rounds above 2 need a recorded human answer; the approver writes `Round: N` in `decision.md`.
+- `scripts/check.sh` accepts unreleased plugin changes when `[Unreleased]` has an entry.
+- The office reads the column, question, history and metrics from `board.json`.
 
 ## [2.7.0] - 2026-11-21
 

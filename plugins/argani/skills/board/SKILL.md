@@ -23,7 +23,7 @@ This skill only reads. It writes nothing and never runs the factory.
    warning it printed on stderr (a skipped project). Then add one line with the number of tasks per
    non-empty column.
 4. Only when the human asks how to move a task, name the command for its column and leave the
-   human to run it: Intake is `/argani:intent approve <slug>`; Spec with a draft spec is
-   `/argani:spec approve <slug>`; Spec, Build, Review and Approve otherwise are
-   `/argani:factory <slug>`; Done needs no command; Needs human shows the question of the task
+   human to run it: Intake, Spec, Build, Review and Approve are all advanced by
+   `/argani:factory <slug>` (the factory writes and approves intent and spec itself; the manual loop
+   uses `/argani:intent approve <slug>` and `/argani:spec approve <slug>`); Done needs no command; Needs human shows the question of the task
    (the `question:` line), answered with `/argani:factory answer <slug> <answer>`.

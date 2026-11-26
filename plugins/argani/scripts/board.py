@@ -162,7 +162,7 @@ def render_markdown(board_data):
             for task in sorted(tasks, key=lambda item: item["slug"]):
                 lines.append(f"- **{task['slug']}** — {escape_markdown(task['title'])} ({task['stage']})")
                 if column_name == NEEDS_HUMAN and task["question"]:
-                    lines.append(f"  question: {task['question']}")
+                    lines.append(f"  question: {' '.join(task['question'].split())}")
                 elif task["next"] and column_name != "Done":
                     lines.append(f"  next: {task['next']}")
     return "\n".join(lines) + "\n"

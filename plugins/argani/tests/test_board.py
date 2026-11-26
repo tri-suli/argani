@@ -490,3 +490,10 @@ def test_written_snapshot_includes_the_history_just_recorded(project, hub):
     task = json.loads((hub / "board.json").read_text())["projects"][0]["tasks"][0]
     assert len(task["history"]) == 1
     assert task["history"][0]["column"] == task["column"]
+
+
+def test_a_multi_line_question_is_one_line_in_the_markdown(project, hub):
+    project.task(intent=INTENT.format(status="draft") + "\n## Questions for human\n- Which database?\n- Which cache?\n")
+    data = board.board(hub)
+    assert "\n" in data["projects"][0]["tasks"][0]["question"]
+    assert "  question: Which database? Which cache?\n" in board.render_markdown(data)

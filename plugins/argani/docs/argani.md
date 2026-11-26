@@ -25,7 +25,7 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 |----------|-------------------------------------------------|---------------------------------------------|---------------------------------------------------------------------------------|
 | Intent   | `intent.md`                                     | `/argani:intent` (interview with the human) or the intake agent | Manual mode: human approves. Factory mode: the orchestrator approves; a human only answers `## Questions for human` |
 | Spec     | `spec.md`                                       | `/argani:spec` or the spec-writer agent     | Manual mode: human approves. Factory mode: the orchestrator approves; a human only answers `## Questions for human` |
-| Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
+| Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed with the change by the reviewers |
 | Work     | code or documents in the project, `build.md`    | Human or builder agent                      | none                                                                            |
 | Review   | `review/round-N/change.diff`, `review/round-N/review-<checklist>.md` | `capture_change.py` (the change), reviewer agents | none                                                                            |
 | Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the project's `mergeCommand` merges it (Needs human only when it is missing or fails); the MR description is generated from the intent and the decision; its title is the intent heading, or the output of `mrTitleCommand` |
@@ -190,7 +190,7 @@ specific question: `## Questions for human` in the intent or spec, manual verifi
 escalation, a missing or failed `mrCommand` / `mergeCommand`, or an agent that failed twice. The human
 answers with `/argani:factory answer <slug> <answer>`; the answer is recorded in `answers.md` and the
 loop continues. `plan.md` is written by the builder before it changes any code and is reviewed together
-with the change in the merge request. Factory mode is expensive (several agents per job, up to two rounds
+with the change by the reviewers; the merge request is then merged by `mergeCommand`. Factory mode is expensive (several agents per job, up to two rounds
 without a human answer), so use it only for jobs with clear acceptance criteria.
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
 `scripts/factory_state.py <slug> <dir> --record`, which only reports (and appends the stage to the history).

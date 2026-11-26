@@ -88,4 +88,4 @@ into the project directory.
 9. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` in the directory and show `project`
    and `tasksDir`. If it exits non-zero, show the error, tell the human to fix `projectFile` by
    hand, and stop.
-10. End with: nothing was written into the project. Next step: `/argani:intent <description>`.
+10. End with: nothing was written into the project. Next step: `/argani:factory "<description>"` (or `/argani:intent <description>` for the manual loop).

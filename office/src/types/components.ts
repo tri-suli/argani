@@ -4,7 +4,7 @@ import type { BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
 import type { FileTone, TaskDetail, TaskFile, TaskSummary } from '@/types/task';
-import type { ColumnView, FileGroup, RenderedDocument } from '@/types/view';
+import type { BoardTotals, ColumnView, FileGroup, HistoryRow, RenderedDocument } from '@/types/view';
 
 interface DashboardDependencies {
   poller: Poller;
@@ -30,6 +30,13 @@ interface Dashboard {
   readonly columns: ColumnView[];
   readonly agentsRunning: number;
   readonly tokensLabel: string;
+  readonly visibleTotals: BoardTotals;
+  readonly manualLabel: string;
+  readonly waitingLabel: string;
+  /** The task open in the drawer, read from the latest board so its history stays current. */
+  readonly drawerTask: BoardTask | null;
+  readonly drawerWaiting: string;
+  readonly drawerHistory: HistoryRow[];
 }
 
 interface TaskDrawer {

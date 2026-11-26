@@ -1,6 +1,6 @@
 # argani office
 
-A read-only local dashboard for the argani board: a kanban of the factory pipeline (Intake, Spec, Build, Review, Approve, Needs human, Done, computed from each task's stage), a pulse on cards an active argani agent works on and a project filter. A small Python backend serves `GET /api/board` (the `board.json` snapshot); the frontend (Alpine.js + TypeScript, built with Vite) polls it every 5 seconds.
+A read-only local dashboard for the argani board: a kanban of the factory pipeline (Intake, Spec, Build, Review, Approve, Needs human, Done, taken from the `column` of each task in `board.json`), the question, reason and visit count on Needs human cards, a history and metrics section in the task drawer, footer totals of manual acceptance criteria and time waiting for you, a pulse on cards an active argani agent works on and a project filter. A small Python backend serves `GET /api/board` (the `board.json` snapshot); the frontend (Alpine.js + TypeScript, built with Vite) polls it every 5 seconds.
 
 Three more read-only endpoints feed the task detail drawer that opens from a card: `GET /api/tasks` (every task with rounds, verdicts, agent time and tokens), `GET /api/tasks/<project>/<slug>` (one task with its file list) and `GET /api/tasks/<project>/<slug>/file?path=<file>` (the text of one listed file, at most 2 MiB). The backend only answers requests whose `Host` is `localhost`, `127.0.0.1` or `[::1]`.
 

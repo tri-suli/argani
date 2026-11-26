@@ -1,3 +1,21 @@
+interface HistoryEntry {
+  ts: string;
+  stage: string;
+  column: string;
+  reason: string | null;
+}
+
+interface ColumnDuration {
+  column: string;
+  milliseconds: number;
+}
+
+interface TaskMetrics {
+  manualAcceptanceCriteria: number;
+  needsHumanCount: number;
+  needsHumanMilliseconds: number;
+}
+
 interface BoardTask {
   project: string;
   slug: string;
@@ -6,6 +24,11 @@ interface BoardTask {
   column: string;
   merged: boolean | null;
   next: string;
+  reason: string | null;
+  question: string | null;
+  history: HistoryEntry[];
+  durations: ColumnDuration[];
+  metrics: TaskMetrics;
 }
 
 interface BoardProject {
@@ -35,4 +58,4 @@ interface BoardSnapshot {
   agents: BoardAgent[];
 }
 
-export type { BoardTask, BoardProject, BoardAgent, BoardSnapshot };
+export type { HistoryEntry, ColumnDuration, TaskMetrics, BoardTask, BoardProject, BoardAgent, BoardSnapshot };

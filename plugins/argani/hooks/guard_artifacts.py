@@ -179,7 +179,7 @@ def guard_hub_path(payload, path, sole_writer):
             deny_sole_writer(payload, sole_writer)
         return True
     reason = check_write(payload, "/".join(parts[2:]), path, unknown_content_denies=True,
-                         job_dir=path.parents[len(parts) - 3])
+                         job_dir=Path(os.path.realpath(path)).parents[len(parts) - 3])
     if reason:
         emit(payload, "deny", reason)
     else:

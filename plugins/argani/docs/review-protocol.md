@@ -129,7 +129,7 @@ Agents do not carry memory between steps: every spawn reads files named in its p
 **Human rework.** `/argani:factory rework <slug> [in <dir>] <note>` writes `review/round-N+1/review-human.md`
 with `CHANGES` on line 1, the note as an Important finding, and the closing line, then continues
 as a normal round. It is allowed only after a clean round 1 and before a decision; it is refused
-after round 2, and the hook denies `round-3`.
+after round 2, and the hook denies `round-3` unless a recorded human answer grants it.
 
 ## Version control
 

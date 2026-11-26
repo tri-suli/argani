@@ -458,3 +458,29 @@ def test_round_three_allowed_with_escalation_answer(hub, demo_project):
         human_gate.render_answer("review-escalate", "review-escalate-r2-deadbeef", "2026-11-20", "RETRY"))
     assert decision_of(hub_write(hub, ROUND_THREE, "CHANGES\n")) == "allow"
     assert decision_of(hub_write(hub, "tasks/login/review/round-4/review-code.md", "CHANGES\n")) == "deny"
+
+
+def symlinked_review_folder(hub, tmp_path):
+    job_dir = hub / "projects" / "demo" / "tasks" / "login"
+    (job_dir / "review").mkdir(parents=True)
+    link_dir = tmp_path / "elsewhere"
+    link_dir.mkdir()
+    (link_dir / "link").symlink_to(job_dir / "review")
+    return job_dir, link_dir
+
+
+GRANT = human_gate.render_answer("review-escalate", "review-escalate-r2-deadbeef", "2026-11-20", "RETRY")
+
+
+def test_round_grant_beside_a_symlink_is_not_the_task_folders_grant(hub, demo_project, tmp_path):
+    _, link_dir = symlinked_review_folder(hub, tmp_path)
+    (link_dir / human_gate.ANSWERS_FILE).write_text(GRANT)
+    output = hub_write(hub, "", "CHANGES\n", file_path=link_dir / "link" / "round-3" / "review-code.md")
+    assert decision_of(output) == "deny"
+
+
+def test_round_grant_in_the_real_task_folder_allows_a_write_through_a_symlink(hub, demo_project, tmp_path):
+    job_dir, link_dir = symlinked_review_folder(hub, tmp_path)
+    (job_dir / human_gate.ANSWERS_FILE).write_text(GRANT)
+    output = hub_write(hub, "", "CHANGES\n", file_path=link_dir / "link" / "round-3" / "review-code.md")
+    assert decision_of(output) == "allow"

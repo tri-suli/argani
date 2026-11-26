@@ -44,11 +44,15 @@ Create the `Intent` file from `<plugin root>/templates/intent.md`; delete the gu
   agents must not grade themselves, or (2) data, devices or accounts only the user has. Never write
   "the user reviews/reads it in the MR/diff/docs": reviewers do that. Fewer manual criteria is the
   goal; each one says exactly what the human runs or checks.
+- `## Open questions`: only unknowns the spec-writer resolves from the repository (`- None`
+  otherwise); anything a human must answer goes under `## Questions for human`, never here.
 - `## Questions for human`: only what cannot be decided from the repository, its docs or the
   description. Each question is specific, with options when possible. Never ask what the code answers.
   Write `- None` when there is nothing to ask.
-- When `Answers` is given: read the answers for this task's questions, apply them to the intent, and
-  REMOVE the answered questions from `## Questions for human`. A rewrite that keeps an answered
+- When `Answers` is given: read the latest `intake-question` entry in it (entries are
+  `## <reason> <question-id> <date>` plus a body); it answers every question listed in
+  `## Questions for human`. Apply it to the intent and REMOVE the answered questions from
+  `## Questions for human`. A rewrite that keeps an answered
   question sends the task back to the human.
 
 Then run `python3 <plugin root>/scripts/artifact_check.py intent <Intent path>` and fix the file until

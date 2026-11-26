@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- `/argani:factory` runs autonomously from a one-sentence description to the merge: the intake agent writes the intent, the orchestrator approves intent and spec, a human is asked only specific questions (`/argani:factory answer <slug> <answer>`), the merge request and the merge run through `mrCommand` and `mergeCommand`. `scripts/factory_actions.py` writes the orchestrator's own files (`answers.md`, `blocked.md`, approvals, `mr.md`, `review-human.md`); the manual skills record the task history.
+
 - `office/`: argani office v1, a read-only monitoring dashboard of the argani board at the repository root (not part of the plugin yet). A Python standard-library API (`GET /api/board`, the `board.json` snapshot computed live by `scripts/board.py`) on port 2212 and an Alpine.js + TypeScript page on port 1222 with a kanban of the factory pipeline (Intake, Spec, Build, Review, Approve, Needs human, Done; a "your call" flag where the next step is the human's), an active-agent pulse on cards and a project filter. A click on a card opens a task detail drawer with the task's files, verdict chips, and agent time and tokens per task, served by read-only task endpoints. Runs with Docker Compose (`office/compose.yaml`, `.env.example`) or directly. Tests under `office/tests/` (unit, integration, Playwright e2e) with a 100% coverage gate, run by `scripts/check.sh`.
 
 ## [2.7.0] - 2026-11-21

@@ -445,7 +445,7 @@ def test_cancelled_task_is_in_done(project, hub):
     task.advance_to_review()
     task.write("answers.md", "")
     with open(hub / "projects" / "demo" / "tasks" / "login" / "answers.md", "a", encoding="utf-8") as handle:
-        handle.write(human_gate.render_answer("mr-missing", "mr-missing-r0-x", "2026-11-26", "CANCEL stop"))
+        handle.write(human_gate.render_answer("mr-missing", "mr-missing-r0-x", "2026-11-26", "CANCEL"))
     row = board.board(hub)["projects"][0]["tasks"][0]
     assert (row["stage"], row["column"]) == ("cancelled", "Done")
 

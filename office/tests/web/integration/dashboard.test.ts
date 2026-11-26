@@ -67,6 +67,9 @@ const deliver = async (snapshot = sampleSnapshot(), expectedCards = 5) => {
   await eventually(() => {
     expect(text('[data-testid=status]')).toBe('Connected');
 
+    expect(document.querySelector('footer')?.textContent).toContain('/argani:factory answer <slug> <answer>');
+    expect(document.querySelector('footer')?.textContent).not.toContain('approve');
+
     expect(document.querySelectorAll('.card')).toHaveLength(expectedCards);
   });
 };

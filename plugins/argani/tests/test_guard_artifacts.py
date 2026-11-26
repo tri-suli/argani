@@ -1,5 +1,7 @@
 import pytest
 
+import human_gate
+
 from hook_helpers import decision_of, file_payload, run_hook
 
 END_REVIEW = "\n=== END OF REVIEW ===\n"
@@ -426,3 +428,33 @@ def test_a_nested_checkout_listed_as_a_pattern_checks_protected_paths_against_it
     register_project("shop", paths=[real, f"{real}/.worktrees/*"], protectedPaths=["brain/*/raw/**"])
     assert decision_of(write(nested, "brain/a/raw/f.md", "x")) == "deny"
     assert write(nested, "brain/a/notes.md", "x") is None
+
+
+def test_intake_may_write_only_intent(hub, demo_project):
+    assert decision_of(hub_write(hub, "tasks/login/intent.md", agent_type="argani:intake")) == "allow"
+    assert decision_of(hub_write(hub, "tasks/login/spec.md", agent_type="argani:intake")) == "deny"
+    assert decision_of(hub_write(hub, "tasks/login/answers.md", agent_type="argani:intake")) == "deny"
+
+
+@pytest.mark.parametrize("name", ["answers.md", "blocked.md", "history.jsonl"])
+def test_builder_may_not_write_orchestrator_files(hub, demo_project, name):
+    assert decision_of(hub_write(hub, f"tasks/login/{name}", agent_type="argani:builder")) == "deny"
+    assert decision_of(hub_write(hub, f"tasks/login/{name}")) == "allow"
+
+
+ROUND_THREE = "tasks/login/review/round-3/review-code.md"
+
+
+def test_round_three_denied_without_answer(hub, demo_project):
+    output = hub_write(hub, ROUND_THREE, "CHANGES\n")
+    assert decision_of(output) == "deny"
+    assert "human answer" in output["permissionDecisionReason"]
+
+
+def test_round_three_allowed_with_escalation_answer(hub, demo_project):
+    job_dir = hub / "projects" / "demo" / "tasks" / "login"
+    job_dir.mkdir(parents=True)
+    (job_dir / human_gate.ANSWERS_FILE).write_text(
+        human_gate.render_answer("review-escalate", "review-escalate-r2-deadbeef", "2026-11-20", "RETRY"))
+    assert decision_of(hub_write(hub, ROUND_THREE, "CHANGES\n")) == "allow"
+    assert decision_of(hub_write(hub, "tasks/login/review/round-4/review-code.md", "CHANGES\n")) == "deny"

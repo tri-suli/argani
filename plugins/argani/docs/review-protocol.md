@@ -65,9 +65,9 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
 - If any file in a complete round says `CHANGES`, the builder reworks and a new round `N+1` starts.
   All files are read; one `PASS` never cancels another file's `CHANGES`.
 - All files `PASS` means the approver is spawned and writes `decision.md`.
-- **Two rounds at most.** The hook refuses any write under `review/round-3/` or higher
-  (`N >= 3`). If round 2 still has `CHANGES`, stop and escalate to a human; do not try to work
-  around the refusal.
+- **Two rounds without a human.** The hook refuses any write under `review/round-3/` or higher
+  (`N >= 3`) unless `answers.md` records a human answer that grants it. If round 2 still has
+  `CHANGES`, stop and escalate to a human; do not try to work around the refusal.
 - The approver judges only the seats in `reviewers`. A `review-human.md` counts as addressed once
   `build.md` has the heading `## Rework after round <N>` for the current round `N`, and then does not
   by itself cause `ESCALATE`; without that heading it does. The builder writes one such heading for
@@ -123,7 +123,7 @@ checklist a reviewer was given, so that part is an instruction in the agent prom
 
 **Factory mode.** `/argani:factory` runs the same round after the builder finishes, then:
 `CHANGES` anywhere starts a new round with a fresh builder that reads the round folder;
-all `PASS` spawns the approver; round 3 is refused by the hook and the job escalates.
+all `PASS` spawns the approver; round 3 is refused by the hook until a human answer grants it, so the job escalates.
 Agents do not carry memory between steps: every spawn reads files named in its prompt.
 
 **Human rework.** `/argani:factory rework <slug> [in <dir>] <note>` writes `review/round-N+1/review-human.md`

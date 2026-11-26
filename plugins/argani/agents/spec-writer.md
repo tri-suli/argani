@@ -37,7 +37,7 @@ Create the `Spec` file from `<plugin root>/templates/spec.md`, with `Status: dra
   build must prepare for the human (a command to run, an output to inspect).
 - Flagged concerns. Flag conflicting constraints or policies (with each other or with the
   approach); never resolve a conflict silently.
-- `## Open questions`: carried forward from the intent, plus new ones, that you or the build can
+- `## Open questions carried forward`: those from the intent, plus new ones, that you or the build can
   resolve from the repository; anything a human must answer goes under `## Questions for human`, never here.
 - `## Questions for human`: only conflicts or unknowns the repository cannot settle; `- None`
   otherwise. When `Answers` is given, read its latest `spec-question` entry (entries are

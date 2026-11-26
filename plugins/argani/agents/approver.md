@@ -45,13 +45,15 @@ Write only `<Slug folder>/decision.md`:
 
 - Line 1: `APPROVE` or `ESCALATE`, optionally followed by one space and a short reason. Nothing
   before it.
+- Line 2: `Round: <N>`, N being the number of the `Round folder` (`round-2` is `Round: 2`).
 - Then: which reviewers passed (and which did not), whether `build.md` contains literal verify
   output and its result, residual risks, and what the human should look at in the merge request.
 - When `build.md` lists pending human verification, a section `## Human verification before merge`
   with one `- [ ] AC-n: <step>` per item, copied from it.
 - The last line is exactly `=== END OF DECISION ===`.
 
-`APPROVE` still ends in a merge request that a human reviews and merges.
+`APPROVE` leads to the merge request and then the merge by the project's own command. Acceptance
+criteria verified `manual:` stop the task for the human before the merge request.
 
 ## Rules
 

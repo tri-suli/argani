@@ -5,7 +5,7 @@ import pytest
 
 AGENTS_DIR = Path(__file__).resolve().parents[1] / "agents"
 AGENT_FILES = sorted(AGENTS_DIR.glob("*.md"))
-EXPECTED = {"spec-writer", "builder", "reviewer", "approver"}
+EXPECTED = {"spec-writer", "builder", "reviewer", "approver", "intake"}
 READ_ONLY_WRITERS = {"Read", "Glob", "Grep", "Write"}  # no shell: they read change.diff, never run anything
 CLOSING_LINES = {
     "builder": "=== END OF BUILD ===",
@@ -84,3 +84,19 @@ def test_the_builder_prompt_carries_no_branch_or_commit_inputs():
 def test_reviewer_and_approver_read_the_captured_change(name):
     body = (AGENTS_DIR / f"{name}.md").read_text(encoding="utf-8")
     assert "`Change`" in body and "change.diff" in body
+
+
+def test_intake_has_exact_tool_set():
+    tools = tool_names(parse_frontmatter(AGENTS_DIR / "intake.md"))
+    assert tools == ["Read", "Glob", "Grep", "Write", "Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)"]
+
+
+def test_approver_writes_the_round_number_on_line_two():
+    body = (AGENTS_DIR / "approver.md").read_text(encoding="utf-8")
+    assert "Round: <N>" in body and "Line 2" in body
+
+
+def test_intake_drafts_questions_and_removes_answered_ones():
+    body = " ".join((AGENTS_DIR / "intake.md").read_text(encoding="utf-8").split())
+    for required in ("Questions for human", "Author: argani:intake", "REMOVE the answered questions"):
+        assert required in body, required

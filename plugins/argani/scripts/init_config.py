@@ -129,15 +129,17 @@ MR_COMMAND_CANDIDATES = [
     "glab mr create --title {title} --description-file {bodyFile}",
 ]
 # Both schedule the merge with the host's auto-merge, then poll the state every 30 s until merged, so exit 0 means
-# merged and an already merged request exits 0 at once; closed, or no merge within 120 polls (1 h), exits 1.
+# merged and an already merged request exits 0 at once; a failed schedule that is not already merged, a failing state
+# query (auth, network), closed, or no merge within 120 polls (1 h) exits 1.
 # `--squash` stands for the merge method the interview settles. GitHub falls back to an immediate merge for
 # repositories without auto-merge. glab's documented arguments are <id|branch>; URL acceptance is unconfirmed.
-_MERGE_POLL = ("{{ {schedule}; n=0; until test \"$(s)\" = {merged}; do test \"$(s)\" = {closed} && exit 1; "
-               "n=$((n+1)); test $n -ge 120 && exit 1; sleep 30; done; }}")
+_MERGE_POLL = ("{schedule} || test \"$(s)\" = {merged} || exit 1; n=0; until st=$(s) || exit 1; "
+               "test \"$st\" = {merged}; do test \"$st\" = {closed} && exit 1; "
+               "n=$((n+1)); test $n -ge 120 && exit 1; sleep 30; done")
 MERGE_COMMAND_CANDIDATES = [
-    's() { gh pr view {url} --json state --jq .state; }; test "$(s)" = MERGED || ' + _MERGE_POLL.format(
+    's() { gh pr view {url} --json state --jq .state; }; ' + _MERGE_POLL.format(
         schedule="gh pr merge {url} --squash --auto || gh pr merge {url} --squash", merged="MERGED", closed="CLOSED"),
-    's() { glab mr view {url} --output json --jq .state; }; test "$(s)" = merged || ' + _MERGE_POLL.format(
+    's() { glab mr view {url} --output json --jq .state; }; ' + _MERGE_POLL.format(
         schedule="glab mr merge {url} --squash --yes", merged="merged", closed="closed"),
 ]
 MERGE_COMMAND_ASK = ("Which command merges the merge request, so the factory can finish on its own? argani runs it "
@@ -182,8 +184,9 @@ def propose(start_dir="."):
                       "ask": "Which command prints the change under review as a unified diff, run in the "
                              "project root? Required by factory mode and the review. " + DIFF_COMMAND_NOTE})
     questions.append({"key": "mrCommand", "candidates": MR_COMMAND_CANDIDATES,
-                      "ask": "Should the factory open the merge request itself? Without mrCommand it only "
-                             "prints the description. {title} is the shell-quoted merge request title and "
+                      "ask": "Should the factory open the merge request itself? Without mrCommand the task waits in "
+                             "Needs human with the generated description (mr-body.md) until you open the merge "
+                             "request and answer with its URL. {title} is the shell-quoted merge request title and "
                              "{bodyFile} the path of the generated description."})
     questions.append({"key": "mergeCommand", "candidates": MERGE_COMMAND_CANDIDATES, "ask": MERGE_COMMAND_ASK})
 

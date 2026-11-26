@@ -179,15 +179,15 @@ def test_detail_of_a_done_task(source):
 
     assert detail["tokens"]["total"] == 100
 
-    assert source.task_detail("demo", "fix-export")["column"] == "In progress"
+    assert source.task_detail("demo", "fix-export")["column"] == "Build"
 
-    assert source.task_detail("demo", "add-login")["column"] == "Backlog"
+    assert source.task_detail("demo", "add-login")["column"] == "Intake"
 
 
-def test_detail_of_an_in_review_task_has_the_in_review_column(source, task_home):
+def test_detail_of_an_in_review_task_has_the_approve_column(source, task_home):
     (task_home / "projects/demo/tasks/ship-report/mr.md").write_text("MR: https://example.com/1\n")
 
-    assert source.task_detail("demo", "ship-report")["column"] == "In review"
+    assert source.task_detail("demo", "ship-report")["column"] == "Approve"
 
 
 @pytest.mark.parametrize("project, slug, error", [

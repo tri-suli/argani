@@ -79,18 +79,17 @@ project language.
 
 ## Board
 
-`scripts/board.py` lists every task of the registered projects by column. The column derives from the stage; nothing is stored separately.
+`scripts/board.py` lists every task of the registered projects by column. The column derives from the stage and from whether a human answer is waiting to be acted on (`scripts/board_columns.py`); nothing else is stored separately. Columns, in order: Intake, Spec, Build, Review, Approve, Needs human, Done.
 
 | Stage | Column |
 |---|---|
-| `needs-intent-approval` | Backlog |
-| `needs-spec`, `needs-spec-approval` | Design |
-| `needs-build`, `needs-rework`, `needs-review`, `needs-decision` | In progress |
-| `needs-mr` | Ready for MR |
-| `done`, `mr.md` without a valid `Merged: <date>` line | In review |
-| `done`, `mr.md` has a valid `Merged: <YYYY-MM-DD>` line | Done |
-| `escalate` | Needs human |
-| `error` (the task cannot be read: broken config, unreadable file) | Needs human |
+| `needs-intake`, `needs-intent-approval` | Intake |
+| `needs-spec`, `needs-spec-approval` | Spec |
+| `needs-build`, `needs-rework` | Build |
+| `needs-review` | Review |
+| `needs-decision`, `needs-mr`, `needs-merge`; any other stage with an answer not yet acted on | Approve |
+| `needs-human`, `error` (the task cannot be read: broken config, unreadable file) | Needs human |
+| `done`, `cancelled` | Done |
 
 ```
 python3 board.py [dir]                    # the project of dir (default: the current directory)
@@ -99,14 +98,18 @@ python3 board.py --all [--write] [--json] # every project; --write saves <home>/
 
 `/argani:board [--all]` runs `board.py` and shows the result.
 
-`board.md` and `board.json` are generated and never edited by hand; they are regenerated on every `--write`.
+`board.md` and `board.json` are generated and never edited by hand; they are regenerated on every `--write`. `--write` first appends the current `(stage, column, reason)` of every non-error task to its `history.jsonl` (skipped when unchanged); without `--write` nothing is written. In `board.md` a Needs human task shows `question: <question>` instead of `next:`.
 
 ### board.json
 
 A read-only snapshot for user interfaces; `--json` prints the same object. Top-level keys: `home`,
 `generatedAt` (UTC, `YYYY-MM-DDTHH:MM:SSZ`), `columns` (the column order), `projects[]` and `agents[]`.
-Each project is `{name, tasks[]}`; each task has `project`, `slug`, `title`, `stage`, `column`, `merged`
-and `next`. `agents[]` holds the active argani agents: the `spawn` records of the [Event log](#event-log)
+Each project is `{name, tasks[]}`; each task has `project`, `slug`, `title`, `stage`, `column`, `merged`,
+`next`, `reason` (why the task waits for a human, else null), `question` (the question for the human, else null),
+`history[]` (the valid entries of `history.jsonl`: `ts`, `stage`, `column`, `reason`), `durations[]`
+(`{column, milliseconds}` per history entry, the last running until generation) and `metrics`
+(`manualAcceptanceCriteria`, `needsHumanCount`, `needsHumanMilliseconds`). An error task has stage `error`,
+column Needs human, reason `error`, the error message as `question`, and empty history and durations. `agents[]` holds the active argani agents: the `spawn` records of the [Event log](#event-log)
 (fields there, unchanged), so a UI joins them to tasks on `project` + `slug`. An agent is active when its
 `spawn` has no `finish` with the same `tool_use_id` in the event files of today and yesterday (local
 dates), in file order; a `spawn` without a string `tool_use_id` is never active. The window is the only

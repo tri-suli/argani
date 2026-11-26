@@ -47,7 +47,7 @@ def test_tasks_list(request_api):
 
 
 def test_board_is_unchanged(request_api):
-    assert parse(request_api("GET", "/api/board")[1])["columns"][0] == "Backlog"
+    assert parse(request_api("GET", "/api/board")[1])["columns"][0] == "Intake"
 
 
 def test_task_detail(request_api):

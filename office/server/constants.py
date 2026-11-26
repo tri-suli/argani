@@ -11,8 +11,6 @@ DEFAULT_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "plugins" / "argani"
 
 PLUGIN_MODULE_NAMES = ("argani_config", "argani_home", "board", "factory_state", "project_registry")
 
-NEEDS_HUMAN_COLUMN_INDEX = -1  # board.COLUMNS ends with the "Needs human" column
-
 # --- command line ----------------------------------------------------------------------------------------------
 PORT_ENV_VAR = "OFFICE_BACKEND_PORT"
 
@@ -95,8 +93,6 @@ MR_LINE = re.compile(r"^MR:.*?(https?://\S+)", re.MULTILINE)
 MR_URL_TRAILING_CHARACTERS = ")>"
 
 NUL_CHARACTER = "\0"
-
-STAGE_DONE = "done"
 
 STAGE_ERROR = "error"
 

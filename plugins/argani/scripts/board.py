@@ -8,7 +8,8 @@ it shows every registered project. Prints markdown (or, with --json, the board a
 --write also writes the markdown to <home>/board.md and the JSON to <home>/board.json, which are
 generated and never edited by hand.
 
-The column of a task derives from its stage (factory_state.py); nothing is stored separately.
+The column of a task is the one factory_state.py derives (board_columns.py); each task also carries its
+reason, question, history (history.jsonl), durations and metrics. --write records the history first.
 Exit 1 with a message when the home is unusable or the directory is not registered.
 """
 import json
@@ -20,32 +21,11 @@ import argani_config
 import argani_home
 import factory_state
 import project_registry
+import task_history
+from board_columns import COLUMNS, NEEDS_HUMAN
 
-COLUMNS = ("Backlog", "Design", "In progress", "Ready for MR", "In review", "Done", "Needs human")
 BOARD_FILE = "board.md"
 BOARD_JSON_FILE = "board.json"
-
-STAGE_COLUMNS = {
-    "needs-intake": "Backlog",
-    "needs-intent-approval": "Backlog",
-    "needs-spec": "Design",
-    "needs-spec-approval": "Design",
-    "needs-build": "In progress",
-    "needs-rework": "In progress",
-    "needs-review": "In progress",
-    "needs-decision": "In progress",
-    "needs-mr": "Ready for MR",
-    "needs-merge": "In review",
-    "needs-human": "Needs human",
-}
-
-
-def column(stage, merged):
-    """The board column of a stage; merged is whether a finished job's mr.md has a Merged: line."""
-    if stage == "done":
-        return "Done" if merged else "In review"
-    return STAGE_COLUMNS.get(stage, "Needs human")
-
 
 def tasks_folder(home, name):
     return home / argani_home.PROJECTS_DIR / name / argani_config.TASKS_DIR
@@ -62,20 +42,37 @@ def intent_title(task_dir, slug):
     return slug
 
 
-def task_row(home, name, slug, config):
-    base = {"project": name, "slug": slug, "title": intent_title(tasks_folder(home, name) / slug, slug)}
+def read_intent_text(task_dir):
+    try:
+        return (task_dir / "intent.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def error_row(base, message, now):
+    return {**base, "stage": "error", "column": NEEDS_HUMAN, "merged": None, "next": message,
+            "reason": "error", "question": message, "history": [], "durations": [],
+            "metrics": task_history.metrics([], None, now)}
+
+
+def task_row(home, name, slug, config, now):
+    task_dir = tasks_folder(home, name) / slug
+    base = {"project": name, "slug": slug, "title": intent_title(task_dir, slug)}
     try:
         state = factory_state.build_state(slug, config=config)
         if state is None:
             raise ValueError("job folder not found")
     except (ValueError, OSError) as error:
-        return {**base, "stage": "error", "column": "Needs human", "merged": None, "next": str(error)}
+        return error_row(base, str(error), now)
+    history = task_history.read_history(task_dir)
     merged = state["mr"]["merged"] if state["stage"] == "done" else None
-    return {**base, "stage": state["stage"], "column": column(state["stage"], merged),
-            "merged": merged, "next": state["next"]}
+    return {**base, "stage": state["stage"], "column": state["column"], "merged": merged,
+            "next": state["next"], "reason": state["reason"], "question": state["question"],
+            "history": history, "durations": task_history.durations(history, now),
+            "metrics": task_history.metrics(history, read_intent_text(task_dir), now)}
 
 
-def project_tasks(home, entry):
+def project_tasks(home, entry, now):
     """The task rows of one project entry, sorted by slug. The project's config is loaded once."""
     name = entry["name"]
     tasks_dir = tasks_folder(home, name)
@@ -90,9 +87,8 @@ def project_tasks(home, entry):
     try:
         config = argani_config.load_project_config(home, name)
     except (ValueError, OSError) as error:
-        return [{"project": name, "slug": slug, "title": slug, "stage": "error", "column": "Needs human",
-                 "merged": None, "next": str(error)} for slug in slugs]
-    return [task_row(home, name, slug, config) for slug in slugs]
+        return [error_row({"project": name, "slug": slug, "title": slug}, str(error), now) for slug in slugs]
+    return [task_row(home, name, slug, config, now) for slug in slugs]
 
 
 def active_agents(home):
@@ -131,10 +127,20 @@ def board(home, names=None):
     entries = project_registry.list_projects(home)
     if names is not None:
         entries = [entry for entry in entries if entry["name"] in names]
-    projects = [{"name": entry["name"], "tasks": project_tasks(home, entry)} for entry in entries]
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(timezone.utc)
+    projects = [{"name": entry["name"], "tasks": project_tasks(home, entry, now)} for entry in entries]
+    generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     return {"home": str(home), "generatedAt": generated_at,
             "columns": list(COLUMNS), "projects": projects, "agents": active_agents(home)}
+
+
+def record_history(board_data, home, now):
+    """Append the current (stage, column, reason) of every non-error task to its history.jsonl."""
+    for project in board_data["projects"]:
+        for task in project["tasks"]:
+            if task["stage"] != "error":
+                task_history.record(tasks_folder(home, project["name"]) / task["slug"],
+                                    task["stage"], task["column"], task["reason"], now)
 
 
 def escape_markdown(text):
@@ -155,7 +161,9 @@ def render_markdown(board_data):
             lines += ["", f"### {column_name}", ""]
             for task in sorted(tasks, key=lambda item: item["slug"]):
                 lines.append(f"- **{task['slug']}** — {escape_markdown(task['title'])} ({task['stage']})")
-                if task["next"] and column_name != "Done":
+                if column_name == NEEDS_HUMAN and task["question"]:
+                    lines.append(f"  question: {task['question']}")
+                elif task["next"] and column_name != "Done":
                     lines.append(f"  next: {task['next']}")
     return "\n".join(lines) + "\n"
 
@@ -197,9 +205,9 @@ def main(argv):
                 return 1
             names = [project]
         board_data = board(home, names)
-        markdown = render_markdown(board_data)
         if "--write" in flags:
-            write_board_file(home, BOARD_FILE, markdown)
+            record_history(board_data, home, datetime.now(timezone.utc))
+            write_board_file(home, BOARD_FILE, render_markdown(board_data))
             write_board_file(home, BOARD_JSON_FILE, json.dumps(board_data, indent=2) + "\n")
     except (argani_home.HomeError, project_registry.ProjectError, ValueError, OSError) as error:
         print(error)
@@ -207,7 +215,7 @@ def main(argv):
     if "--json" in flags:
         print(json.dumps(board_data, indent=2))
     else:
-        print(markdown, end="")
+        print(render_markdown(board_data), end="")
     return 0
 
 

@@ -3,6 +3,7 @@
 import importlib
 import os
 import stat
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
@@ -11,8 +12,8 @@ import usage_events
 from board_source import ensure_importable
 from constants import (
     DEFAULT_SCRIPTS_DIR, MAX_FILE_BYTES, MR_FILE, MR_LINE, MR_URL_TRAILING_CHARACTERS,
-    NEEDS_HUMAN_COLUMN_INDEX, NUL_CHARACTER, PLUGIN_MODULE_NAMES, REVIEW_INVALID, REVIEW_PENDING, SCRIPTS_DIR_ENV_VAR,
-    STAGE_DONE, STAGE_ERROR, STATUS_BAD_REQUEST, STATUS_INTERNAL_ERROR, STATUS_NOT_FOUND, STATUS_PAYLOAD_TOO_LARGE,
+    NUL_CHARACTER, PLUGIN_MODULE_NAMES, REVIEW_INVALID, REVIEW_PENDING, SCRIPTS_DIR_ENV_VAR,
+    STAGE_ERROR, STATUS_BAD_REQUEST, STATUS_INTERNAL_ERROR, STATUS_NOT_FOUND, STATUS_PAYLOAD_TOO_LARGE,
     VERDICT_INVALID,
 )
 
@@ -74,7 +75,7 @@ class PluginTaskSource:
 
             config, config_error = self._load_config(plugin, home, name)
 
-            for row in plugin["board"].project_tasks(home, entry):
+            for row in plugin["board"].project_tasks(home, entry, datetime.now(timezone.utc)):
                 summary, _, _ = self._summarize(plugin, home, name, row["slug"], config, config_error, usage)
 
                 tasks.append(summary)
@@ -97,12 +98,10 @@ class PluginTaskSource:
         board = plugin["board"]
 
         if state is None:
-            extra = {"next": str(error), "column": board.COLUMNS[NEEDS_HUMAN_COLUMN_INDEX], "reviewers": [],
+            extra = {"next": str(error), "column": board.NEEDS_HUMAN, "reviewers": [],
                      "models": None, "decision": None}
         else:
-            merged = state["mr"]["merged"] if state["stage"] == STAGE_DONE else None
-
-            extra = {"next": state["next"], "column": board.column(state["stage"], merged),
+            extra = {"next": state["next"], "column": state["column"],
                      "reviewers": state["reviewers"], "models": state["models"], "decision": state["decision"]}
 
         return {**summary, **extra, "files": job_files.describe_files(job_dir)}

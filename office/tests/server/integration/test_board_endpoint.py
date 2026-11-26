@@ -60,7 +60,7 @@ def test_endpoint_matches_board_cli_output(serve, home):
 
     assert [agent["tool_use_id"] for agent in actual["agents"]] == ["active-1"]
 
-    assert {task["column"] for task in actual["projects"][0]["tasks"]} == {"Backlog", "In progress", "Done"}
+    assert {task["column"] for task in actual["projects"][0]["tasks"]} == {"Intake", "Build", "Done"}
 
 
 def test_unusable_home_is_a_json_500(serve, monkeypatch):

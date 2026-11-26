@@ -2,12 +2,15 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 import board
+import board_columns
+import human_gate
+import task_history
 from test_factory_state import APPROVED, BUILD_DONE, INTENT, REVIEW_END, SPEC
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "board.py"
@@ -68,54 +71,55 @@ def columns_of(hub):
     return {task["slug"]: task["column"] for item in data["projects"] for task in item["tasks"]}
 
 
-@pytest.mark.parametrize("stage,merged,expected", [
-    ("needs-intent-approval", None, "Backlog"),
-    ("needs-spec", None, "Design"),
-    ("needs-spec-approval", None, "Design"),
-    ("needs-build", None, "In progress"),
-    ("needs-rework", None, "In progress"),
-    ("needs-review", None, "In progress"),
-    ("needs-decision", None, "In progress"),
-    ("needs-mr", None, "Ready for MR"),
-    ("done", None, "In review"),
-    ("done", False, "In review"),
-    ("done", True, "Done"),
-    ("escalate", None, "Needs human"),
+@pytest.mark.parametrize("stage,answered,expected", [
+    ("needs-intent-approval", False, "Intake"),
+    ("needs-spec", False, "Spec"),
+    ("needs-build", False, "Build"),
+    ("needs-review", False, "Review"),
+    ("needs-mr", False, "Approve"),
+    ("needs-build", True, "Approve"),
+    ("needs-human", False, "Needs human"),
+    ("done", False, "Done"),
 ])
-def test_column_table(stage, merged, expected):
-    assert board.column(stage, merged) == expected
+def test_column_table(stage, answered, expected):
+    assert board_columns.column(stage, answered) == expected
+
+
+def test_columns_follow_the_pipeline():
+    assert board.COLUMNS == ("Intake", "Spec", "Build", "Review", "Approve", "Needs human", "Done")
+    assert board.board(Path("/nonexistent-home"))["columns"] == list(board_columns.COLUMNS)
 
 
 def test_backlog(project, hub):
     project.task(intent=INTENT.format(status="draft"))
-    assert columns_of(hub) == {"login": "Backlog"}
+    assert columns_of(hub) == {"login": "Intake"}
 
 
 def test_design(project, hub):
     project.task()
-    assert columns_of(hub) == {"login": "Design"}
+    assert columns_of(hub) == {"login": "Spec"}
 
 
 def test_in_progress(project, hub):
     project.task().advance_to_review()
-    assert columns_of(hub) == {"login": "In progress"}
+    assert columns_of(hub) == {"login": "Review"}
 
 
 def test_ready_for_mr(project, hub):
     project.task().advance_to_mr()
-    assert columns_of(hub) == {"login": "Ready for MR"}
+    assert columns_of(hub) == {"login": "Approve"}
 
 
 def test_in_review_while_mr_md_has_no_merged_line(project, hub):
     project.task().finish()
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "In review", None)
+    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "Approve", None)
 
 
 def test_done_only_through_the_merged_line_of_mr_md(project, hub):
     task = project.task()
     task.finish()
-    assert columns_of(hub) == {"login": "In review"}
+    assert columns_of(hub) == {"login": "Approve"}
     task.merge()
     row = board.board(hub)["projects"][0]["tasks"][0]
     assert (row["column"], row["merged"]) == ("Done", True)
@@ -149,7 +153,7 @@ def test_in_review_without_any_directory_registered(make_project, hub, register_
     (folder / "decision.md").write_text("APPROVE ok\n\n=== END OF DECISION ===\n")
     (folder / "mr.md").write_text("url\nfeature/login\n")
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "In review", None)
+    assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "Approve", None)
 
 
 def test_needs_human_on_escalate(project, hub):
@@ -179,13 +183,13 @@ def test_project_without_tasks(project, hub):
 
 def test_invalid_intent_still_listed(project, hub):
     project.task(intent="not an intent\n")
-    assert columns_of(hub) == {"login": "Backlog"}
+    assert columns_of(hub) == {"login": "Intake"}
 
 
 def test_folder_without_intent_is_backlog_with_slug_title(project, hub):
     project.task(intent=None)
     task = board.board(hub)["projects"][0]["tasks"][0]
-    assert (task["column"], task["title"]) == ("Backlog", "login")
+    assert (task["column"], task["title"]) == ("Intake", "login")
 
 
 def test_folder_not_matching_slug_pattern_ignored(project, hub):
@@ -237,7 +241,7 @@ def test_write_creates_board_file(project, hub):
 def test_json_output_parses(project, hub):
     project.task()
     data = json.loads(run_board("--json", str(project.root)).stdout)
-    assert data["projects"][0]["tasks"][0]["column"] == "Design"
+    assert data["projects"][0]["tasks"][0]["column"] == "Spec"
 
 
 def test_unreadable_intent_is_error_row_and_board_renders(project, hub):
@@ -414,3 +418,67 @@ def test_single_project_board_still_lists_agents_of_other_projects(project, hub)
     data = board.board(hub, ["demo"])
     assert [item["name"] for item in data["projects"]] == ["demo"]
     assert [agent["project"] for agent in data["agents"]] == ["other"]
+
+
+def test_needs_human_task_carries_reason_and_question(project, hub):
+    project.task(intent=INTENT.format(status="draft") + "\n## Questions for human\n- Which database?\n")
+    row = board.board(hub)["projects"][0]["tasks"][0]
+    assert (row["stage"], row["column"], row["reason"]) == ("needs-human", "Needs human", "intake-question")
+    assert row["question"] == "Which database?"
+    markdown = board.render_markdown(board.board(hub))
+    assert "  question: Which database?" in markdown
+    assert "next:" not in markdown
+
+
+def test_error_task_lands_in_needs_human_with_reason_error(make_project, hub, register_project):
+    register_project("broken", reviewers=42)
+    (hub / "projects" / "broken" / "tasks" / "login").mkdir(parents=True)
+    row = board.board(hub)["projects"][0]["tasks"][0]
+    assert (row["stage"], row["column"], row["reason"], row["merged"]) == ("error", "Needs human", "error", None)
+    assert row["question"] == row["next"]
+    assert (row["history"], row["durations"]) == ([], [])
+    assert row["metrics"] == {"manualAcceptanceCriteria": 0, "needsHumanCount": 0, "needsHumanMilliseconds": 0}
+
+
+def test_cancelled_task_is_in_done(project, hub):
+    task = project.task()
+    task.advance_to_review()
+    task.write("answers.md", "")
+    with open(hub / "projects" / "demo" / "tasks" / "login" / "answers.md", "a", encoding="utf-8") as handle:
+        handle.write(human_gate.render_answer("mr-missing", "mr-missing-r0-x", "2026-11-26", "CANCEL stop"))
+    row = board.board(hub)["projects"][0]["tasks"][0]
+    assert (row["stage"], row["column"]) == ("cancelled", "Done")
+
+
+def test_task_rows_carry_history_durations_and_metrics(project, hub):
+    project.task()
+    folder = hub / "projects" / "demo" / "tasks" / "login"
+    now = datetime(2026, 11, 26, tzinfo=timezone.utc)
+    task_history.record(folder, "needs-spec", "Spec", None, now - timedelta(seconds=5))
+    row = board.board(hub)["projects"][0]["tasks"][0]
+    assert [entry["column"] for entry in row["history"]] == ["Spec"]
+    assert row["durations"][0]["column"] == "Spec"
+    assert set(row["metrics"]) == {"manualAcceptanceCriteria", "needsHumanCount", "needsHumanMilliseconds"}
+
+
+def test_board_alone_writes_no_history(project, hub):
+    project.task()
+    board.board(hub)
+    assert not (hub / "projects" / "demo" / "tasks" / "login" / "history.jsonl").exists()
+
+
+def test_write_records_history(project, hub):
+    project.task()
+    assert run_board("--write", str(project.root)).returncode == 0
+    assert run_board("--write", str(project.root)).returncode == 0
+    history = task_history.read_history(hub / "projects" / "demo" / "tasks" / "login")
+    assert [(entry["stage"], entry["column"]) for entry in history] == [("needs-spec", "Spec")]
+
+
+def test_record_history_skips_error_rows(make_project, hub, register_project):
+    register_project("broken", reviewers=42)
+    folder = hub / "projects" / "broken" / "tasks" / "login"
+    folder.mkdir(parents=True)
+    now = datetime.now(timezone.utc)
+    board.record_history(board.board(hub), hub, now)
+    assert not (folder / "history.jsonl").exists()

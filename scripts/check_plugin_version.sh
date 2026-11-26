@@ -2,8 +2,7 @@
 # Checks plugins/argani against the last release tag. Run from the repository root.
 set -euo pipefail
 
-# Claude Code caches an installed plugin per version, but releases are deferred: a change that keeps the
-# released version is accepted while CHANGELOG.md's '## [Unreleased]' has an entry; a higher version needs its own section.
+# Releases are deferred (Claude Code caches plugins per version): same version passes only with an Unreleased entry.
 version=$(python3 -c 'import json; print(json.load(open("plugins/argani/.claude-plugin/plugin.json"))["version"])')
 last_tag=$(git describe --tags --match 'v*' --abbrev=0 2>/dev/null || true)
 if [ -z "$last_tag" ]; then

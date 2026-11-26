@@ -66,3 +66,13 @@ def test_lower_version_fails(released_repo):
     result = run_version_check(released_repo, "0.9.0", UNRELEASED_ENTRY)
 
     assert result.returncode != 0
+    assert "below 1.0.0" in result.stderr
+
+
+def test_unchanged_plugin_passes(released_repo):
+    git(released_repo, "reset", "-q", "--hard")
+
+    result = run_version_check(released_repo, "1.0.0", UNRELEASED_EMPTY)
+
+    assert result.returncode == 0, result.stderr
+    assert "no plugin change" in result.stdout

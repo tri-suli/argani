@@ -81,6 +81,29 @@ def test_merge_command_question_offers_candidates(make_project):
     assert "mergeCommand" not in propose(make_project("other"))["proposal"]
 
 
+@pytest.mark.parametrize("merge_exit,view_exit,state,expected", [
+    (0, 0, "MERGED", 0),   # scheduled, then merged
+    (1, 0, "MERGED", 0),   # scheduling refused because it is already merged
+    (1, 0, "OPEN", 1),     # scheduling failed and it is not merged
+    (0, 1, "", 1),         # the state query fails (auth, network)
+    (0, 0, "CLOSED", 1),
+])
+def test_the_github_merge_candidate_exits_by_the_real_outcome(make_project, tmp_path, merge_exit, view_exit, state, expected):
+    stub = tmp_path / "bin"
+    stub.mkdir()
+    (stub / "gh").write_text(f'#!/bin/sh\ncase "$2" in merge) exit {merge_exit};; *) echo "{state}"; exit {view_exit};; esac\n')
+    (stub / "gh").chmod(0o755)
+    command = argani_config.merge_command_for(
+        {"mergeCommand": question(propose(make_project()), "mergeCommand")["candidates"][0]}, "https://x.test/pr/1")
+    environment = {"PATH": f"{stub}:/usr/bin:/bin"}
+    assert subprocess.run(["bash", "-c", command], env=environment, timeout=20).returncode == expected
+
+
+def test_every_merge_candidate_is_valid_shell(make_project):
+    for candidate in question(propose(make_project()), "mergeCommand")["candidates"]:
+        assert subprocess.run(["bash", "-n", "-c", candidate]).returncode == 0
+
+
 def test_the_diff_command_is_always_asked(make_project):
     item = question(propose(make_project()), "diffCommand")
     assert item["candidates"] == ["git diff origin/main...HEAD", "git diff origin/main"]

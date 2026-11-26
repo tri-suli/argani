@@ -25,7 +25,7 @@ def test_defaults_outside_every_project(tmp_path):
 def test_defaults_carry_no_git_keys(tmp_path):
     removed = {"defaultBranch", "baseBranch", "protectedBranches", "branchPattern", "branchTypes",
                "baseBranchByType", "branchNumberCommand", "worktreePath", "worktreeCommand", "mergePolicy",
-               "mergeCommand", "commitTrailers", "commitSkill", "currentBranch", "toplevel"}
+               "commitTrailers", "commitSkill", "currentBranch", "toplevel"}
     assert not removed & set(argani_config.load_config(tmp_path))
 
 
@@ -134,6 +134,35 @@ def test_mr_command_for_keeps_a_path_with_a_space_as_one_argument():
     command = argani_config.mr_command_for(config, {"bodyFile": "/my home/mr-body.md", "title": "Add x"})
     assert shlex.split(command) == ["tool", "--body-file", "/my home/mr-body.md", "--title", "Add x"]
     assert argani_config.mr_command_for({"mrCommand": None}, {"title": "x"}) is None
+
+
+def test_merge_command_fills_url_quoted():
+    config = {"mergeCommand": "gh pr merge {url} --squash"}
+    command = argani_config.merge_command_for(config, "https://x.test/pr/1?a=b c")
+    assert shlex.split(command) == ["gh", "pr", "merge", "https://x.test/pr/1?a=b c", "--squash"]
+    assert argani_config.merge_command_for({"mergeCommand": None}, "u") is None
+
+
+@pytest.mark.parametrize("command", ["merge {title}", "merge {url} {bodyFile}"])
+def test_merge_command_rejects_other_placeholders(command):
+    with pytest.raises(ValueError, match="placeholders are {url}"):
+        argani_config._merge_command(command)
+
+
+@pytest.mark.parametrize("command", ["merge '{url}'", 'merge "{url}"'])
+def test_merge_command_rejects_quoted_placeholder(command):
+    with pytest.raises(ValueError, match="without quotes"):
+        argani_config._merge_command(command)
+
+
+def test_merge_command_is_not_ignored(make_project):
+    config = argani_config.load_config(make_project("repo", {"mergeCommand": "gh pr merge {url}"}))
+    assert config["mergeCommand"] == "gh pr merge {url}" and config["ignoredKeys"] == []
+
+
+def test_intake_agent_has_a_default_model(tmp_path):
+    assert argani_config.load_config(tmp_path)["agentModels"]["intake"] == "opus"
+    assert "intake" in argani_config.AGENTS
 
 
 def test_reviewer_paths_must_name_listed_reviewers():

@@ -659,6 +659,7 @@ def test_intent_draft_with_questions_needs_human(job):
 
 def test_intent_questions_answered_go_back_to_intake(job):
     job.write("intent.md", INTENT.format(status="draft") + QUESTIONS)
+    set_age(job.path / "intent.md", 1000)
     answer(job, "intake-question", job.state()["question_id"], "Postgres, eu-west")
     state = job.state()
     assert (state["stage"], state["answered"], state["answer"]) == ("needs-intake", True, "Postgres, eu-west")
@@ -682,6 +683,7 @@ def test_spec_draft_with_questions_needs_human_then_answered(job):
     job.write("spec.md", SPEC.format(status="draft") + QUESTIONS)
     state = job.state()
     assert (state["stage"], state["reason"]) == ("needs-human", "spec-question")
+    set_age(job.path / "spec.md", 1000)
     answer(job, "spec-question", state["question_id"], "use postgres")
     state = job.state()
     assert (state["stage"], state["answered"], state["answer"]) == ("needs-spec", True, "use postgres")
@@ -817,7 +819,9 @@ NOW = datetime(2026, 11, 26, 10, 0, tzinfo=timezone.utc)
 def test_manual_fail_without_round_line_ends_in_the_builder(job):
     at_approval(job, f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
     answer(job, "manual-verification", job.state()["question_id"], "FAIL button is broken")
+    set_age(job.path / "decision.md", 1000)
     job.write("review/round-2/review-human.md", f"CHANGES button is broken\n\n{REVIEW_END}\n")
+    set_age(job.path / "review/round-2/review-human.md", 2000)
     state = job.state()
     assert state["decision"]["stale"] is True
     assert (state["stage"], state["rework_from"]) == ("needs-rework", 2)
@@ -827,7 +831,9 @@ def test_escalate_without_round_line_ends_in_the_builder(job):
     at_approval(job, "ESCALATE the scope is unclear\n\n=== END OF DECISION ===\n")
     answer(job, "review-escalate", job.state()["question_id"], "narrow it down")
     assert job.state()["stage"] == "needs-rework"
+    set_age(job.path / "decision.md", 1000)
     job.write("review/round-2/review-human.md", f"CHANGES narrow it down\n\n{REVIEW_END}\n")
+    set_age(job.path / "review/round-2/review-human.md", 2000)
     state = job.state()
     assert (state["stage"], state["rework_from"]) == ("needs-rework", 2)
 

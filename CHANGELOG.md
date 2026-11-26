@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - The board columns are Intake, Spec, Build, Review, Approve, Needs human and Done, in `board.md` and `board.json` (a schema change for consumers); a multi-line question is shown on one line in `board.md`.
 - The stage `escalate` is replaced by `needs-human` with the reason `review-escalate`.
 - An `mr.md` without a `Merged:` line is `needs-merge` (or Needs human without `mergeCommand`); without `mrCommand` the task waits in Needs human with the generated description (`mr-body.md`).
-- `/argani:factory <slug>` approves valid intent and spec drafts itself and rewrites invalid ones; in a description, `in <dir>` is recognised only at the start (`/argani:factory in <dir> <description>`).
+- `/argani:factory <slug>` approves valid intent and spec drafts itself and rewrites invalid ones; in a description, `in <dir>` is recognised only at the start (`/argani:factory in <dir> <description>`); `<slug> in <dir>` is the slug form only when the task folder exists, so "Sign in fails on Safari" stays a description.
 - Review rounds above 2 need a recorded human answer; the approver writes `Round: N` in `decision.md`.
 - `scripts/check.sh` accepts unreleased plugin changes when `[Unreleased]` has an entry.
 - The office reads the column, question, history and metrics from `board.json`.

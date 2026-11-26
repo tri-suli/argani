@@ -43,7 +43,7 @@ This skill writes only plan.md; it never changes code or documents outside the a
    - Order of work, in steps small enough to commit one by one.
    - Risks and how each is contained.
    - Proof: which check proves each AC from the spec. Every AC must appear.
-5. Run `artifact_check.py plan <file>`; fix until `VALID`.
+5. Run `artifact_check.py plan <file>`; fix until `VALID`. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 6. Tell the user that in manual mode the plan is the gate before any code or document changes:
    work starts only after the human has read plan.md and run `/argani:plan approve <slug>`.
 
@@ -56,5 +56,5 @@ This skill writes only plan.md; it never changes code or documents outside the a
 3. Run `date +%F`, then replace the Status line with
    `Status: approved by <name> on <YYYY-MM-DD>`.
 4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`
-   and show the violations.
+   and show the violations. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 5. Say that work may now start.

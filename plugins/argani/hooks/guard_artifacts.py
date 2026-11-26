@@ -2,7 +2,8 @@
 """PreToolUse(Write|Edit) guard for protected paths and argani artifacts.
 
 Rules (see docs/review-protocol.md): protectedPaths are denied for everyone; review and decision
-files need a verdict on line 1; round 3+ is refused; each argani agent writes only its own files.
+files need a verdict on line 1; a round above 2 is refused unless a human answer grants it (human_gate); each argani agent writes only its own files;
+answers.md, blocked.md and history.jsonl belong to the orchestrator (the main session).
 change.diff is written by capture_change.py alone (through Bash, which this guard does not see), so Write
 and Edit of it are denied to every caller, the main session included.
 
@@ -21,7 +22,9 @@ from pathlib import Path
 from hook_common import emit, emit_allow, run_guard, argani_config
 
 import argani_home
+import human_gate
 import project_registry
+import task_history
 
 REVIEW_VERDICT = re.compile(r"^(PASS|CHANGES)(\s|$)")
 DECISION_VERDICT = re.compile(r"^(APPROVE|ESCALATE)(\s|$)")
@@ -29,12 +32,14 @@ CHANGE_FILE = re.compile(r"^review/round-\d+/change\.diff$")
 REVIEW_FILE = re.compile(r"^review/round-(\d+)/(review-[^/]+\.md)$")
 ROUND_DIR = re.compile(r"^review/round-(\d+)/")
 MAX_ROUNDS = 2
-BUILDER_FORBIDDEN = {"intent.md", "spec.md", "decision.md", "mr.md"}
+BUILDER_FORBIDDEN = {"intent.md", "spec.md", "decision.md", "mr.md", human_gate.ANSWERS_FILE,
+                     human_gate.BLOCKED_FILE, task_history.HISTORY_FILE}
 # Agents that may write exactly one kind of file in the whole project: (pattern, description).
 SOLE_FILE_WRITERS = {
     "argani:reviewer": (REVIEW_FILE, "review/round-N/review-<checklist>.md"),
     "argani:approver": (re.compile(r"^decision\.md$"), "decision.md"),
     "argani:spec-writer": (re.compile(r"^spec\.md$"), "spec.md"),
+    "argani:intake": (re.compile(r"^intent\.md$"), "intent.md"),
 }
 
 
@@ -65,7 +70,7 @@ def writer_violation(agent_type, inner):
     """
     if agent_type == "argani:builder":
         if inner in BUILDER_FORBIDDEN or inner.startswith("review/"):
-            return "the builder must not write intent.md, spec.md, review/**, decision.md or mr.md"
+            return "the builder must not write intent.md, spec.md, review/**, decision.md, mr.md, answers.md, blocked.md or history.jsonl"
         return None
     if agent_type in SOLE_FILE_WRITERS:
         pattern, description = SOLE_FILE_WRITERS[agent_type]
@@ -83,7 +88,14 @@ def artifact_verdict(inner):
     return None, None
 
 
-def check_write(payload, inner, path, unknown_content_denies=False):
+def round_allowed(job_dir, number):
+    """Outside a task folder (job_dir None) the fixed limit applies."""
+    if job_dir is None:
+        return number <= MAX_ROUNDS
+    return human_gate.extra_round_allowed(job_dir, number)
+
+
+def check_write(payload, inner, path, unknown_content_denies=False, job_dir=None):
     """Return a deny reason for a write; inner is the path below the task folder."""
     if CHANGE_FILE.match(inner):
         return ("argani guard: change.diff is the change captured for the round; only "
@@ -92,9 +104,9 @@ def check_write(payload, inner, path, unknown_content_denies=False):
     if reason:
         return f"argani guard: one writer per file: {reason}. Write only your own artifact."
     round_match = ROUND_DIR.match(inner)
-    if round_match and int(round_match.group(1)) > MAX_ROUNDS:
-        return (f"argani guard: round {round_match.group(1)} refused. Two review rounds maximum; "
-                "escalate to a human instead of starting another round.")
+    if round_match and not round_allowed(job_dir, int(round_match.group(1))):
+        return (f"argani guard: round {round_match.group(1)} refused. Rounds above {MAX_ROUNDS} need a human "
+                "answer (/argani:factory answer); escalate instead of starting another round.")
     verdict, expected = artifact_verdict(inner)
     if verdict is None:
         return None
@@ -166,7 +178,8 @@ def guard_hub_path(payload, path, sole_writer):
         if sole_writer:
             deny_sole_writer(payload, sole_writer)
         return True
-    reason = check_write(payload, "/".join(parts[2:]), path, unknown_content_denies=True)
+    reason = check_write(payload, "/".join(parts[2:]), path, unknown_content_denies=True,
+                         job_dir=path.parents[len(parts) - 3])
     if reason:
         emit(payload, "deny", reason)
     else:

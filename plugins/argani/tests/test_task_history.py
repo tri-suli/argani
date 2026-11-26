@@ -89,3 +89,20 @@ INTENT = """# Title
 
 def test_metrics_counts_manual_criteria():
     assert task_history.metrics([], INTENT, START)["manualAcceptanceCriteria"] == 2
+
+
+def test_unparseable_timestamp_line_is_skipped(tmp_path, capsys):
+    bad = json.dumps({"ts": "yesterday", "stage": "s", "column": "Spec"})
+    (tmp_path / "history.jsonl").write_text(bad + "\n" + json.dumps(entry(0, "Spec")) + "\n", encoding="utf-8")
+    history = task_history.read_history(tmp_path)
+    assert len(history) == 1
+    assert "skipped 1 malformed lines" in capsys.readouterr().err
+    task_history.durations(history, START)
+
+
+def test_missing_reason_compares_as_none_and_is_written_as_null(tmp_path):
+    (tmp_path / "history.jsonl").write_text(
+        json.dumps({"ts": "2026-11-26T10:00:00Z", "stage": "s", "column": "Spec"}) + "\n", encoding="utf-8")
+    assert not task_history.record(tmp_path, "s", "Spec", None, START)
+    assert task_history.record(tmp_path, "s", "Build", None, START)
+    assert json.loads((tmp_path / "history.jsonl").read_text().splitlines()[-1])["reason"] is None

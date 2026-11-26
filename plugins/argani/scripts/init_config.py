@@ -128,6 +128,20 @@ MR_COMMAND_CANDIDATES = [
     "gh pr create --title {title} --body-file {bodyFile}",
     "glab mr create --title {title} --description-file {bodyFile}",
 ]
+# Each returns only when merged and exits 0 when already merged. gh pr merge without --auto merges at once, so
+# the checks are awaited first; glab mr merge --auto-merge=false merges at once and fails while the pipeline
+# must still succeed (glab has no wait-by-URL command), so that form is the conservative one.
+MERGE_COMMAND_CANDIDATES = [
+    'test "$(gh pr view {url} --json state --jq .state)" = MERGED '
+    "|| { gh pr checks {url} --watch --required && gh pr merge {url} --squash; }",
+    'test "$(glab mr view {url} --output json --jq .state)" = merged '
+    "|| glab mr merge {url} --auto-merge=false --squash --yes",
+]
+MERGE_COMMAND_ASK = ("Which command merges the merge request, so the factory can finish on its own? argani runs it "
+                     "after the merge request exists, with {url} (the merge request URL, shell-quoted by argani; "
+                     "write it without quotes). Exit 0 must mean merged, not merely that auto-merge is scheduled; "
+                     "the command must be safe to run again (an already merged request exits 0). The factory runs "
+                     "it in the background. Leave it out to merge by hand: the task then waits in Needs human.")
 DIFF_COMMAND_CANDIDATES = ["git diff origin/main...HEAD", "git diff origin/main"]
 DIFF_COMMAND_NOTE = ("`git diff origin/main...HEAD` shows committed work only; `git diff origin/main` shows the "
                      "working tree but not untracked files. Pick the one that matches how the builder keeps its "
@@ -168,6 +182,7 @@ def propose(start_dir="."):
                       "ask": "Should the factory open the merge request itself? Without mrCommand it only "
                              "prints the description. {title} is the shell-quoted merge request title and "
                              "{bodyFile} the path of the generated description."})
+    questions.append({"key": "mergeCommand", "candidates": MERGE_COMMAND_CANDIDATES, "ask": MERGE_COMMAND_ASK})
 
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)

@@ -8,8 +8,9 @@ PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 GIT_WORD = re.compile(r"\bgit\b", re.IGNORECASE)
 PROMPT_FILES = sorted([*(PLUGIN_ROOT / "skills").glob("*/SKILL.md"), *(PLUGIN_ROOT / "agents").glob("*.md"),
                        *(PLUGIN_ROOT / "templates").glob("*.md"), *(PLUGIN_ROOT / "checklists").glob("*.md")])
-# init may name git inside the example candidates for diffCommand.
-ALLOWED = {"skills/init/SKILL.md": ["`git diff origin/main...HEAD`", "`git diff origin/main`", "`git add -N`"]}
+INIT_GIT_COMMANDS = ["Bash(git remote -v)", "Bash(git branch -r)", "Bash(git tag --list)",
+                     "Bash(git log --merges -n 20 --format=%s)"]
+# init scans the project's git workflow, so its body may say git; every other prompt file may not.
 REMOVED_WORDS = ("worktree_command.py", "merge_command.py", "next_number.py", "mergePolicy",
                  "commitSkill", "commitTrailers", "branchPattern", "baseBranch", "protectedBranches", "Checkout:",
                  "on_job_branch", "record_dir", "records_enabled")
@@ -22,8 +23,8 @@ def relative(path):
 @pytest.mark.parametrize("path", PROMPT_FILES, ids=relative)
 def test_the_git_word_appears_only_in_allowed_examples(path):
     text = path.read_text(encoding="utf-8")
-    for allowed in ALLOWED.get(relative(path), []):
-        text = text.replace(allowed, "")
+    if relative(path) == "skills/init/SKILL.md":
+        return
     assert not GIT_WORD.search(text), relative(path)
 
 
@@ -36,7 +37,14 @@ def test_removed_settings_and_scripts_are_not_mentioned(path):
 @pytest.mark.parametrize("path", sorted((PLUGIN_ROOT / "skills").glob("*/SKILL.md")), ids=relative)
 def test_no_skill_allows_a_git_command(path):
     front_matter = path.read_text(encoding="utf-8").split("---")[1]
+    if relative(path) == "skills/init/SKILL.md":
+        return  # checked by test_init_may_run_only_read_only_git
     assert "Bash(git" not in front_matter
+
+
+def test_init_may_run_only_read_only_git():
+    front_matter = (PLUGIN_ROOT / "skills" / "init" / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
+    assert re.findall(r"Bash\(git[^)]*\)", front_matter) == INIT_GIT_COMMANDS
 
 
 def test_the_hooks_manifest_has_only_the_artifact_guard():

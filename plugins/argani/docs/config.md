@@ -16,8 +16,8 @@ a note on stderr naming them. A `mergeCommand` is also ignored as a 1.x leftover
 
 Every key is optional and has a default, except that factory mode and the review need
 `verifyCommand` and `diffCommand`. `/argani:init` proposes the config from what the directory
-already uses (test command), asks for the rest, validates it and registers the project; it carries
-over the keys of an old `.claude/argani.json` and never overwrites an existing project.
+already uses (test command) and scans the Git workflow of the repository read-only (CLAUDE.md, CONTRIBUTING, templates, CI, four read-only git commands), interviews only the gaps, validates it and registers the project; it carries
+over the keys of an old `.claude/argani.json` and never overwrites an existing project. On a registered project it offers update mode, which replaces only the approved keys (`register_project.py <name> <dir> --update`; `name` and `paths` are never changed).
 
 ## Location
 

@@ -249,3 +249,32 @@ def test_a_directory_whose_name_holds_a_pattern_character_is_refused(make_projec
     code, out = register(odd)
     assert code == 1 and "pattern character" in out
     assert not (hub / "projects" / "shop").exists()
+
+
+def update(directory, config, name="shop"):
+    return run_script("register_project.py", name, str(directory), "--update", stdin=json.dumps(config))
+
+
+def test_update_replaces_only_given_keys(make_project, hub):
+    directory = make_project("one")
+    register(directory, config={"verifyCommand": "make test", "diffCommand": "git diff HEAD"})
+    code, out = update(directory, {"diffCommand": "git diff origin/main", "mergeCommand": "gh pr merge {url}"})
+    assert code == 0, out
+    expected = {"name": "shop", "paths": [str(directory.resolve())], "verifyCommand": "make test",
+                "diffCommand": "git diff origin/main", "mergeCommand": "gh pr merge {url}"}
+    assert project_json(hub) == expected and json.loads(out) == expected
+
+
+def test_update_refuses_identity_unknown_and_invalid_keys(make_project, hub):
+    directory = make_project("one")
+    register(directory, config={"verifyCommand": "make test"})
+    before = project_json(hub)
+    for config in ({"name": "x"}, {"paths": []}, {"nope": 1}, {"mergeCommand": "gh pr merge {branch}"}):
+        code, out = update(directory, config)
+        assert code == 1 and out.strip(), config
+    assert project_json(hub) == before
+
+
+def test_update_requires_an_existing_project(make_project):
+    code, out = update(make_project("one"), {"verifyCommand": "x"})
+    assert code == 1 and "does not exist" in out

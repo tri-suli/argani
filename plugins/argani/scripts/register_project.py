@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Register a directory as a project on the argani board.
 
-Usage: python3 register_project.py <name> [dir] < config.json
+Usage: python3 register_project.py <name> [dir] [--update] < config.json
 
 stdin is a JSON object with the argani config keys (may be {}). Creates the argani home when
 missing and writes <home>/projects/<name>/project.json with the identity keys and the config.
@@ -9,6 +9,8 @@ The directory (default: the current one) may be any directory; its real path is 
 When that project already exists, the real path is appended to its paths (a project may span
 several directories); the config keys stay as they are. Never writes into the directory.
 Only real directories are registered; a pattern in `paths` (for nested checkouts) is added by hand.
+With --update the project must exist: only the config keys given on stdin are replaced (same validation
+as a new registration); name and paths are never changed.
 Prints the resulting project.json; exit 1 with one message on any error.
 """
 import json
@@ -148,12 +150,33 @@ def register(name, start_dir, raw_config):
     return entry
 
 
+def update(name, raw_config):
+    """Replace the given config keys of the existing project <name> and return its content."""
+    file = project_registry.project_file(argani_home.home_path(), name)
+    if not project_registry.PROJECT_NAME.match(name) or not file.exists():
+        raise RegistrationError(f"the project {name} does not exist")
+    config = _validated_config(raw_config)
+    entry = project_registry.read_project(file)
+    entry.pop("remotes", None)
+    entry.update(config)
+    try:
+        argani_config.validate_overrides({key: value for key, value in entry.items() if key in argani_config.DEFAULTS})
+    except ValueError as error:
+        raise RegistrationError(str(error)) from error
+    _replace(file, entry)
+    return entry
+
+
 def main(argv):
-    if len(argv) < 2:
-        print("Usage: register_project.py <name> [dir] < config.json")
+    arguments = [argument for argument in argv[1:] if argument != "--update"]
+    if not arguments:
+        print("Usage: register_project.py <name> [dir] [--update] < config.json")
         return 1
     try:
-        entry = register(argv[1], argv[2] if len(argv) > 2 else ".", sys.stdin.read())
+        if len(arguments) < len(argv) - 1:
+            entry = update(arguments[0], sys.stdin.read())
+        else:
+            entry = register(arguments[0], arguments[1] if len(arguments) > 1 else ".", sys.stdin.read())
     except (RegistrationError, project_registry.ProjectError, argani_home.HomeError, OSError) as error:
         print(error)
         return 1

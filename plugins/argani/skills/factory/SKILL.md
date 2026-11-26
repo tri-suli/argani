@@ -36,20 +36,22 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 
 ## Step 1
 
-1. Parse `$ARGUMENTS`. `in <dir>` is recognised only in these places: at the very start of a description
-   (`in <dir> <description>`: words 1 and 2, the rest is the description, so a sentence such as "Fix typo in
-   README" is never cut), words 2 and 3 of `<slug> in <dir>`, and words 3 and 4 of
-   `answer|rework <slug> in <dir> <text>`. Everything after that is the answer or note, whatever words it
-   contains. `<dir>` is a single token without spaces (a trailing `,` or `.` is dropped, since users type
-   `in <dir>, <note>`): absolute, or relative
-   to the session directory (`~` is expanded by the shell). It is **the working directory** and is
-   `<dir>` below; without it `<dir>` is `.`, the directory the session runs in. Every command and
-   agent below uses it. After the optional `in <dir>`:
+1. Parse `$ARGUMENTS` (words split on spaces); check in this order, the first match wins:
    - empty: **stop** and print the usage `/argani:factory [in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>`;
-   - first word `answer`: `answer <slug> <answer>`;
-   - first word `rework`: `rework <slug> <note>`;
+   - first word `answer` or `rework`: `answer <slug> [in <dir>] <text>` / `rework <slug> [in <dir>] <text>`; words 3 and 4 are
+     `in <dir>` when word 3 is `in`; everything after is the answer or note, whatever words it contains;
+   - first word `in`: `in <dir> <description>`; words 1 and 2 are the working directory, the rest is the description
+     (so "Fix typo in README" is never cut). A description takes `in <dir>` only here, never later;
    - exactly one word: `<slug>`;
-   - anything else (more than one word): `<description>` of new work; `<slug>` is known after step 2.
+   - exactly three words with `in` as word 2: `<slug> in <dir>` ONLY when the task folder `<tasksDir>/<slug>/` exists
+     (`tasksDir` from `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>` of the `<dir>` this form names; if that
+     fails, **stop** and show its error). If the folder does not exist, the whole argument string is a description,
+     so "Sign in fails" is a description;
+   - anything else: the whole argument string is a `<description>` of new work; `<slug>` is known after step 2.
+   `<dir>` is a single token without spaces (a trailing `,` or `.` is dropped, since users type `in <dir>, <note>`): absolute,
+   or relative to the session directory (`~` is expanded by the shell). It is **the working directory** and is
+   `<dir>` below; without it `<dir>` is `.`, the directory the session runs in. Every command and
+   agent below uses it.
    Free text (a description, answer or note) is always passed to `factory_actions.py` as ONE shell-quoted argument.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>`. If it exits non-zero (`<dir>` is not a directory or the
    config is invalid), **stop** and show its error. If `verifyCommand`, `diffCommand` or `reviewers` is empty, **stop**, name the project's

@@ -436,7 +436,7 @@ def test_intake_may_write_only_intent(hub, demo_project):
     assert decision_of(hub_write(hub, "tasks/login/answers.md", agent_type="argani:intake")) == "deny"
 
 
-@pytest.mark.parametrize("name", ["answers.md", "blocked.md", "history.jsonl"])
+@pytest.mark.parametrize("name", ["answers.md", "blocked.md", "description.md", "history.jsonl"])
 def test_builder_may_not_write_orchestrator_files(hub, demo_project, name):
     assert decision_of(hub_write(hub, f"tasks/login/{name}", agent_type="argani:builder")) == "deny"
     assert decision_of(hub_write(hub, f"tasks/login/{name}")) == "allow"

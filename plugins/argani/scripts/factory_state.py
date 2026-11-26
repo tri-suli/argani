@@ -227,9 +227,9 @@ def review_plan(rounds, reviewers, build_text, job_dir):
 
 def outcome(stage, next_step, review_round=None, rework_from=None, **gate):
     """One stage decision; gate holds the human-gate fields (reason, question, question_id, answered,
-    answer, human_note_round)."""
+    answer, answer_word, human_note_round)."""
     return {"stage": stage, "next": next_step, "review_round": review_round, "rework_from": rework_from,
-            "reason": None, "question": None, "question_id": None, "answered": False, "answer": None,
+            "reason": None, "question": None, "question_id": None, "answered": False, "answer": None, "answer_word": None,
             "human_note_round": None, **gate}
 
 
@@ -245,7 +245,7 @@ def rework_with_human_note(reason, question, qid, entry, number):
         f"Write review/round-{number}/review-human.md from the answer (line 1 `CHANGES <answer>`, last line "
         f"{CLOSING_REVIEW}), then spawn a NEW argani:builder to address it.",
         number, number, reason=reason, question=question, question_id=qid, answered=True,
-        answer=entry["note"], human_note_round=number)
+        answer=entry["note"], answer_word=entry["word"], human_note_round=number)
 
 
 def mtime_ns(path):
@@ -276,7 +276,7 @@ def document_stage(document, document_mtime, questions, gate, names):
     entry = human_gate.answer_for(gate["answers"], qid)
     if entry and document_mtime <= gate["answers_mtime"]:
         return outcome(write_stage, f"{write_next} Answer from the human: see `answer`.", reason=reason,
-                       question=text, question_id=qid, answered=True, answer=entry["note"])
+                       question=text, question_id=qid, answered=True, answer=entry["note"], answer_word=entry["word"])
     waiting = needs_human(gate, reason, text, qid, ANSWER_NOTE + " | CANCEL")
     if entry:  # the document is newer than the answer yet still asks it
         waiting["next"] = ("The agent rewrote the document but kept the questions the human already answered. "
@@ -316,7 +316,8 @@ def merge_request_stage(gate, config, answered):
     entry = human_gate.answer_for(gate["answers"], qid)
     if entry and URL_PATTERN.search(entry["note"]):
         return outcome("needs-mr", "Write mr.md from the answer (its URL on line 1, then the branch), then stop.",
-                       reason="mr-missing", question_id=qid, answered=True, answer=entry["note"])
+                       reason="mr-missing", question_id=qid, answered=True, answer=entry["note"],
+                       answer_word=entry["word"])
     if blocked or not config["mrCommand"]:
         question = (blocked or {}).get("summary") or MR_QUESTION
         return needs_human(gate, "mr-missing", question, qid, "<merge request url> | CANCEL")
@@ -331,10 +332,10 @@ def merge_stage(gate, config):
     word = entry["word"] if entry else None
     if word == "MERGED":
         return outcome("needs-merge", "Append `Merged: <today>` to mr.md: the human merged it.",
-                       reason="merge-missing", question_id=qid, answered=True)
+                       reason="merge-missing", question_id=qid, answered=True, answer_word=word)
     if word == "RETRY" and config["mergeCommand"]:
         return outcome("needs-merge", "Run mergeCommand again; on exit 0 append `Merged: <today>` to mr.md.",
-                       reason="merge-missing", question_id=qid, answered=True)
+                       reason="merge-missing", question_id=qid, answered=True, answer_word=word)
     if blocked or not config["mergeCommand"]:
         question = (blocked or {}).get("summary") or MERGE_QUESTION
         return needs_human(gate, "merge-missing", question, qid, "MERGED | RETRY | CANCEL")
@@ -505,6 +506,7 @@ def build_state(slug, start_dir=".", config=None):
         "question_id": result["question_id"],
         "answered": result["answered"],
         "answer": result["answer"],
+        "answer_word": result["answer_word"],
         "human_note_round": result["human_note_round"],
         "column": board_columns.column(result["stage"], result["answered"]),
         "manual_criteria": gate["criteria"],

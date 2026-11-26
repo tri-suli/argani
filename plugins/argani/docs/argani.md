@@ -49,6 +49,7 @@ review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === 
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
 mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist, task folder)
 mr.md         merge request URL, written once the MR exists; `Merged: <YYYY-MM-DD>` is appended once it is merged (by the orchestrator after `mergeCommand`, or by the human in manual mode)
+description.md the one-sentence description a factory task started from; written once by `factory_actions.py new`, read by the intake agent
 answers.md    the human's answers, `## <reason> <question-id> <YYYY-MM-DD>` plus the reply; written by the orchestrator (`/argani:factory answer`)
 blocked.md    line 1 `<reason> <id>` (`agent-failed`, `mr-missing`, `merge-missing`), then a summary; written by the orchestrator when a seat or command fails
 history.jsonl one line per change of (stage, column, reason); appended by `factory_state.py --record`, `factory_actions.py` and `board.py --write`

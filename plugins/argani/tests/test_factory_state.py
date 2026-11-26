@@ -639,6 +639,7 @@ def test_merged_answer_makes_needs_merge_answered(job):
     answer(job, "merge-missing", human_gate.question_id("merge-missing", "", None), "MERGED done by hand")
     state = finished_job(job, MR_URL + "\n")
     assert (state["stage"], state["answered"], state["column"]) == ("needs-merge", True, "Approve")
+    assert state["answer_word"] == "MERGED"
 
 
 @pytest.mark.parametrize("command, stage", [("tool merge {url}", "needs-merge"), (None, "needs-human")])
@@ -646,7 +647,9 @@ def test_retry_answer_runs_the_merge_command_only_when_configured(job, command, 
     if command:
         job.set_config(mergeCommand=command)
     answer(job, "merge-missing", human_gate.question_id("merge-missing", "", None), "RETRY")
-    assert finished_job(job, MR_URL + "\n")["stage"] == stage
+    state = finished_job(job, MR_URL + "\n")
+    assert state["stage"] == stage
+    assert state["answer_word"] == ("RETRY" if command else None)
 
 
 def test_intent_draft_with_questions_needs_human(job):
@@ -910,3 +913,28 @@ def test_a_round_less_decision_after_a_human_rework_note_without_decision_is_cur
     set_age(job.path / "decision.md", 2000)
     state = job.state()
     assert (state["decision"]["stale"], state["stage"]) == (False, "needs-mr")
+
+
+def test_answer_word_is_none_without_an_answer_and_after_a_manual_pass(job):
+    assert job.state()["answer_word"] is None
+    job.intent()
+    job.spec()
+    job.build()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    job.write("decision.md", "APPROVE ok\n\nRound: 1\n\n## Human verification before merge\n- [ ] AC-1: check it\n\n=== END OF DECISION ===\n")
+    job.set_config(mrCommand="echo mr")
+    criteria = job.state()["manual_criteria"]
+    answer(job, "manual-verification", human_gate.question_id("manual-verification", "\n".join(criteria), 1), "PASS")
+    state = job.state()
+    assert (state["stage"], state["answered"], state["answer"], state["answer_word"]) == ("needs-mr", True, None, None)
+
+
+def test_answer_word_is_the_fail_word_of_a_manual_rework(job):
+    job.intent()
+    job.spec()
+    job.build()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    job.write("decision.md", "APPROVE ok\n\nRound: 1\n\n## Human verification before merge\n- [ ] AC-1: check it\n\n=== END OF DECISION ===\n")
+    criteria = job.state()["manual_criteria"]
+    answer(job, "manual-verification", human_gate.question_id("manual-verification", "\n".join(criteria), 1), "FAIL broken")
+    assert job.state()["answer_word"] == "FAIL"

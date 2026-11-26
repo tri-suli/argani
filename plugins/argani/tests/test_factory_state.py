@@ -868,3 +868,39 @@ def test_a_spec_rewrite_that_keeps_answered_questions_needs_the_human_again(job)
     answers_time = (job.path / "answers.md").stat().st_mtime
     os.utime(job.path / "spec.md", (answers_time + 10, answers_time + 10))
     assert job.state()["stage"] == "needs-human"
+
+
+def set_age(path, seconds_after_epoch):
+    os.utime(path, (seconds_after_epoch, seconds_after_epoch))
+
+
+def test_a_fresh_round_less_decision_after_a_manual_fail_rework_is_current(job):
+    job.set_config(mrCommand="tool --title {title}")
+    at_approval(job, f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    answer(job, "manual-verification", job.state()["question_id"], "FAIL button is broken")
+    set_age(job.path / "decision.md", 1000)
+    job.write("review/round-2/review-human.md", f"CHANGES button is broken\n\n{REVIEW_END}\n")
+    set_age(job.path / "review/round-2/review-human.md", 2000)
+    assert job.state()["decision"]["stale"] is True
+    job.build(BUILD_DONE.replace("ok", "ok\n\n## Rework after round 2\n- fixed"))
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    job.write("decision.md", "APPROVE fixed now\n\n=== END OF DECISION ===\n")
+    set_age(job.path / "decision.md", 3000)
+    state = job.state()
+    assert state["decision"]["stale"] is False
+    assert state["stage"] == "needs-mr"
+
+
+def test_a_round_less_decision_after_a_human_rework_note_without_decision_is_current(job):
+    job.set_config(mrCommand="tool --title {title}")
+    job.intent()
+    job.spec()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    job.write("review/round-2/review-human.md", f"CHANGES redo it\n\n{REVIEW_END}\n")
+    job.build(BUILD_DONE.replace("ok", "ok\n\n## Rework after round 2\n- done"))
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    job.decision("APPROVE")
+    set_age(job.path / "review/round-2/review-human.md", 1000)
+    set_age(job.path / "decision.md", 2000)
+    state = job.state()
+    assert (state["decision"]["stale"], state["stage"]) == (False, "needs-mr")

@@ -1,6 +1,6 @@
 ---
 name: spec-writer
-description: Writes spec.md from an approved intent.md. Spawn with plugin root, intent path, spec path and config in the prompt. Writes only spec.md.
+description: Writes spec.md from an approved intent.md. Spawn with plugin root, intent path, spec path, config and optionally the answers path in the prompt. Writes only spec.md.
 model: inherit
 tools: Read, Glob, Grep, Write, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 color: blue
@@ -37,10 +37,12 @@ Create the `Spec` file from `<plugin root>/templates/spec.md`, with `Status: dra
   build must prepare for the human (a command to run, an output to inspect).
 - Flagged concerns. Flag conflicting constraints or policies (with each other or with the
   approach); never resolve a conflict silently.
-- Open questions carried forward from the intent, plus new ones.
+- `## Open questions`: carried forward from the intent, plus new ones, that you or the build can
+  resolve from the repository; anything a human must answer goes under `## Questions for human`, never here.
 - `## Questions for human`: only conflicts or unknowns the repository cannot settle; `- None`
-  otherwise. When `Answers` is given, apply the answers for this task's questions and remove the
-  answered questions from the section (a question left in sends the task back to the human).
+  otherwise. When `Answers` is given, read its latest `spec-question` entry (entries are
+  `## <reason> <question-id> <date>` plus a body); it answers every question listed in the section.
+  Apply it and remove the answered questions from the section (a question left in sends the task back to the human).
 
 Then run `python3 <plugin root>/scripts/artifact_check.py spec <Spec path>` and fix the file until
 it reports `VALID`.

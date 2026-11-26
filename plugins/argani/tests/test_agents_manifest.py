@@ -93,7 +93,7 @@ def test_intake_has_exact_tool_set():
 
 def test_approver_writes_the_round_number_on_line_two():
     body = (AGENTS_DIR / "approver.md").read_text(encoding="utf-8")
-    assert "Round: <N>" in body and "Line 2" in body
+    assert "- Line 2: `Round: <N>`" in body
 
 
 def test_intake_drafts_questions_and_removes_answered_ones():

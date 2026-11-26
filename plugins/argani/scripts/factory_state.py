@@ -38,6 +38,7 @@ CRITERION_PATTERN = re.compile(r"^- \[ \] (.+?)\s*$")
 MANUAL_HEADING = "## Human verification before merge"
 RECORD_FLAG = "--record"
 MR_QUESTION = "No merge request exists and mrCommand is not configured (or it failed). Create it by hand."
+MR_BODY_HINT = "Use the generated description in {job_dir}/mr-body.md."
 MERGE_QUESTION = "The merge request is not merged and mergeCommand is not configured (or it failed). Merge it by hand."
 ANSWER_NOTE = "<note>"
 
@@ -315,13 +316,14 @@ def merge_request_stage(gate, config, answered):
     qid = blocked["id"] if blocked else human_gate.question_id("mr-missing", "", None)
     entry = human_gate.answer_for(gate["answers"], qid)
     if entry and URL_PATTERN.search(entry["note"]):
-        return outcome("needs-mr", "Write mr.md from the answer (its URL on line 1, then the branch), then stop.",
+        return outcome("needs-mr", "Write mr.md from the answer (its URL on line 1, then the branch).",
                        reason="mr-missing", question_id=qid, answered=True, answer=entry["note"],
                        answer_word=entry["word"])
-    if blocked or not config["mrCommand"]:
-        question = (blocked or {}).get("summary") or MR_QUESTION
-        return needs_human(gate, "mr-missing", question, qid, "<merge request url> | CANCEL")
-    return outcome("needs-mr", "Create the merge request (mrCommand), write mr.md, then stop. If it fails, write blocked.md "
+    retry = bool(entry) and entry["word"] == "RETRY"
+    if not config["mrCommand"] or (blocked and not retry):
+        question = ((blocked or {}).get("summary") or MR_QUESTION) + " " + MR_BODY_HINT.format(job_dir=gate["job_dir"])
+        return needs_human(gate, "mr-missing", question, qid, "<merge request url> | RETRY | CANCEL")
+    return outcome("needs-mr", "Create the merge request (mrCommand) and write mr.md. If it fails, write blocked.md "
                    "with human_gate.write_blocked (reason mr-missing).", answered=answered)
 
 
@@ -338,7 +340,8 @@ def merge_stage(gate, config):
                        reason="merge-missing", question_id=qid, answered=True, answer_word=word)
     if blocked or not config["mergeCommand"]:
         question = (blocked or {}).get("summary") or MERGE_QUESTION
-        return needs_human(gate, "merge-missing", question, qid, "MERGED | RETRY | CANCEL")
+        words = "MERGED | RETRY | CANCEL" if config["mergeCommand"] else "MERGED | CANCEL"
+        return needs_human(gate, "merge-missing", question, qid, words)
     return outcome("needs-merge", "Run mergeCommand for the url in mr.md; on exit 0 append `Merged: <today>` "
                    "to mr.md, else write blocked.md with human_gate.write_blocked (reason merge-missing).")
 
@@ -395,12 +398,12 @@ def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, m
     stage = agent_failed_stage(gate)
     stage = stage or document_stage(intent, gate["intent_mtime"], gate["intent_questions"], gate, (
         "needs-intake", "needs-intent-approval", "intake-question",
-        "Spawn argani:intake to write (or rewrite) intent.md, then stop for approval.",
-        f"Stop: intent is draft. Human runs /argani:intent approve {slug}, then /argani:factory {slug}."))
+        "Spawn argani:intake to write (or rewrite) intent.md.",
+        f"Run factory_actions.py approve {slug} <dir> intent."))
     stage = stage or document_stage(spec, gate["spec_mtime"], gate["spec_questions"], gate, (
         "needs-spec", "needs-spec-approval", "spec-question",
-        "Spawn argani:spec-writer, then stop for spec approval.",
-        f"Stop: spec is draft. Human runs /argani:spec approve {slug} then /argani:factory {slug}."))
+        "Spawn argani:spec-writer to write spec.md.",
+        f"Run factory_actions.py approve {slug} <dir> spec."))
     if stage:
         return stage
     number = rounds[-1]["n"] if rounds else 0
@@ -455,6 +458,7 @@ def build_state(slug, start_dir=".", config=None):
     answers_file = job_dir / human_gate.ANSWERS_FILE
     gate = {
         "slug": slug,
+        "job_dir": str(job_dir),
         "answers": human_gate.parse_answers(read_text(answers_file)) if answers_file.is_file() else [],
         "blocked": human_gate.read_blocked(job_dir),
         "answers_mtime": mtime_ns(answers_file),

@@ -1,3 +1,5 @@
+import datetime
+
 import human_gate
 
 ANSWERS = """intro text ignored
@@ -57,7 +59,7 @@ def test_question_id_changes_with_text():
 
 
 def test_render_answer_round_trips():
-    block = human_gate.render_answer("review-escalate", "review-escalate-r2-aaaaaaaa", "2026-11-22", " CANCEL stop \n")
+    block = human_gate.render_answer("review-escalate", "review-escalate-r2-aaaaaaaa", "2026-11-22", " CANCEL \n")
     entry = human_gate.parse_answers("old\n\n" + block)[0]
     assert (entry["reason"], entry["id"], entry["date"], entry["word"]) == (
         "review-escalate", "review-escalate-r2-aaaaaaaa", "2026-11-22", "CANCEL")
@@ -129,3 +131,18 @@ def test_write_blocked_writes_a_readable_file_with_a_fresh_id_per_failure(tmp_pa
     assert human_gate.read_blocked(tmp_path) == {"reason": "merge-missing", "id": first, "summary": "exit 1"}
     second = human_gate.write_blocked(tmp_path, "merge-missing", "exit 1", datetime(2026, 11, 26, 10, 1, tzinfo=timezone.utc))
     assert second != first and first.startswith("merge-missing-r0-")
+
+
+def test_cancel_is_a_word_only_when_it_is_the_whole_reply():
+    heading = "## intake-question intake-question-r0-aaaaaaaa 2026-11-22\n\n"
+    entry = human_gate.parse_answers(heading + "CANCEL the old flow, use SSO\n")[0]
+    assert (entry["word"], entry["note"]) == (None, "CANCEL the old flow, use SSO")
+    assert human_gate.parse_answers(heading + "CANCEL\n")[0]["word"] == "CANCEL"
+
+
+def test_files_are_read_and_written_as_utf8(tmp_path):
+    human_gate.write_blocked(tmp_path, "agent-failed", "gagal \u2014 coba lagi", datetime.datetime.now(datetime.timezone.utc))
+    assert "\u2014" in human_gate.read_blocked(tmp_path)["summary"]
+    (tmp_path / human_gate.ANSWERS_FILE).write_bytes(
+        "## review-escalate review-escalate-r2-aaaaaaaa 2026-11-22\n\ncatatan \u2014 ok\n".encode("utf-8"))
+    assert human_gate.extra_round_allowed(tmp_path, 3) is True

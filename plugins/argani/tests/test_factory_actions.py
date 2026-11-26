@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import factory_actions
 import human_gate
 from test_factory_state import job  # noqa: F401  (fixture)
 
@@ -205,3 +206,51 @@ def test_new_refuses_a_missing_directory_and_an_unregistered_one(job, tmp_path):
     other.mkdir()
     assert subprocess.run([sys.executable, str(SCRIPT), "new", str(other), "x y"],
                           capture_output=True, text=True).returncode == 1
+
+
+@pytest.mark.parametrize("reason,text,stored", [
+    ("manual-verification", "pass", "PASS"),
+    ("manual-verification", "fail button broken", "FAIL button broken"),
+    ("merge-missing", "merged by hand", "MERGED by hand"),
+    ("merge-missing", "retry", "RETRY"),
+    ("agent-failed", "Retry", "RETRY"),
+    ("mr-missing", "opened https://example.test/mr/1", "opened https://example.test/mr/1"),
+    ("mr-missing", "retry", "RETRY"),
+    ("review-escalate", "cancel the extra round", "cancel the extra round"),
+    ("intake-question", "CANCEL the old flow", "CANCEL the old flow"),
+    ("spec-question", "cancel", "CANCEL"),
+    ("agent-failed", "cancel", "CANCEL"),
+])
+def test_normalize_answer_stores_the_word_uppercase_or_the_free_text(reason, text, stored):
+    assert factory_actions.normalize_answer(reason, text) == stored
+
+
+@pytest.mark.parametrize("reason,text", [
+    ("manual-verification", "FAIL"),
+    ("manual-verification", "looks fine"),
+    ("manual-verification", "CANCEL it"),
+    ("merge-missing", "done"),
+    ("agent-failed", "MERGED"),
+    ("agent-failed", "try again"),
+    ("mr-missing", "no link yet"),
+])
+def test_normalize_answer_refuses_what_the_state_would_ignore(reason, text):
+    with pytest.raises(factory_actions.ActionError) as error:
+        factory_actions.normalize_answer(reason, text)
+    assert factory_actions.VALID_FORMS[reason] in str(error.value)
+
+
+def test_answer_command_refuses_a_free_text_reply_to_agent_failed(job):
+    job.intent()
+    ok(job, "block", "agent-failed", "builder crashed")
+    result = act(job, "answer", "try", "again")
+    assert result.returncode == 1 and "RETRY | CANCEL" in result.stdout
+    assert not (job.path / "answers.md").exists()
+    ok(job, "answer", "retry")
+    assert human_gate.parse_answers((job.path / "answers.md").read_text())[0]["word"] == "RETRY"
+
+
+def test_merged_requires_the_needs_merge_stage(job):
+    to_needs_mr(job)
+    ok(job, "mr", URL)
+    assert "needs-human" in act(job, "merged").stdout  # no mergeCommand: waits for the human

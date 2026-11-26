@@ -20,6 +20,7 @@ REASONS = (
 )
 BLOCKED_REASONS = ("agent-failed", "mr-missing", "merge-missing")
 ANSWER_WORDS = ("PASS", "FAIL", "CANCEL", "RETRY", "MERGED")
+CANCEL_WORD = "CANCEL"
 ROUND_GRANTING_REASONS = ("review-escalate", "manual-verification")
 ROUNDS_WITHOUT_ANSWER = 2
 ID_HASH_LENGTH = 8
@@ -54,6 +55,8 @@ def build_entry(match, body):
     note = body.strip()
     words = note.split(maxsplit=1)
     word = words[0] if words and words[0] in ANSWER_WORDS else None
+    if word == CANCEL_WORD and len(words) > 1:  # CANCEL cancels only when it is the whole reply
+        word = None
     if word:
         note = words[1].strip() if len(words) > 1 else ""
     return {
@@ -100,7 +103,7 @@ def read_blocked(job_dir):
     path = Path(job_dir) / BLOCKED_FILE
     if not path.is_file():
         return None
-    lines = path.read_text().splitlines()
+    lines = path.read_text(encoding="utf-8").splitlines()
     parts = lines[0].split() if lines else []
     if len(parts) != 2 or parts[0] not in BLOCKED_REASONS:
         warn(f"invalid first line in {path}")
@@ -113,7 +116,7 @@ def write_blocked(job_dir, reason, summary, now):
     earlier RETRY answer never covers a new one. now is tz-aware. Returns the id."""
     stamp = now.astimezone(datetime.timezone.utc).isoformat()
     qid = question_id(reason, f"{summary}\n{stamp}", None)
-    (Path(job_dir) / BLOCKED_FILE).write_text(f"{reason} {qid}\n{summary}\n")
+    (Path(job_dir) / BLOCKED_FILE).write_text(f"{reason} {qid}\n{summary}\n", encoding="utf-8")
     return qid
 
 
@@ -136,7 +139,7 @@ def extra_round_allowed(job_dir, round_number):
     path = Path(job_dir) / ANSWERS_FILE
     if not path.is_file():
         return False
-    entries = parse_answers(path.read_text())
+    entries = parse_answers(path.read_text(encoding="utf-8"))
     granting_ids = {
         entry["id"] for entry in entries
         if entry["reason"] in ROUND_GRANTING_REASONS

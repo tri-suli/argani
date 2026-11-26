@@ -938,3 +938,14 @@ def test_answer_word_is_the_fail_word_of_a_manual_rework(job):
     criteria = job.state()["manual_criteria"]
     answer(job, "manual-verification", human_gate.question_id("manual-verification", "\n".join(criteria), 1), "FAIL broken")
     assert job.state()["answer_word"] == "FAIL"
+
+
+@pytest.mark.parametrize("seat, retry_stage", [("intake", "needs-intake"), ("spec-writer", "needs-spec")])
+def test_a_blocked_document_seat_needs_human_until_retry(job, seat, retry_stage):
+    if seat == "spec-writer":
+        job.intent()
+    blocked(job, "agent-failed", "agent-failed-r0-abc", f"{seat}: cut off")
+    state = job.state()
+    assert (state["stage"], state["reason"], state["question_id"]) == ("needs-human", "agent-failed", "agent-failed-r0-abc")
+    answer(job, "agent-failed", "agent-failed-r0-abc", "RETRY")
+    assert job.state()["stage"] == retry_stage

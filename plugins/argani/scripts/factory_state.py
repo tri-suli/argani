@@ -384,15 +384,16 @@ def work_stage(slug, config, build, rounds, plan, gate):
 
 
 def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, mr, build_text, gate):
-    """The stage outcome (see outcome()). The first match wins: CANCEL, merge request, intent, spec,
-    a failed agent, an approved or escalated decision, the review cap, then build/review/rework/decide."""
+    """The stage outcome (see outcome()). The first match wins: CANCEL, merge request,
+    a failed agent, intent, spec, an approved or escalated decision, the review cap, then build/review/rework/decide."""
     if any(entry["word"] == "CANCEL" for entry in gate["answers"]):
         return outcome("cancelled", "Nothing to do: a human cancelled this task.")
     if mr["exists"]:
         if mr["merged"]:
             return outcome("done", "Nothing to do: the merge request is merged.")
         return merge_stage(gate, config)
-    stage = document_stage(intent, gate["intent_mtime"], gate["intent_questions"], gate, (
+    stage = agent_failed_stage(gate)
+    stage = stage or document_stage(intent, gate["intent_mtime"], gate["intent_questions"], gate, (
         "needs-intake", "needs-intent-approval", "intake-question",
         "Spawn argani:intake to write (or rewrite) intent.md, then stop for approval.",
         f"Stop: intent is draft. Human runs /argani:intent approve {slug}, then /argani:factory {slug}."))
@@ -400,7 +401,6 @@ def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, m
         "needs-spec", "needs-spec-approval", "spec-question",
         "Spawn argani:spec-writer, then stop for spec approval.",
         f"Stop: spec is draft. Human runs /argani:spec approve {slug} then /argani:factory {slug}."))
-    stage = stage or agent_failed_stage(gate)
     if stage:
         return stage
     number = rounds[-1]["n"] if rounds else 0

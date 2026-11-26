@@ -3,7 +3,7 @@
 
 Rules (see docs/review-protocol.md): protectedPaths are denied for everyone; review and decision
 files need a verdict on line 1; a round above 2 is refused unless a human answer grants it (human_gate); each argani agent writes only its own files;
-answers.md, blocked.md and history.jsonl belong to the orchestrator (the main session).
+answers.md, blocked.md, description.md and history.jsonl belong to the orchestrator (the main session).
 change.diff is written by capture_change.py alone (through Bash, which this guard does not see), so Write
 and Edit of it are denied to every caller, the main session included.
 
@@ -32,8 +32,9 @@ CHANGE_FILE = re.compile(r"^review/round-\d+/change\.diff$")
 REVIEW_FILE = re.compile(r"^review/round-(\d+)/(review-[^/]+\.md)$")
 ROUND_DIR = re.compile(r"^review/round-(\d+)/")
 MAX_ROUNDS = 2
+DESCRIPTION_FILE = "description.md"
 BUILDER_FORBIDDEN = {"intent.md", "spec.md", "decision.md", "mr.md", human_gate.ANSWERS_FILE,
-                     human_gate.BLOCKED_FILE, task_history.HISTORY_FILE}
+                     human_gate.BLOCKED_FILE, task_history.HISTORY_FILE, DESCRIPTION_FILE}
 # Agents that may write exactly one kind of file in the whole project: (pattern, description).
 SOLE_FILE_WRITERS = {
     "argani:reviewer": (REVIEW_FILE, "review/round-N/review-<checklist>.md"),
@@ -70,7 +71,7 @@ def writer_violation(agent_type, inner):
     """
     if agent_type == "argani:builder":
         if inner in BUILDER_FORBIDDEN or inner.startswith("review/"):
-            return "the builder must not write intent.md, spec.md, review/**, decision.md, mr.md, answers.md, blocked.md or history.jsonl"
+            return "the builder must not write intent.md, spec.md, review/**, decision.md, mr.md, answers.md, blocked.md, description.md or history.jsonl"
         return None
     if agent_type in SOLE_FILE_WRITERS:
         pattern, description = SOLE_FILE_WRITERS[agent_type]

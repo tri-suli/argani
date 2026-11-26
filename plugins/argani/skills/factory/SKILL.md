@@ -13,7 +13,7 @@ This session is the orchestrator. Loop, roles, protocol: `${CLAUDE_PLUGIN_ROOT}/
 `spec.md`, `plan.md`, `build.md`, `review-<checklist>.md` or `decision.md`; agents do. Its own files
 (`answers.md`, `blocked.md`, the `Status:` line of intent and spec, `mr.md`, `review-human.md`) it
 writes only through `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py <action> <slug> <dir> [args]`,
-never by hand (only the `rework` note below is written directly); it prints `{"ok": true, ...}` or exits 1 with the reason. Also its own: `mr-body.md`
+never by hand; it prints `{"ok": true, ...}` or exits 1 with the reason. Also its own: `mr-body.md`
 (written by `mr_description.py`) and `review/round-<N>/change.diff` (written by `capture_change.py`).
 Nobody approves their own work: intake and spec-writer write drafts, this session approves them.
 Plugin root below = the value of `${CLAUDE_PLUGIN_ROOT}`.
@@ -48,27 +48,26 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
    - first word `answer`: `answer <slug> <answer>`;
    - first word `rework`: `rework <slug> <note>`;
    - exactly one word: `<slug>`;
-   - anything else (more than one word): `<description>` of new work. Run
-     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py slug "<description>"`; its output is `<slug>`
-     (if it exits non-zero, **stop** and ask for a wording with plain letters).
-   If step 3 reports no job folder for a one-word argument, say so and suggest `/argani:factory "<description>"`.
+   - anything else (more than one word): `<description>` of new work; `<slug>` is known after step 2.
+   Free text (a description, answer or note) is always passed to `factory_actions.py` as ONE shell-quoted argument.
 2. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>`. If it exits non-zero (`<dir>` is not a directory or the
    config is invalid), **stop** and show its error. If `verifyCommand`, `diffCommand` or `reviewers` is empty, **stop**, name the project's
    `project.json` in the argani home and suggest `/argani:init` when the file does not exist yet.
    Keep the JSON (call it the config).
-3. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> <dir> --record`. If it exits non-zero, **stop** and
-   show its output ("No job folder" can mean the working directory is outside the job's project). Print `stage` and `next`. Read `project`, `job_dir` and `directory` (the absolute working directory;
+3. A description: run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py new <dir> "<description>"`.
+   It creates the task folder with `description.md` and prints `{"ok": true, "slug": ..., "job_dir": ...}`;
+   that is `<slug>`. If it refuses (the task exists: say to run `/argani:factory <slug>` to continue it or
+   to pick another wording; no slug can be derived: ask for a wording with plain letters), **stop**.
+   `answer <slug> <answer>`: run `factory_actions.py answer <slug> <dir> "<answer>"`; if it refuses (the task is not
+   waiting for an answer), **stop** and show why.
+   `rework <slug> <note>`: do step 4 first, then the last section.
+4. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> <dir> --record`. If it exits non-zero, **stop** and
+   show its output ("No job folder" can mean the working directory is outside the job's project; for a
+   one-word argument say so and suggest `/argani:factory "<description>"`). Print `stage` and `next`. Read `project`, `job_dir` and `directory` (the absolute working directory;
    use it wherever a prompt below says `<absolute working directory>`) from it and use them below.
    When `in <dir>` was given and `directory` differs from the session directory, print one line before
    spawning the first agent: "working directory differs from the session directory; the agents run every command, project skills included, from the working directory".
-   - A description: when this succeeds the task folder already exists: **stop** and say to run
-     `/argani:factory <slug>` to continue it, or to pick another wording. When it reports "No job
-     folder" (and the config has a project), the task is new: spawn `argani:intake` with the
-     [intake prompt](#intake-prompt) and `Intent: <tasksDir>/<slug>/intent.md` (`tasksDir` from the config;
-     the agent creates the folder; no state exists yet, so leave `model` out), then run step 3 again and continue with the loop.
-   - `answer <slug> <answer>`: run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py answer <slug> <dir> <answer>`.
-     If it refuses (the task is not waiting for an answer), **stop** and show why; otherwise run step 3 again and continue with the loop.
-   - `rework <slug> <note>`: see the last section.
+   Then continue with the loop (for `rework`, run its section first).
 
 Commands: run each command on its own, so the allowed-tools patterns match and the human is not
 prompted.
@@ -119,7 +118,7 @@ Working directory: <absolute working directory>
 Intent: <job_dir>/intent.md
 Config: <the config JSON>
 Language: <language of the project's CLAUDE.md, else of the description>
-Description: <the description, or the first line of the existing intent.md when there is none>
+Description: <the content of <job_dir>/description.md; for an older task without it, the heading of intent.md>
 Answers: <job_dir>/answers.md                          (only when the state says answered)
 ```
 
@@ -188,34 +187,32 @@ same empty-output rule as above, then spawn the approver.
 
 ### Merge request (`needs-mr`)
 
-- `answered` (a human gave the merge request URL): `factory_actions.py mr <slug> <dir> <state.answer>`.
-- Otherwise: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
+- `answer` of the state is not null (a human gave the merge request URL): `factory_actions.py mr <slug> <dir> "<state.answer>"`.
+- Otherwise (including after a `PASS` of the manual verification): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
   show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
   verification checklist of `decision.md`, where the task folder is) and prints JSON with `title` (the intent heading, or the output of `mrTitleCommand` when configured),
   `bodyFile`, `directory`, `titleSource` and, when `mrCommand` is configured, `command`. Run the printed
   `command` verbatim with Bash (it starts with `cd` into the working directory); never rebuild or re-quote it.
-  On success: `factory_actions.py mr <slug> <dir> <its output>`. On failure:
+  On success: `factory_actions.py mr <slug> <dir> "<its output>"`. On failure:
   `factory_actions.py block <slug> <dir> mr-missing "<short stderr>"`. Without `mrCommand` the state is
   already `needs-human` (`mr-missing`) and this section is not reached.
 
-When the printed `warnings` is non-empty, repeat them in the final message to the human. When
-`manual_criteria` of the state is not empty, the human has already answered `PASS` for them; nothing to copy.
+When the printed `warnings` is non-empty, repeat them in the final message to the human.
 
 ### Merge (`needs-merge`)
 
-- `answered` (the human answered `MERGED`): `factory_actions.py merged <slug> <dir>`.
-- Otherwise: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py merge-command <slug> <dir>` prints
-  `{"ok": true, "command": ...}` (the project's `mergeCommand` filled with the url of `mr.md`). Run that
+- `answer_word` of the state is `MERGED` (the human merged it): `factory_actions.py merged <slug> <dir>`.
+- Otherwise (no answer, or `RETRY`): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py merge-command <slug> <dir>` prints
+  `{"ok": true, "command": ...}` (the project's `mergeCommand` filled with the url of `mr.md`). If it
+  refuses, run `factory_actions.py block <slug> <dir> merge-missing "<its refusal>"`. Otherwise run that
   `command` verbatim with the **Bash tool and `run_in_background`**, and wait for its completion
   notification (do not poll). Exit 0: `factory_actions.py merged <slug> <dir>`. Non-zero:
-  `factory_actions.py block <slug> <dir> merge-missing "<short stderr>"`. A `RETRY` answer arrives here
-  the same way: run the command again.
+  `factory_actions.py block <slug> <dir> merge-missing "<short stderr>"`.
 
 ## `rework <slug> <note>`
 
-1. Allowed only when `stage` is `needs-decision` and `round` is 1 (after a clean round 1, before a
-   decision). Otherwise refuse and say why: a decision or `mr.md` exists, the two-round cap is reached
-   (a third round needs a human answer to an escalation: `answer`), or open findings go through the normal loop.
-2. Write `<job_dir>/review/round-2/review-human.md`: line 1 `CHANGES <short summary>`, a blank line,
-   the note as `- [Important] ...`, a blank line, `=== END OF REVIEW ===`.
-3. Run `factory_state.py <slug> <dir> --record` (`needs-rework`) and continue the loop.
+1. Run `factory_actions.py rework <slug> <dir> "<note>"`. It refuses unless `stage` is `needs-decision`
+   and `round` is 1 (after a clean round 1, before a decision); then **stop** and say why: a decision or
+   `mr.md` exists, the two-round cap is reached (a third round needs a human answer to an escalation:
+   `answer`), or open findings go through the normal loop. Otherwise it writes `review/round-2/review-human.md`.
+2. Run `factory_state.py <slug> <dir> --record` (`needs-rework`) and continue the loop.

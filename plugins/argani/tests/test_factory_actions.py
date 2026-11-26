@@ -140,3 +140,68 @@ def test_merge_command_refuses_mr_without_url(job):
     job.set_config(mergeCommand="echo {url}")
     ok(job, "mr", "created")
     assert act(job, "merge-command").returncode == 1
+
+
+def test_empty_text_is_refused(job):
+    to_needs_mr(job)
+    assert act(job, "mr", " ").returncode == 1
+    assert not (job.path / "mr.md").exists()
+    assert act(job, "rework", " ").returncode == 1
+    assert act(job, "answer", " ").returncode == 1
+
+
+def test_mr_refused_outside_needs_mr(job):
+    result = act(job, "mr", URL)
+    assert result.returncode == 1 and "needs-intake" in result.stdout
+
+
+def test_rework_only_at_needs_decision_round_one(job):
+    assert act(job, "rework", "fix", "it").returncode == 1
+    job.intent()
+    job.spec()
+    job.build()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    assert job.state()["stage"] == "needs-decision"
+    assert ok(job, "rework", "fix", "it")["round"] == 2
+    note = (job.path / "review" / "round-2" / "review-human.md").read_text()
+    assert note == "CHANGES fix it\n\n- [Important] fix it\n\n=== END OF REVIEW ===\n"
+    assert job.state()["stage"] == "needs-rework"
+
+
+def test_approve_restores_the_file_when_the_approved_status_is_invalid(job, monkeypatch):
+    import factory_actions
+    job.intent("draft")
+    before = (job.path / "intent.md").read_text()
+    monkeypatch.setattr(factory_actions, "today", lambda: "2026-13-40")
+    with pytest.raises(factory_actions.ActionError):
+        factory_actions.run_action("approve", "demo", str(job.root), ["intent"])
+    assert (job.path / "intent.md").read_text() == before
+
+
+def new(job, *words):
+    return subprocess.run([sys.executable, str(SCRIPT), "new", str(job.root), *words], capture_output=True, text=True)
+
+
+def test_new_creates_the_folder_with_the_description_and_history(job):
+    result = new(job, "Add", "login", "page")
+    assert result.returncode == 0, result.stdout
+    created = json.loads(result.stdout)
+    assert created["slug"] == "add-login-page"
+    folder = Path(created["job_dir"])
+    assert (folder / "description.md").read_text() == "Add login page\n"
+    assert json.loads((folder / "history.jsonl").read_text().splitlines()[-1])["stage"] == "needs-intake"
+    assert new(job, "Add", "login", "page").returncode == 1
+
+
+@pytest.mark.parametrize("words", [[], ["???"]])
+def test_new_refuses_an_empty_or_slugless_description(job, words):
+    assert new(job, *words).returncode == 1
+
+
+def test_new_refuses_a_missing_directory_and_an_unregistered_one(job, tmp_path):
+    assert subprocess.run([sys.executable, str(SCRIPT), "new", str(tmp_path / "nope"), "x"],
+                          capture_output=True, text=True).returncode == 1
+    other = tmp_path / "other"
+    other.mkdir()
+    assert subprocess.run([sys.executable, str(SCRIPT), "new", str(other), "x y"],
+                          capture_output=True, text=True).returncode == 1

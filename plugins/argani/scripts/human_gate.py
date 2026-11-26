@@ -52,13 +52,15 @@ def is_valid_heading(match):
 
 def build_entry(match, body):
     note = body.strip()
-    words = note.split()
-    first_word = words[0] if words else None
+    words = note.split(maxsplit=1)
+    word = words[0] if words and words[0] in ANSWER_WORDS else None
+    if word:
+        note = words[1].strip() if len(words) > 1 else ""
     return {
         "reason": match.group(1),
         "id": match.group(2),
         "date": match.group(3),
-        "word": first_word if first_word in ANSWER_WORDS else None,
+        "word": word,
         "note": note,
     }
 
@@ -125,9 +127,10 @@ def extra_round_allowed(job_dir, round_number):
     path = Path(job_dir) / ANSWERS_FILE
     if not path.is_file():
         return False
-    for entry in parse_answers(path.read_text()):
-        id_prefix = f"{entry['reason']}-r{round_number - 1}-"
-        if (entry["reason"] in ROUND_GRANTING_REASONS and entry["id"].startswith(id_prefix)
-                and entry["word"] not in ("CANCEL", "PASS")):
-            return True
-    return False
+    entries = parse_answers(path.read_text())
+    granting_ids = {
+        entry["id"] for entry in entries
+        if entry["reason"] in ROUND_GRANTING_REASONS
+        and entry["id"].startswith(f"{entry['reason']}-r{round_number - 1}-")
+    }
+    return any(answer_for(entries, qid)["word"] not in ("CANCEL", "PASS") for qid in granting_ids)

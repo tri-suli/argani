@@ -67,3 +67,4 @@ Run each command on its own, so the allowed-tools patterns match and the human i
    - all `PASS`: "ready for /argani:factory or a human decision".
    - any `CHANGES` and `N == 1`: "address the findings, then run /argani:review again (round 2)".
    - any `CHANGES` and `N == 2`: "two rounds used; escalate to a human".
+8. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> <dir> --record` (ignore its output; a failure is not fatal).

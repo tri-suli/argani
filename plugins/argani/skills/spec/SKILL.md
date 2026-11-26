@@ -43,7 +43,7 @@ This skill never writes code.
    - Flagged concerns: especially policies or constraints that conflict with each other or with
      the approach. Never resolve a conflict silently; flag it.
    - Open questions carried forward from the intent, plus new ones.
-5. Run `artifact_check.py spec <file>`; fix until `VALID`.
+5. Run `artifact_check.py spec <file>`; fix until `VALID`. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 6. Remind the user that the human reviews the spec and does not write it: correct it by comment
    or edit, then run `/argani:spec approve <slug>`.
 
@@ -56,5 +56,5 @@ This skill never writes code.
 3. Run `date +%F`, then replace the Status line with
    `Status: approved by <name> on <YYYY-MM-DD>`.
 4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`
-   and show the violations.
+   and show the violations. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 5. Say what comes next: `/argani:plan <slug>`.

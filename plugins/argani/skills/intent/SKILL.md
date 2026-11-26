@@ -52,7 +52,7 @@ This skill never writes code.
    `n. [ ] <claim> — verify: <how>`, numbered 1 to n in order; item n is AC-n when you refer to
    it. Do not invent criteria the user has not confirmed; list unknowns under Open questions.
 5. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/artifact_check.py intent <file>`; fix the file until
-   it prints `VALID`.
+   it prints `VALID`. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 6. Tell the user to review and correct the file, then run `/argani:intent approve <slug>`.
 
 ## Approve mode
@@ -64,5 +64,5 @@ This skill never writes code.
 3. Run `date +%F`, then replace the Status line with
    `Status: approved by <name> on <YYYY-MM-DD>`.
 4. Run `artifact_check.py status` again; it must print `approved`. If not, restore `Status: draft`
-   and show the violations.
+   and show the violations. Then run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> --record` (ignore its output; a failure is not fatal).
 5. Say what comes next: `/argani:spec <slug>`.

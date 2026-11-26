@@ -90,11 +90,11 @@ describe('dashboard board', () => {
     expect(text('[data-testid=updated]')).toBe('· updated 0s ago');
 
     expect([...document.querySelectorAll('.col-head')].map((head) => head.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Intake 1 intent · you approve',
+      'Intake 1 intake',
       'Spec 0 spec-writer',
       'Build 1 builder · verify',
       'Review 1 reviewers',
-      'Approve 0 approver · you merge',
+      'Approve 0 approver · merge',
       'Needs human 1 you',
       'Done 1 merged',
     ]);
@@ -103,7 +103,7 @@ describe('dashboard board', () => {
 
     expect(document.querySelector('[data-column="Done"]')?.getAttribute('data-tone')).toBe('merged');
 
-    expect(text('[data-testid=totals]')).toBe('1 agents running · 1.2M tokens');
+    expect(text('[data-testid=totals]')).toBe('1 agents running · 1.2M tokens · 3 manual ACs · 35m waiting for you');
 
     expect(visible('[data-testid=loading]')).toBe(false);
   });
@@ -159,22 +159,24 @@ describe('dashboard board', () => {
     });
   });
 
-  it('flags and hints the cards waiting for the human, dims Done cards, sorts newest first', async () => {
+  it('flags the Needs human cards with their reason, question and badge, dims Done cards, sorts newest first', async () => {
     await deliver();
 
-    expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('your call');
+    expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('manual-verification');
 
     expect(text('[data-task="demo/stuck"] [data-testid=card-hint]')).toBe('decide the schema');
+
+    expect(text('[data-task="demo/stuck"] [data-testid=card-badge]')).toBe('2× you');
 
     expect(card('demo/stuck').getAttribute('data-flagged')).toBe('true');
 
     expect(card('demo/fix-export').hasAttribute('data-flagged')).toBe(false);
 
-    expect(text('[data-task="demo/add-login"] [data-testid=card-flag]')).toBe('your call');
+    expect(showing(within('demo/add-login', '[data-testid=card-flag]'))).toBe(false);
 
-    expect(text('[data-task="demo/add-login"] [data-testid=card-hint]')).toBe('approve intent');
+    expect(showing(within('demo/add-login', '[data-testid=card-hint]'))).toBe(false);
 
-    expect(showing(within('demo/fix-export', '[data-testid=card-flag]'))).toBe(false);
+    expect(showing(within('demo/fix-export', '[data-testid=card-badge]'))).toBe(false);
 
     expect(card('other/ship').getAttribute('data-dimmed')).toBe('true');
 
@@ -313,5 +315,49 @@ describe('dashboard board', () => {
     dashboard.destroy();
 
     expect(poller.stopped).toBe(true);
+  });
+});
+
+describe('drawer history and metrics', () => {
+  const openStuck = async () => {
+    await deliver();
+
+    await (card('demo/stuck') as HTMLElement).click();
+  };
+
+  it('lists the durations in order and the three metrics of the open task', async () => {
+    await openStuck();
+
+    await eventually(() => {
+      expect([...document.querySelectorAll('[data-testid=history-row]')].map((row) => [...row.children].map((cell) => cell.textContent))).toEqual([['Build', '1h00m'], ['Needs human', '25m']]);
+
+      expect(showing(document.querySelector('[data-testid=history-empty]'))).toBe(false);
+
+      expect(text('[data-testid=drawer-metrics]')).toBe('2 manual ACs 2× in Needs human 25m waiting for you');
+    });
+  });
+
+  it('shows a dash for a task without history', async () => {
+    await deliver();
+
+    await (card('demo/fix-export') as HTMLElement).click();
+
+    await eventually(() => {
+      expect(document.querySelectorAll('[data-testid=history-row]')).toHaveLength(0);
+
+      expect(text('[data-testid=history-empty]')).toBe('—');
+
+      expect(text('[data-testid=drawer-metrics]')).toBe('0 manual ACs 0× in Needs human 0m waiting for you');
+    });
+  });
+
+  it('shows totals of the selected project only', async () => {
+    await deliver();
+
+    (document.querySelector('[data-testid=project-filter]') as HTMLSelectElement).value = 'other';
+
+    document.querySelector('[data-testid=project-filter]')?.dispatchEvent(new Event('change'));
+
+    await eventually(() => expect(text('[data-testid=totals]')).toContain('1 manual ACs · 10m waiting for you'));
   });
 });

@@ -42,6 +42,18 @@ def home(tmp_path, monkeypatch):
     return copy
 
 
+def without_open_span(board):
+    """The last history entry runs until now, so its duration and the waiting total differ between two calls."""
+    for project in board["projects"]:
+        for task in project["tasks"]:
+            if task["durations"]:
+                task["durations"][-1]["milliseconds"] = 0
+
+            task["metrics"]["needsHumanMilliseconds"] = 0
+
+    return board
+
+
 def test_endpoint_matches_board_cli_output(serve, home):
     cli = subprocess.run([sys.executable, str(DEFAULT_SCRIPTS_DIR / "board.py"), "--all", "--json"],
                          capture_output=True, text=True, check=True, env=os.environ)
@@ -56,11 +68,11 @@ def test_endpoint_matches_board_cli_output(serve, home):
 
     expected.pop("generatedAt"), actual.pop("generatedAt")
 
-    assert actual == expected
+    assert without_open_span(actual) == without_open_span(expected)
 
     assert [agent["tool_use_id"] for agent in actual["agents"]] == ["active-1"]
 
-    assert {task["column"] for task in actual["projects"][0]["tasks"]} == {"Intake", "Build", "Done"}
+    assert {task["column"] for task in actual["projects"][0]["tasks"]} == {"Intake", "Build", "Needs human", "Done"}
 
 
 def test_unusable_home_is_a_json_500(serve, monkeypatch):

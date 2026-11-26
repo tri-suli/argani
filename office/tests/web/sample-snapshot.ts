@@ -1,4 +1,4 @@
-import type { BoardAgent, BoardSnapshot } from '@/types/board';
+import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { TaskDetail, TaskSummary } from '@/types/task';
 
@@ -15,24 +15,48 @@ const sampleAgent: BoardAgent = {
   cwd: '/work/demo',
 };
 
+const noMetrics = { manualAcceptanceCriteria: 0, needsHumanCount: 0, needsHumanMilliseconds: 0 };
+
+function sampleTask(overrides: Partial<BoardTask> & Pick<BoardTask, 'project' | 'slug'>): BoardTask {
+  return { title: overrides.slug, stage: 'needs-build', column: 'Build', merged: null, next: '-', reason: null, question: null, history: [], durations: [], metrics: noMetrics, ...overrides };
+}
+
 function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
   return {
     home: '/home/user/.argani',
     generatedAt: '2026-11-24T10:00:05Z',
-    columns: ['Backlog', 'In progress', 'Done', 'Needs human'], // plugin columns, ignored by the office
+    columns: ['Intake', 'Spec', 'Build', 'Review', 'Approve', 'Needs human', 'Done'],
     projects: [
       {
         name: 'demo',
         tasks: [
-          { project: 'demo', slug: 'add-login', title: 'Add login', stage: 'needs-intent-approval', column: 'Backlog', merged: null, next: 'approve intent' },
-          { project: 'demo', slug: 'fix-export', title: 'Fix export', stage: 'needs-build', column: 'In progress', merged: null, next: 'build' },
-          { project: 'demo', slug: 'older', title: 'Older work', stage: 'needs-review', column: 'In progress', merged: null, next: 'build' },
-          { project: 'demo', slug: 'stuck', title: 'Stuck task', stage: 'escalate', column: 'Needs human', merged: null, next: 'decide the schema' },
+          sampleTask({ project: 'demo', slug: 'add-login', title: 'Add login', stage: 'needs-intent-approval', column: 'Intake', next: 'approve intent' }),
+          sampleTask({ project: 'demo', slug: 'fix-export', title: 'Fix export', next: 'build' }),
+          sampleTask({ project: 'demo', slug: 'older', title: 'Older work', stage: 'needs-review', column: 'Review' }),
+          sampleTask({
+            project: 'demo',
+            slug: 'stuck',
+            title: 'Stuck task',
+            stage: 'needs-human',
+            column: 'Needs human',
+            next: 'Stop: a human must answer',
+            reason: 'manual-verification',
+            question: 'decide the schema',
+            history: [
+              { ts: '2026-11-24T08:00:00Z', stage: 'needs-build', column: 'Build', reason: null },
+              { ts: '2026-11-24T09:00:00Z', stage: 'needs-human', column: 'Needs human', reason: 'manual-verification' },
+            ],
+            durations: [
+              { column: 'Build', milliseconds: 3_600_000 },
+              { column: 'Needs human', milliseconds: 1_500_000 },
+            ],
+            metrics: { manualAcceptanceCriteria: 2, needsHumanCount: 2, needsHumanMilliseconds: 1_500_000 },
+          }),
         ],
       },
       {
         name: 'other',
-        tasks: [{ project: 'other', slug: 'ship', title: 'Ship it', stage: 'done', column: 'Done', merged: true, next: '-' }],
+        tasks: [sampleTask({ project: 'other', slug: 'ship', title: 'Ship it', stage: 'done', column: 'Done', merged: true, metrics: { ...noMetrics, manualAcceptanceCriteria: 1, needsHumanMilliseconds: 600_000 } })],
       },
     ],
     agents: [sampleAgent],
@@ -121,4 +145,4 @@ class FakeTaskClient implements TaskClient {
   }
 }
 
-export { sampleAgent, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };
+export { sampleAgent, sampleTask, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };

@@ -100,10 +100,9 @@ def collect_rounds(job_dir, reviewers):
     return [round_state(path, reviewers) for _, path in round_folders(job_dir)]
 
 
-def decision_state(path, latest_round=0, human_note_latest=False):
+def decision_state(path, latest_round=0, older_than_note=False):
     """stale: the decision names a round (`Round: N`) other than the latest round folder, or it names
-    none and the latest round holds a human note (that note was only written after the decision's
-    question was answered)."""
+    none and is older than the latest round's review-human.md (the note answers that decision)."""
     if not path.is_file():
         return {"exists": False, "complete": False, "verdict": None, "round": None, "stale": False}
     word = first_word(path)
@@ -114,7 +113,7 @@ def decision_state(path, latest_round=0, human_note_latest=False):
         "complete": has_closing_line(path, CLOSING_DECISION),
         "verdict": word if word in ("APPROVE", "ESCALATE") else "INVALID",
         "round": number,
-        "stale": number != latest_round if number is not None else human_note_latest,
+        "stale": number != latest_round if number is not None else older_than_note,
     }
 
 
@@ -253,6 +252,10 @@ def mtime_ns(path):
     return path.stat().st_mtime_ns if path.is_file() else 0
 
 
+def decision_path_mtime(job_dir):
+    return mtime_ns(job_dir / "decision.md")
+
+
 def has_reply(entry):
     """A reply is a word, or a non-empty note."""
     return bool(entry) and (entry["word"] is not None or bool(entry["note"]))
@@ -346,7 +349,9 @@ def agent_failed_stage(gate):
     entry = human_gate.answer_for(gate["answers"], blocked["id"])
     if entry and entry["word"] == "RETRY":
         return None
-    return needs_human(gate, "agent-failed", blocked["summary"], blocked["id"], "RETRY | CANCEL")
+    waiting = needs_human(gate, "agent-failed", blocked["summary"], blocked["id"], "RETRY | CANCEL")
+    waiting["next"] += " A later failure must be written with human_gate.write_blocked (reason agent-failed)."
+    return waiting
 
 
 def work_stage(slug, config, build, rounds, plan, gate):
@@ -437,8 +442,9 @@ def build_state(slug, start_dir=".", config=None):
     config = {**config, "reviewers": reviewers}  # the rounds and stages expect these reviewers only
     rounds = collect_rounds(job_dir, reviewers)
     latest_round = rounds[-1]["n"] if rounds else 0
-    human_note_latest = bool(rounds) and "human" in rounds[-1]["present"]
-    decision = decision_state(job_dir / "decision.md", latest_round, human_note_latest)
+    human_note = round_path(job_dir, latest_round) / "review-human.md"
+    older_than_note = (decision_path_mtime(job_dir) < mtime_ns(human_note)) if rounds else False
+    decision = decision_state(job_dir / "decision.md", latest_round, older_than_note)
     mr_file = job_dir / "mr.md"
     mr_text = read_text(mr_file) if mr_file.is_file() else ""
     url_match = URL_PATTERN.search(mr_text)

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
-AGENTS = ("builder", "reviewer", "spec-writer")
+AGENTS = ("builder", "reviewer", "spec-writer", "intake")
 
 
 def read(*parts):

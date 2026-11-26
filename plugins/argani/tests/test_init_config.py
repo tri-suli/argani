@@ -7,6 +7,7 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+import argani_config  # noqa: E402
 import init_config  # noqa: E402
 
 SCRIPT = SCRIPTS / "init_config.py"
@@ -66,6 +67,19 @@ def test_merge_request_command_candidates_cover_both_hosts_without_placeholders_
                           "glab mr create --title {title} --description-file {bodyFile}"]
 
 
+def test_merge_command_question_offers_candidates(make_project):
+    item = question(propose(make_project()), "mergeCommand")
+    assert len(item["candidates"]) == 2
+    assert item["candidates"][0].startswith("test ") and "gh pr merge {url}" in item["candidates"][0]
+    assert "glab mr merge {url}" in item["candidates"][1]
+    for candidate in item["candidates"]:
+        assert argani_config.COERCERS["mergeCommand"](candidate) == candidate
+        assert "{url}" in candidate
+    for phrase in ("Exit 0 must mean merged", "safe to run again", "background", "Needs human"):
+        assert phrase in item["ask"]
+    assert "mergeCommand" not in propose(make_project("other"))["proposal"]
+
+
 def test_the_diff_command_is_always_asked(make_project):
     item = question(propose(make_project()), "diffCommand")
     assert item["candidates"] == ["git diff origin/main...HEAD", "git diff origin/main"]
@@ -78,7 +92,7 @@ def test_the_diff_command_is_always_asked(make_project):
 def test_no_question_or_proposal_mentions_removed_git_settings(make_project):
     result = propose(make_project())
     removed = {"defaultBranch", "baseBranch", "protectedBranches", "branchPattern", "branchTypes", "baseBranchByType",
-               "branchNumberCommand", "worktreePath", "worktreeCommand", "mergePolicy", "mergeCommand",
+               "branchNumberCommand", "worktreePath", "worktreeCommand", "mergePolicy",
                "commitTrailers", "commitSkill"}
     assert not removed & {item["key"] for item in result["questions"]}
     assert not removed & set(result["proposal"])

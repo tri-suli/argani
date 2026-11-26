@@ -43,13 +43,16 @@ def home(tmp_path, monkeypatch):
 
 
 def without_open_span(board):
-    """The last history entry runs until now, so its duration and the waiting total differ between two calls."""
+    """The last history entry runs until now, so its duration (and the waiting total, when it is Needs human) differs between two calls."""
     for project in board["projects"]:
         for task in project["tasks"]:
             if task["durations"]:
-                task["durations"][-1]["milliseconds"] = 0
+                last = task["durations"][-1]
 
-            task["metrics"]["needsHumanMilliseconds"] = 0
+                if last["column"] == "Needs human":
+                    task["metrics"]["needsHumanMilliseconds"] -= last["milliseconds"]
+
+                last["milliseconds"] = 0
 
     return board
 

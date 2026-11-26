@@ -64,7 +64,7 @@
                   <span class="size-[7px] flex-none animate-agent rounded-full bg-active motion-reduce:animate-none" data-testid="agent-marker" role="img" aria-label="Agent working" x-show="card.active"></span>
                   <span class="num min-w-0 overflow-hidden font-mono text-[12px] text-ellipsis whitespace-nowrap text-muted" x-text="card.task.project + ' · ' + card.task.slug"></span>
                   <span class="ml-auto text-[10px] font-semibold tracking-[0.06em] whitespace-nowrap text-human uppercase" data-testid="card-flag" x-show="card.flag !== null" x-text="card.flag"></span>
-                  <span class="rounded-sm bg-human/16 px-1 font-mono text-[10px] text-human" data-testid="card-badge" x-show="card.badge !== ''" x-text="card.badge"></span>
+                  <span class="rounded-sm bg-human/16 px-1 font-mono text-[10px] text-human" data-testid="card-badge" x-show="card.hasBadge" x-text="card.badge"></span>
                 </div>
                 <h3 class="feature mb-1.5 text-[13px] leading-[1.4] font-medium" x-text="card.task.title"></h3>
                 <p class="flex gap-2.5 font-mono text-[11px]" data-testid="card-links" x-show="card.mrUrl !== null">
@@ -131,8 +131,8 @@
             <div class="min-w-0 overflow-y-auto px-7 pt-[22px] pb-[60px] narrow:px-4 narrow:pt-[18px] narrow:pb-12">
               <section class="mb-5 max-w-[680px] text-[13px]" data-testid="drawer-history" aria-label="History">
                 <h3 class="mb-1.5 text-[12px] font-semibold tracking-[0.08em] text-faint uppercase">History</h3>
-                <p class="font-mono text-[12px] text-muted" data-testid="history-empty" x-show="drawerHistory.length === 0">—</p>
-                <ol class="grid gap-0.5 font-mono text-[12px]" x-show="drawerHistory.length > 0">
+                <p class="font-mono text-[12px] text-muted" data-testid="history-empty" x-show="!drawerHasHistory">—</p>
+                <ol class="grid gap-0.5 font-mono text-[12px]" x-show="drawerHasHistory">
                   <template x-for="(row, index) in drawerHistory" :key="index">
                     <li class="flex gap-3" data-testid="history-row"><span class="min-w-24" x-text="row.column"></span><span class="text-muted" x-text="row.duration"></span></li>
                   </template>

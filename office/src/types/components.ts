@@ -36,6 +36,7 @@ interface Dashboard {
   /** The task open in the drawer, read from the latest board so its history stays current. */
   readonly drawerTask: BoardTask | null;
   readonly drawerWaiting: string;
+  readonly drawerHasHistory: boolean;
   readonly drawerHistory: HistoryRow[];
 }
 

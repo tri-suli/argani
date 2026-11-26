@@ -329,7 +329,7 @@ describe('drawer history and metrics', () => {
     await openStuck();
 
     await eventually(() => {
-      expect([...document.querySelectorAll('[data-testid=history-row]')].map((row) => [...row.children].map((cell) => cell.textContent))).toEqual([['Build', '1h00m'], ['Needs human', '25m']]);
+      expect([...document.querySelectorAll('[data-testid=history-row]')].map((row) => [...row.children].map((cell) => cell.textContent))).toEqual([['Build', '1h00m'], ['Needs human', '10m'], ['Build', '10m'], ['Needs human', '15m']]);
 
       expect(showing(document.querySelector('[data-testid=history-empty]'))).toBe(false);
 

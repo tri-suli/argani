@@ -1,4 +1,5 @@
 import { formatCount, formatDuration } from '@/board/format';
+import { NO_COUNT } from '@/constants/dashboard';
 import { DONE, NEEDS_HUMAN, PIPELINE, PIPELINE_NAMES, WORKING_COLUMNS } from '@/constants/pipeline';
 import { CHIP_CLASS_INVALID, CHIP_CLASS_PENDING, CHIP_CLASS_WAITING, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
@@ -95,14 +96,15 @@ class BoardView {
     return {
       key: `${task.project}/${task.slug}`,
       task,
-      active: this.agentsWorkingOn(agents, task).length > 0,
+      active: this.agentsWorkingOn(agents, task).length > NO_COUNT,
       risk: summary?.risk ?? null,
       rounds,
       mrUrl: summary?.mrUrl ?? null,
-      time: summary && summary.agentMilliseconds > 0 ? formatDuration(summary.agentMilliseconds) : '',
-      tokens: summary && summary.tokens.total > 0 ? `${formatCount(summary.tokens.total)} tok` : '',
+      time: summary && summary.agentMilliseconds > NO_COUNT ? formatDuration(summary.agentMilliseconds) : '',
+      tokens: summary && summary.tokens.total > NO_COUNT ? `${formatCount(summary.tokens.total)} tok` : '',
       flag: needsHuman ? (task.reason ?? NEEDS_HUMAN) : null,
-      badge: waited > 0 ? `${waited}× you` : '',
+      hasBadge: waited > NO_COUNT,
+      badge: waited > NO_COUNT ? `${waited}× you` : '',
       hint: needsHuman ? task.question : null,
       dimmed: column === DONE,
     };

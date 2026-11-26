@@ -45,10 +45,14 @@ function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
             history: [
               { ts: '2026-11-24T08:00:00Z', stage: 'needs-build', column: 'Build', reason: null },
               { ts: '2026-11-24T09:00:00Z', stage: 'needs-human', column: 'Needs human', reason: 'manual-verification' },
+              { ts: '2026-11-24T09:10:00Z', stage: 'needs-build', column: 'Build', reason: null },
+              { ts: '2026-11-24T09:20:00Z', stage: 'needs-human', column: 'Needs human', reason: 'manual-verification' },
             ],
             durations: [
               { column: 'Build', milliseconds: 3_600_000 },
-              { column: 'Needs human', milliseconds: 1_500_000 },
+              { column: 'Needs human', milliseconds: 600_000 },
+              { column: 'Build', milliseconds: 600_000 },
+              { column: 'Needs human', milliseconds: 900_000 },
             ],
             metrics: { manualAcceptanceCriteria: 2, needsHumanCount: 2, needsHumanMilliseconds: 1_500_000 },
           }),

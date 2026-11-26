@@ -31,6 +31,7 @@ interface CardView {
   flag: string | null;
   /** "2× you" once the task has waited for the human; empty before. */
   badge: string;
+  hasBadge: boolean;
   hint: string | null;
   dimmed: boolean;
 }

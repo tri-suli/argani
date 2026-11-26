@@ -1,7 +1,6 @@
-import { ALL_PROJECTS, NO_TOTALS } from '@/constants/dashboard';
+import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_COUNT, NO_TOTALS } from '@/constants/dashboard';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
 import { formatCount, formatDuration } from '@/board/format';
-import { CLOCK_INTERVAL_MILLISECONDS } from '@/constants/dashboard';
 import createTaskDrawer from '@/components/task-drawer';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
@@ -112,6 +111,10 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, now 
 
     get drawerWaiting() {
       return formatDuration(this.drawerTask?.metrics.needsHumanMilliseconds ?? 0);
+    },
+
+    get drawerHasHistory() {
+      return this.drawerHistory.length > NO_COUNT;
     },
 
     get drawerHistory() {

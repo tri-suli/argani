@@ -107,7 +107,7 @@ describe('board view', () => {
   it('lists the history rows in order with formatted durations', () => {
     const task = sampleSnapshot().projects[0].tasks[3];
 
-    expect(boardView.historyRows(task)).toEqual([{ column: 'Build', duration: '1h00m' }, { column: 'Needs human', duration: '25m' }]);
+    expect(boardView.historyRows(task)).toEqual([{ column: 'Build', duration: '1h00m' }, { column: 'Needs human', duration: '10m' }, { column: 'Build', duration: '10m' }, { column: 'Needs human', duration: '15m' }]);
 
     expect(boardView.historyRows(sampleSnapshot().projects[0].tasks[0])).toEqual([]);
   });

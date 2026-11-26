@@ -63,6 +63,7 @@ def test_the_reviewer_and_spec_writer_prompts_name_the_working_directory():
 
 def test_the_slug_form_needs_an_existing_task_folder_and_a_description_takes_in_dir_only_at_the_start():
     step_one = skill_text("factory").split("## Step 1")[1].split("2. Run")[0]
-    assert "ONLY when the task folder `<tasksDir>/<slug>/` exists" in step_one
+    assert "the task folder `<tasksDir>/<slug>/`\n     exists" in step_one
     assert "the whole argument string is a description" in step_one
+    assert "do NOT stop" in step_one and "`<dir>` is an existing directory" in step_one
     assert "A description takes `in <dir>` only here, never later" in step_one

@@ -43,9 +43,9 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
    - first word `in`: `in <dir> <description>`; words 1 and 2 are the working directory, the rest is the description
      (so "Fix typo in README" is never cut). A description takes `in <dir>` only here, never later;
    - exactly one word: `<slug>`;
-   - exactly three words with `in` as word 2: `<slug> in <dir>` ONLY when the task folder `<tasksDir>/<slug>/` exists
-     (`tasksDir` from `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>` of the `<dir>` this form names; if that
-     fails, **stop** and show its error). If the folder does not exist, the whole argument string is a description,
+   - exactly three words with `in` as word 2: `<slug> in <dir>` ONLY when ALL hold: `<dir>` is an existing directory,
+     `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py <dir>` succeeds, and the task folder `<tasksDir>/<slug>/`
+     exists (`tasksDir` from that config). If any fails, do NOT stop: the whole argument string is a description,
      so "Sign in fails" is a description;
    - anything else: the whole argument string is a `<description>` of new work; `<slug>` is known after step 2.
    `<dir>` is a single token without spaces (a trailing `,` or `.` is dropped, since users type `in <dir>, <note>`): absolute,

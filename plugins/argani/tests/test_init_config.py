@@ -96,6 +96,11 @@ def test_legacy_config_is_reported_with_its_carried_keys(make_project):
     assert "legacyError" not in result
 
 
+def test_a_legacy_merge_command_is_never_carried_over(make_project):
+    repo = make_project(legacy_config={"verifyCommand": "true", "mergeCommand": "gh pr merge {url}"})
+    assert propose(repo)["legacyKeys"] == {"verifyCommand": "true"}
+
+
 def test_a_broken_legacy_config_is_reported_without_keys(make_project):
     repo = make_project(legacy_config={"reviewers": "code"})
     result = propose(repo)

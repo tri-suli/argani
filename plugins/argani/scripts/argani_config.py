@@ -81,7 +81,7 @@ def _command_with_placeholders(value, allowed):
     if "\n" in command or "\r" in command:
         raise ValueError("must be a single line")
     if QUOTED_PLACEHOLDER.search(command):
-        raise ValueError("placeholders are quoted by argani; write {title} without quotes")
+        raise ValueError(f"placeholders are quoted by argani; write {QUOTED_PLACEHOLDER.search(command).group(0).strip(chr(34) + chr(39))} without quotes")
     unknown = [name for name in PLACEHOLDER.findall(command) if name not in allowed]
     if unknown:
         raise ValueError(f"uses {', '.join(unknown)}; the placeholders are {', '.join(allowed)}")
@@ -223,7 +223,10 @@ LEGACY_COERCERS = {
 }
 
 
-def _read_overrides(path, coercers):
+LEGACY_1X_VALUE = object()  # marks a 1.x mergeCommand the read path set aside
+
+
+def _read_overrides(path, coercers, legacy_merge_command):
     """Return the overrides of a JSON config file validated by coercers; keys without a coercer
     pass through unchanged. Raises ValueError when unusable."""
     try:
@@ -236,6 +239,16 @@ def _read_overrides(path, coercers):
     for key, value in data.items():
         if value is None:
             continue
+        if key == "mergeCommand":
+            # A 1.x mergeCommand ({branch}, {base}, {mr}, or next to mergePolicy) must not fail the config.
+            try:
+                if "mergePolicy" in data or legacy_merge_command == "drop":
+                    raise ValueError
+                overrides[key] = coercers[key](value)
+            except ValueError:
+                if legacy_merge_command == "mark":
+                    overrides[key] = LEGACY_1X_VALUE
+            continue
         try:
             overrides[key] = coercers[key](value) if key in coercers else value
         except ValueError as error:
@@ -245,13 +258,13 @@ def _read_overrides(path, coercers):
 
 def read_config_file(path):
     """Return the validated overrides from a project.json. Raises ValueError when unusable."""
-    return _read_overrides(path, COERCERS)
+    return _read_overrides(path, COERCERS, "mark")
 
 
 def read_legacy_file(path):
     """Return the validated overrides from a removed per-repository .claude/argani.json, including
     its legacy key. Only the migration (init, import) reads it. Raises ValueError when unusable."""
-    return _read_overrides(path, {**COERCERS, **LEGACY_COERCERS})
+    return _read_overrides(path, {**COERCERS, **LEGACY_COERCERS}, "drop")  # a legacy mergeCommand is always 1.x
 
 
 def project_overrides(project_file):
@@ -259,8 +272,9 @@ def project_overrides(project_file):
     no longer knows (for example the git settings of 1.x) are ignored and only named in the second
     value, so a caller that runs per tool call stays quiet."""
     overrides = read_config_file(Path(project_file))
-    ignored = [key for key in overrides if key not in IDENTITY_KEYS and key not in DEFAULTS and key != "remotes"]
-    return {key: value for key, value in overrides.items() if key in DEFAULTS}, ignored
+    ignored = [key for key in overrides if key not in IDENTITY_KEYS and key != "remotes"
+               and (key not in DEFAULTS or overrides[key] is LEGACY_1X_VALUE)]
+    return {key: value for key, value in overrides.items() if key in DEFAULTS and value is not LEGACY_1X_VALUE}, ignored
 
 
 def _fresh_defaults():

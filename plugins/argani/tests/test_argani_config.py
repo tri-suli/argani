@@ -160,6 +160,24 @@ def test_merge_command_is_not_ignored(make_project):
     assert config["mergeCommand"] == "gh pr merge {url}" and config["ignoredKeys"] == []
 
 
+def test_a_1x_merge_command_with_old_placeholders_is_ignored_not_fatal(make_project):
+    project = make_project("repo", {"verifyCommand": "true", "mergeCommand": "gh pr merge {mr}"})
+    config = argani_config.load_config(project, strict=True)
+    assert config["verifyCommand"] == "true" and config["mergeCommand"] is None
+    assert "mergeCommand" in config["ignoredKeys"]
+
+
+def test_a_merge_command_next_to_merge_policy_is_1x_and_ignored(make_project):
+    project = make_project("repo", {"mergePolicy": "human", "mergeCommand": "gh pr merge --squash"})
+    config = argani_config.load_config(project)
+    assert config["mergeCommand"] is None and "mergeCommand" in config["ignoredKeys"]
+
+
+def test_quoted_placeholder_error_names_the_placeholder():
+    with pytest.raises(ValueError, match=r"write \{url\} without quotes"):
+        argani_config._merge_command("merge '{url}'")
+
+
 def test_intake_agent_has_a_default_model(tmp_path):
     assert argani_config.load_config(tmp_path)["agentModels"]["intake"] == "opus"
     assert "intake" in argani_config.AGENTS

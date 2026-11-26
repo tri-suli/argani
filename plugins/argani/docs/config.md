@@ -11,7 +11,8 @@ to the project and its own tools (merging goes through `mergeCommand`). Keys of 
 `baseBranch`, `protectedBranches`, `branchPattern`, `branchTypes`, `baseBranchByType`,
 `branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`,
 `commitTrailers`, `commitSkill`) are ignored when they are still in a `project.json`; scripts print
-a note on stderr naming them.
+a note on stderr naming them. A `mergeCommand` is also ignored as a 1.x leftover when it fails the
+`mergeCommand` rules below or sits next to `mergePolicy`, and is never carried over from a legacy `.claude/argani.json`.
 
 Every key is optional and has a default, except that factory mode and the review need
 `verifyCommand` and `diffCommand`. `/argani:init` proposes the config from what the directory

@@ -19,7 +19,13 @@ MILLISECONDS_PER_SECOND = 1000
 
 
 def is_valid(entry):
-    return isinstance(entry, dict) and all(isinstance(entry.get(key), str) for key in REQUIRED_STRING_KEYS)
+    if not isinstance(entry, dict) or not all(isinstance(entry.get(key), str) for key in REQUIRED_STRING_KEYS):
+        return False
+    try:
+        parse_timestamp(entry["ts"])
+    except ValueError:
+        return False
+    return True
 
 
 def read_history(job_dir):

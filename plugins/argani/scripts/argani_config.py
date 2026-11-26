@@ -29,9 +29,11 @@ DEFAULTS = {
     "protectedPaths": [],
     "mrCommand": None,
     "mrTitleCommand": None,  # prints the merge request title
+    "mergeCommand": None,  # merges the merge request at {url}; exit 0 means merged
     # Model per agent, or per job risk ({"default": ..., "low"|"medium"|"high": ...}). A key
     # "reviewer:<checklist>" overrides "reviewer" for that checklist.
     "agentModels": {
+        "intake": "opus",
         "spec-writer": "opus",
         "builder": {"default": "sonnet", "high": "opus"},
         "approver": "opus",
@@ -45,7 +47,7 @@ DEFAULTS = {
     "reviewerPaths": {},  # checklist -> globs; that reviewer runs only when the diff touches one
 }
 AGENT_MODELS = {"sonnet", "opus", "haiku", "fable", "inherit"}
-AGENTS = ("spec-writer", "builder", "approver", "reviewer")
+AGENTS = ("intake", "spec-writer", "builder", "approver", "reviewer")
 RISK_LEVELS = ("low", "medium", "high")
 DEFAULT_RISK = "medium"
 CHECKLIST_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
@@ -69,6 +71,7 @@ def _reviewer_names(value):
 QUOTED_PLACEHOLDER = re.compile(r"""["']\{[A-Za-z]\w*\}|\{[A-Za-z]\w*\}["']""")
 MR_COMMAND_PLACEHOLDERS = ("{title}", "{bodyFile}")
 MR_TITLE_COMMAND_PLACEHOLDERS = ("{title}", "{slug}")
+MERGE_COMMAND_PLACEHOLDERS = ("{url}",)
 
 
 def _command_with_placeholders(value, allowed):
@@ -91,6 +94,10 @@ def _mr_command(value):
 
 def _mr_title_command(value):
     return _command_with_placeholders(value, MR_TITLE_COMMAND_PLACEHOLDERS)
+
+
+def _merge_command(value):
+    return _command_with_placeholders(value, MERGE_COMMAND_PLACEHOLDERS)
 
 
 def _optional_string(value):
@@ -205,6 +212,7 @@ COERCERS = {
     "diffCommand": _optional_string,
     "mrCommand": _mr_command,
     "mrTitleCommand": _mr_title_command,
+    "mergeCommand": _merge_command,
     "agentModels": _agent_models,
     "reviewerPaths": _reviewer_paths,
 }
@@ -336,6 +344,11 @@ def fill_command(template, values):
 def mr_command_for(config, values):
     """The configured mrCommand filled by fill_command, or None when there is no mrCommand."""
     return fill_command(config["mrCommand"], values) if config["mrCommand"] else None
+
+
+def merge_command_for(config, url):
+    """The configured mergeCommand filled with the shell-quoted merge request url, or None."""
+    return fill_command(config["mergeCommand"], {"url": url}) if config["mergeCommand"] else None
 
 
 def mr_title_command_for(config, values):

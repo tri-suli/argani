@@ -6,10 +6,10 @@ below. A directory that is not registered as a project gets the defaults, and `t
 The old per-repository `.claude/argani.json` is no longer read (since 1.0.0). A broken home or
 project registry never blocks a project: it is ignored with a note on stderr, even in strict mode.
 
-argani never runs git and has no setting about branches, worktrees, commits or merges: those belong
-to the project and its own tools. Keys of argani 1.x that were about them (`defaultBranch`,
+argani never runs git and has no setting about branches, worktrees or commits: those belong
+to the project and its own tools (merging goes through `mergeCommand`). Keys of argani 1.x that were about them (`defaultBranch`,
 `baseBranch`, `protectedBranches`, `branchPattern`, `branchTypes`, `baseBranchByType`,
-`branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`, `mergeCommand`,
+`branchNumberCommand`, `worktreePath`, `worktreeCommand`, `mergePolicy`,
 `commitTrailers`, `commitSkill`) are ignored when they are still in a `project.json`; scripts print
 a note on stderr naming them.
 
@@ -43,7 +43,8 @@ defaults (with a note on stderr). The artifact guard cannot check `protectedPath
 | `protectedPaths` | `[]`          | Globs relative to the project directory that agents must not write.                                                                                                                                                                                                                                                         |
 | `mrCommand`      | none          | Command that opens the merge request. `{title}` is the title (the output of `mrTitleCommand` when set, else the intent's heading) and `{bodyFile}` the path of the generated description (acceptance criteria, human checklist, task folder). argani shell-quotes each value, so write the placeholders without quotes (a quoted placeholder is rejected, as is any other placeholder). Without it, the factory only prints the description. |
 | `mrTitleCommand` | none          | Command that prints the merge request title, for projects whose titles follow a convention argani cannot derive. `{title}` is the intent's heading and `{slug}` the task slug, shell-quoted by argani like `mrCommand` (write them without quotes). Runs in the working directory with a 30 s timeout; the first non-empty line of stdout is the title. A failure or an empty output stops the merge request step. Examples: `scripts/mr-title.sh {slug}`, `printf '[feat]: %s' {title}`. |
-| `agentModels`    | see below     | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"\|"medium"\|"high": ...}`. Keys are `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below). |
+| `mergeCommand`   | none          | Command that merges the merge request, so the factory can merge on its own. `{url}` is the merge request URL from `mr.md`; argani shell-quotes it, so write it without quotes (a quoted placeholder is rejected, as is any other placeholder). Runs in the working directory, in the background. Exit 0 must mean the merge request is merged, not merely that auto-merge is scheduled, and the command must be idempotent: an already merged merge request exits 0. Example: `gh pr merge {url} --squash`. |
+| `agentModels`    | see below     | Model of each argani agent: `sonnet`, `opus`, `haiku`, `fable` or `inherit` (the session's model), or an object choosing by the job's risk, `{"default": ..., "low"\|"medium"\|"high": ...}`. Keys are `intake`, `spec-writer`, `builder`, `approver`, `reviewer`, and `reviewer:<checklist>`, which wins over `reviewer`. Give only the keys to change; the others keep their default (see "Models" below). |
 
 ## Choosing `diffCommand`
 
@@ -71,7 +72,8 @@ has no `Risk:` line):
 
 | Agent                                   | Model                                     | Why                                                       |
 |-----------------------------------------|-------------------------------------------|-----------------------------------------------------------|
-| orchestrator, intake (`/argani:intent`) | the session's model                       | interactive with the human, not a subagent                |
+| orchestrator, `/argani:intent`          | the session's model                       | interactive with the human, not a subagent                |
+| `intake`                                | `opus`                                    | turns a raw request into an intent; unclear scope is costly |
 | `spec-writer`                           | `opus`                                    | design decisions; a wrong spec costs every later stage    |
 | `builder`                               | `sonnet`; `opus` when risk is high        | guided by the spec and checked by the verify command      |
 | `reviewer` (`code`, `compliance`, ...)  | `sonnet`; `haiku` when risk is low        | checklist-driven, and the approver checks the round       |

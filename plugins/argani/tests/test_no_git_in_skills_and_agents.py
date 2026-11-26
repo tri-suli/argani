@@ -10,7 +10,7 @@ PROMPT_FILES = sorted([*(PLUGIN_ROOT / "skills").glob("*/SKILL.md"), *(PLUGIN_RO
                        *(PLUGIN_ROOT / "templates").glob("*.md"), *(PLUGIN_ROOT / "checklists").glob("*.md")])
 # init may name git inside the example candidates for diffCommand.
 ALLOWED = {"skills/init/SKILL.md": ["`git diff origin/main...HEAD`", "`git diff origin/main`", "`git add -N`"]}
-REMOVED_WORDS = ("worktree_command.py", "merge_command.py", "next_number.py", "mergePolicy", "mergeCommand",
+REMOVED_WORDS = ("worktree_command.py", "merge_command.py", "next_number.py", "mergePolicy",
                  "commitSkill", "commitTrailers", "branchPattern", "baseBranch", "protectedBranches", "Checkout:",
                  "on_job_branch", "record_dir", "records_enabled")
 

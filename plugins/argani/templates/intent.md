@@ -56,3 +56,10 @@ Date: {{YYYY-MM-DD}}
 <!-- Unknowns the human must answer or the spec must resolve. Write "None" if empty. -->
 
 - {{question}}
+
+
+## Questions for human
+
+<!-- Only questions a human can answer, each specific, with options when possible. Write "None" if empty. -->
+
+- None

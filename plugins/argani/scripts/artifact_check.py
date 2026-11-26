@@ -34,6 +34,9 @@ AC_ITEM_SHAPE = "n. [ ] <claim> — verify: <how>"
 FILLER_VERIFY_VALUES = {"tbd", "tba", "tbc", "todo", "later", "unknown", "none", "n/a", "na", "-", "—", "?", "…"}
 # `verify: manual: <step>` marks a criterion only a human can check; the step must be named.
 MANUAL_PREFIX = re.compile(r"^`?manual:\s*", re.IGNORECASE)
+# Intents written by the intake agent may not lean on a human review; reviewer agents do that.
+INTAKE_AUTHOR_PATTERN = re.compile(r"^Author: argani:intake\s*$")
+REVIEW_ONLY_MANUAL = re.compile(r"\b(review|reviews|reviewed|reviewing|me-review|mereview|meninjau)\b", re.IGNORECASE)
 PLACEHOLDER_PATTERN = re.compile(r"\{\{[^{}\n]+\}\}")
 COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.S)
 CODE_SPAN_PATTERN = re.compile(r"`[^`\n]*`")
@@ -174,7 +177,7 @@ def is_filler_verify(value):
     return not bare or bare in FILLER_VERIFY_VALUES
 
 
-def check_acceptance_criteria(lines):
+def check_acceptance_criteria(lines, from_intake=False):
     violations, numbers = [], []
     items = [line for line in lines if line.strip()]
     if not items:
@@ -193,6 +196,10 @@ def check_acceptance_criteria(lines):
         elif is_filler_verify(match.group(3)):
             violations.append(f"{label} has no real verification (got {match.group(3).strip()!r}); "
                               "name a command, a test, or 'manual: <step a human does>'")
+        elif from_intake and MANUAL_PREFIX.match(match.group(3).strip()) \
+                and REVIEW_ONLY_MANUAL.search(MANUAL_PREFIX.sub("", match.group(3).strip())):
+            violations.append(f"{label}: manual verification may not be a review; reviewers do that, "
+                              "use a command or test")
     expected = [str(n) for n in range(1, len(numbers) + 1)]
     if numbers != expected:
         violations.append(f"acceptance criteria must be numbered 1 to {len(numbers)} in order, so item n "
@@ -219,7 +226,8 @@ def run_check(kind, text):
     if kind == "Intent":
         violations += check_risk(parse(text)[0])
     if kind == "Intent" and "Acceptance criteria" in sections:
-        violations += check_acceptance_criteria(sections["Acceptance criteria"])
+        from_intake = any(INTAKE_AUTHOR_PATTERN.match(line) for line in parse(text)[0])
+        violations += check_acceptance_criteria(sections["Acceptance criteria"], from_intake)
     if kind == "Spec" and "Acceptance criteria mapping" in sections:
         violations += check_table_has_rows(sections["Acceptance criteria mapping"], "Acceptance criteria mapping")
     if kind == "Plan" and "Proof" in sections:

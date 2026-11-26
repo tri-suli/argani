@@ -278,3 +278,15 @@ def test_update_refuses_identity_unknown_and_invalid_keys(make_project, hub):
 def test_update_requires_an_existing_project(make_project):
     code, out = update(make_project("one"), {"verifyCommand": "x"})
     assert code == 1 and "does not exist" in out
+
+
+def test_update_of_merge_command_drops_a_1x_merge_policy(make_project, hub):
+    sys.path.insert(0, str(SCRIPTS))
+    import argani_config
+    directory = make_project("one")
+    register(directory, config={"verifyCommand": "make test"})
+    file = hub / "projects" / "shop" / "project.json"
+    file.write_text(json.dumps({**project_json(hub), "mergePolicy": "agent"}))
+    assert update(directory, {"mergeCommand": "gh pr merge {url} --squash"})[0] == 0
+    assert "mergePolicy" not in project_json(hub)
+    assert argani_config.project_overrides(file)[0]["mergeCommand"] == "gh pr merge {url} --squash"

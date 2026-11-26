@@ -20,7 +20,7 @@ def test_parse_answers_reads_reason_id_date_word_and_note():
         "id": "manual-verification-r1-abcd1234",
         "date": "2026-11-20",
         "word": "PASS",
-        "note": "PASS looks good\nsecond line",
+        "note": "looks good\nsecond line",
     }
     assert entries[1]["word"] is None
     assert entries[1]["note"] == "Use option B."
@@ -108,3 +108,16 @@ def test_read_blocked_rejects_unknown_reason(tmp_path, capsys):
     (tmp_path / "blocked.md").write_text("error some-id\nsummary\n")
     assert human_gate.read_blocked(tmp_path) is None
     assert capsys.readouterr().err.startswith("argani:")
+
+
+def test_latest_answer_wins_for_extra_round(tmp_path):
+    qid = "review-escalate-r2-deadbeef"
+    (tmp_path / "answers.md").write_text(
+        human_gate.render_answer("review-escalate", qid, "2026-11-20", "RETRY")
+        + human_gate.render_answer("review-escalate", qid, "2026-11-21", "CANCEL"))
+    assert not human_gate.extra_round_allowed(tmp_path, 3)
+
+
+def test_note_excludes_the_answer_word():
+    entry = human_gate.parse_answers("## error x 2026-11-20\n\nFAIL the page is blank\n")[0]
+    assert (entry["word"], entry["note"]) == ("FAIL", "the page is blank")

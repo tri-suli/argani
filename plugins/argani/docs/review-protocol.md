@@ -75,7 +75,7 @@ without it is treated as cut off: the seat is rerun, and the partial file is ove
   `decision.md` and ignored for the verdict.
 - `human` is reserved: a configured reviewer may not be named `human`.
 - `ESCALATE` in `decision.md` stops the job and marks it as needing a human.
-- `APPROVE` still ends in a merge request that a human reviews and merges. argani never merges.
+- `APPROVE` ends in a merge request that is merged by the project's `mergeCommand` (or by a human); the approver never merges. A round beyond the second needs a recorded human answer.
 
 ## One writer per file
 

@@ -23,12 +23,12 @@ Each stage ends with an artifact; the next stage reads only that artifact.
 
 | Stage    | Artifact                                        | Produced by                                 | Human gate                                                                      |
 |----------|-------------------------------------------------|---------------------------------------------|---------------------------------------------------------------------------------|
-| Intent   | `intent.md`                                     | `/argani:intent` (interview with the human) | Human approves the intent                                                       |
-| Spec     | `spec.md`                                       | `/argani:spec` or the spec-writer agent     | Human reviews and approves the spec                                             |
+| Intent   | `intent.md`                                     | `/argani:intent` (interview with the human) or the intake agent | Manual mode: human approves. Factory mode: the orchestrator approves; a human only answers `## Questions for human` |
+| Spec     | `spec.md`                                       | `/argani:spec` or the spec-writer agent     | Manual mode: human approves. Factory mode: the orchestrator approves; a human only answers `## Questions for human` |
 | Plan     | `plan.md`                                       | `/argani:plan` or the builder agent         | Manual mode: human approves before any change. Factory mode: reviewed in the MR |
 | Work     | code or documents in the project, `build.md`    | Human or builder agent                      | none                                                                            |
 | Review   | `review/round-N/change.diff`, `review/round-N/review-<checklist>.md` | `capture_change.py` (the change), reviewer agents | none                                                                            |
-| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the MR description is generated from the intent and the decision; its title is the intent heading, or the output of `mrTitleCommand` |
+| Decision | `decision.md`                                   | Approver agent                              | Its output is a merge request, never a merge by the approver; the project's `mergeCommand` merges it (Needs human only when it is missing or fails); the MR description is generated from the intent and the decision; its title is the intent heading, or the output of `mrTitleCommand` |
 | Operate  | follow-up intents                               | Human, from what production shows           | Human opens the next intent                                                     |
 
 Operate is recorded as a stage but not yet automated.
@@ -48,7 +48,10 @@ review/round-N/change.diff              the change under review, captured by cap
 review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === END OF REVIEW ===
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
 mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist, task folder)
-mr.md         merge request URL, written once the MR exists; the human appends `Merged: <YYYY-MM-DD>` once it is merged
+mr.md         merge request URL, written once the MR exists; `Merged: <YYYY-MM-DD>` is appended once it is merged (by the orchestrator after `mergeCommand`, or by the human in manual mode)
+answers.md    the human's answers, `## <reason> <question-id> <YYYY-MM-DD>` plus the reply; written by the orchestrator (`/argani:factory answer`)
+blocked.md    line 1 `<reason> <id>` (`agent-failed`, `mr-missing`, `merge-missing`), then a summary; written by the orchestrator when a seat or command fails
+history.jsonl one line per change of (stage, column, reason); appended by `factory_state.py --record`, `factory_actions.py` and `board.py --write`
 ```
 
 Acceptance criteria use one shape, checked by `scripts/artifact_check.py`:
@@ -123,7 +126,7 @@ skipped with a warning on stderr.
 A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
 
 Done is decided by `mr.md` alone: when the merge request is merged, the human appends a line
-`Merged: <YYYY-MM-DD>` (a valid date at the start of a line). argani never looks at branches or
+`Merged: <YYYY-MM-DD>` (a valid date at the start of a line); in factory mode the orchestrator appends it after `mergeCommand` exits 0. argani never looks at branches or
 remotes, so a merge by any means (squash, rebase, a deleted branch) is recognised the same way.
 
 After APPROVE the job's scope is closed: the approver judged the change against `spec.md` and the
@@ -137,8 +140,9 @@ amend an approved spec; `mr_description.py` only warns when `intent.md` changed 
 ## Always-on rules
 
 1. Skills advise, hooks enforce. Anything that must always hold is a hook reading the project config.
-2. Nobody approves their own work. The approver's output is a merge request for a human; merging is
-   the human's and the project's own business, never argani's.
+2. Nobody approves their own work. The approver's output is a merge request; it is merged by the
+   project's `mergeCommand` (or by a human), never by argani's own code. Intake and spec-writer write
+   drafts; the orchestrator, not their author, writes the approval.
 3. Context comes from files, not conversation. Every agent is told which paths to read.
 4. One writer per file. Each agent writes only its own artifact; `change.diff` is written by
    `capture_change.py` alone (Write and Edit of it are denied to everyone).
@@ -146,15 +150,15 @@ amend an approved spec; `mr_description.py` only warns when `intent.md` changed 
    (`manual: <step>`) per criterion cannot be approved. Manual steps are done by a human before
    merging, never claimed by an agent.
 6. The verdict is the first line of a review (`PASS` or `CHANGES`) or decision (`APPROVE` or `ESCALATE`).
-7. At most two review rounds, then escalate to a human.
+7. At most two review rounds; a third needs a recorded human answer, otherwise the task waits as Needs human.
 8. A correction made twice becomes a rule in the project's `CLAUDE.md` or a hook.
 
 ## What argani does not do
 
 argani never runs git and has no opinion about it. Branches, worktrees, commits, pushes and merges
 (and their names, trailers and protection) are the project's, done with the project's own rules and
-skills. argani creates and switches no branch, makes no worktree, commits, pushes and merges nothing,
-guards no git command, names no branch and reads no remote. What it needs from the project is two
+skills. argani creates and switches no branch, makes no worktree, commits and pushes nothing, merges
+only by running the project's `mergeCommand`, guards no git command, names no branch and reads no remote. What it needs from the project is two
 commands in `project.json`: `verifyCommand` (proves the work) and `diffCommand` (prints the change
 under review). Before `/argani:factory` the human, or the project's own skills, prepare the branch or
 worktree and either start the session in that directory or pass it as `in <dir>` (the working
@@ -172,18 +176,23 @@ protocols assign to the builder (such as its own commit), never for a push, a me
 
 ## Two modes
 
-**Manual.** A person calls the skills one at a time and performs each gate in place:
+**Manual.** A human at every step: a person calls the skills one at a time and performs each gate in place:
 `/argani:intent`, approve, `/argani:spec`, approve, `/argani:plan`, approve, then does or directs the
 work and calls `/argani:review`.
 
-**Factory.** `/argani:factory` turns the session into an orchestrator that runs spec, build, review
-and decision with fresh subagents, each reading and writing files. It stops at only three
-places: the intent (human approves), the spec (human approves), and the merge request (human
-reviews and merges). `plan.md` is written by the builder before it changes any code and is
-reviewed together with the change in the merge request. Factory mode is expensive (several agents
-per job, up to two rounds), so use it only for jobs with clear acceptance criteria.
+**Factory.** `/argani:factory "<description>"` turns the session into an orchestrator that runs the whole
+loop autonomously: intake (the intake agent writes `intent.md` from the description and the repository),
+spec, build, review and decision with fresh subagents, each reading and writing files, then the merge
+request (`mrCommand`) and the merge (`mergeCommand`). The orchestrator writes the intent and spec
+approvals itself (through `scripts/factory_actions.py`). It stops only when a human must answer a
+specific question: `## Questions for human` in the intent or spec, manual verification steps, an
+escalation, a missing or failed `mrCommand` / `mergeCommand`, or an agent that failed twice. The human
+answers with `/argani:factory answer <slug> <answer>`; the answer is recorded in `answers.md` and the
+loop continues. `plan.md` is written by the builder before it changes any code and is reviewed together
+with the change in the merge request. Factory mode is expensive (several agents per job, up to two rounds
+without a human answer), so use it only for jobs with clear acceptance criteria.
 The orchestrator is `skills/factory/SKILL.md`; it re-reads job state each time from
-`scripts/factory_state.py <slug> <dir>`, which only reports and never writes.
+`scripts/factory_state.py <slug> <dir> --record`, which only reports (and appends the stage to the history).
 
 Before each review round the orchestrator runs `scripts/capture_change.py <slug> <dir>`: it runs the
 project's `diffCommand` with the project root of the working directory as working directory and saves the output as

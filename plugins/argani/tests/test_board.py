@@ -90,27 +90,27 @@ def test_columns_follow_the_pipeline():
     assert board.board(Path("/nonexistent-home"))["columns"] == list(board_columns.COLUMNS)
 
 
-def test_backlog(project, hub):
+def test_intake(project, hub):
     project.task(intent=INTENT.format(status="draft"))
     assert columns_of(hub) == {"login": "Intake"}
 
 
-def test_design(project, hub):
+def test_spec(project, hub):
     project.task()
     assert columns_of(hub) == {"login": "Spec"}
 
 
-def test_in_progress(project, hub):
+def test_build(project, hub):
     project.task().advance_to_review()
     assert columns_of(hub) == {"login": "Review"}
 
 
-def test_ready_for_mr(project, hub):
+def test_approve_for_mr(project, hub):
     project.task().advance_to_mr()
     assert columns_of(hub) == {"login": "Approve"}
 
 
-def test_in_review_while_mr_md_has_no_merged_line(project, hub):
+def test_approve_while_mr_md_has_no_merged_line(project, hub):
     project.task().finish()
     task = board.board(hub)["projects"][0]["tasks"][0]
     assert (task["stage"], task["column"], task["merged"]) == ("needs-merge", "Approve", None)
@@ -141,7 +141,7 @@ def test_rows_and_json_carry_no_git_fields(project, hub):
     assert "branch" not in data["projects"][0]["tasks"][0]
 
 
-def test_in_review_without_any_directory_registered(make_project, hub, register_project):
+def test_approve_without_any_directory_registered(make_project, hub, register_project):
     register_project("remote-only", **JOB_CONFIG)
     folder = hub / "projects" / "remote-only" / "tasks" / "login"
     folder.mkdir(parents=True)
@@ -186,7 +186,7 @@ def test_invalid_intent_still_listed(project, hub):
     assert columns_of(hub) == {"login": "Intake"}
 
 
-def test_folder_without_intent_is_backlog_with_slug_title(project, hub):
+def test_folder_without_intent_is_intake_with_slug_title(project, hub):
     project.task(intent=None)
     task = board.board(hub)["projects"][0]["tasks"][0]
     assert (task["column"], task["title"]) == ("Intake", "login")
@@ -482,3 +482,11 @@ def test_record_history_skips_error_rows(make_project, hub, register_project):
     now = datetime.now(timezone.utc)
     board.record_history(board.board(hub), hub, now)
     assert not (folder / "history.jsonl").exists()
+
+
+def test_written_snapshot_includes_the_history_just_recorded(project, hub):
+    project.task()
+    assert run_board("--write", str(project.root)).returncode == 0
+    task = json.loads((hub / "board.json").read_text())["projects"][0]["tasks"][0]
+    assert len(task["history"]) == 1
+    assert task["history"][0]["column"] == task["column"]

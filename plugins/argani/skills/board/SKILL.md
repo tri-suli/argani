@@ -1,6 +1,6 @@
 ---
 name: board
-description: Show the argani board, the tasks of this directory's project (or of every project with --all) by column - Backlog, Design, In progress, Ready for MR, In review, Done, Needs human. Read only. Slash form /argani:board [--all].
+description: Show the argani board, the tasks of this directory's project (or of every project with --all) by column - Intake, Spec, Build, Review, Approve, Needs human, Done. Read only. Slash form /argani:board [--all].
 argument-hint: "[--all]"
 allowed-tools: Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*), Read
 ---
@@ -23,7 +23,7 @@ This skill only reads. It writes nothing and never runs the factory.
    warning it printed on stderr (a skipped project). Then add one line with the number of tasks per
    non-empty column.
 4. Only when the human asks how to move a task, name the command for its column and leave the
-   human to run it: Backlog is `/argani:intent approve <slug>`; Design with a draft spec is
-   `/argani:spec approve <slug>`; Design, In progress and Ready for MR otherwise are
-   `/argani:factory <slug>`; In review and Done need no command; Needs human is a decision or a fix
-   for the human, not a command.
+   human to run it: Intake is `/argani:intent approve <slug>`; Spec with a draft spec is
+   `/argani:spec approve <slug>`; Spec, Build, Review and Approve otherwise are
+   `/argani:factory <slug>`; Done needs no command; Needs human shows the question of the task
+   (the `question:` line), answered with `/argani:factory answer <slug> <answer>`.

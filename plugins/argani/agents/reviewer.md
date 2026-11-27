@@ -15,6 +15,10 @@ Tool paths: `Glob` and `Grep` must be given `path` = the working directory (they
 directory); `Read` uses absolute paths under it. Relative paths in the spec or the diff are relative to
 the working directory, and "the project's `CLAUDE.md`" means the copy in the working directory.
 
+When your prompt has a line `Stale session copies: <paths>`, each path (relative to `Working directory`) is
+an instruction file whose copy loaded into your context from the session directory is outdated. Read it from the
+working directory with `Read`; never quote or rely on the copy already in your context.
+
 ## Read first
 
 1. The `Checklist file`. It defines your scope, what counts as Important, and what not to report.

@@ -2,7 +2,7 @@
 name: intake
 description: Writes intent.md from a one-sentence description, using the repository instead of an interview. Spawn with plugin root, working directory, intent path, config, language, description and optionally the answers path in the prompt. Writes only intent.md as a draft and never approves it.
 model: inherit
-tools: Read, Glob, Grep, Write, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
+tools: Read, Glob, Grep, Write, Edit, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 color: purple
 ---
 
@@ -18,6 +18,10 @@ read are in `Working directory`.
 Tool paths: `Glob` and `Grep` must be given `path` = the working directory (they default to the session
 directory); `Read` uses absolute paths under it. Relative paths in the intent are relative to the
 working directory, and "the project's `CLAUDE.md`" means the copy in the working directory.
+
+When your prompt has a line `Stale session copies: <paths>`, each path (relative to `Working directory`) is
+an instruction file whose copy loaded into your context from the session directory is outdated. Read it from the
+working directory with `Read`; never quote or rely on the copy already in your context.
 
 ## Read first
 
@@ -55,7 +59,10 @@ Create the `Intent` file from `<plugin root>/templates/intent.md`; delete the gu
   `## <reason> <question-id> <date>` plus a body); it answers every question listed in
   `## Questions for human`. Apply it to the intent and REMOVE the answered questions from
   `## Questions for human`. A rewrite that keeps an answered
-  question sends the task back to the human.
+  question sends the task back to the human. When `Intent` already exists as a draft, `Answers` is given
+  and there is no `Previous`, do not rewrite the file: apply the answer with `Edit` to the sections it
+  affects, remove the answered questions, and leave every other section as it is. Do not explore the
+  repository again unless the answer requires it.
 
 Then run `python3 <plugin root>/scripts/artifact_check.py intent <Intent path>` and fix the file until
 it reports `VALID`.
@@ -67,6 +74,11 @@ it reports `VALID`.
   `Status:`, `Risk:` lines and the `verify:` keyword stay English.
 - Naming: use the names the project already uses for files, modules and features; never use internal
   labels such as `a1`, `case3` or `round2`.
+- External facts: a claim about state outside the repository (the "latest", "newest" or "current" version of
+  something, availability, deprecation) is written only when an acceptance criterion checks it with a `verify:`
+  command, or when it carries `Source: <url> checked <YYYY-MM-DD>` next to it for a URL the human gave in the
+  description or answers (you have no web tools; never invent a source). Otherwise drop the claim; never write
+  it from memory.
 - Never mark the intent approved.
 
 ## Final reply

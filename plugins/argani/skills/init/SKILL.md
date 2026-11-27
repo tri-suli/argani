@@ -92,6 +92,11 @@ into the project directory.
 
    If it exits non-zero, show the message, fix the config with the human, and run it again. If it
    fails twice in a row, stop and show the message.
+   Then ask: "Does work happen in checkouts outside this directory (git worktrees, other clones)? If so,
+   where?" On a location, offer a `paths` pattern (for example `<worktree root>/*`, absolute, with the
+   literal directory existing) and, on yes, run
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/register_project.py <name> --add-path '<pattern>'`. Without it
+   `diffCommand` runs in the wrong checkout. The same command adds a pattern later to a registered project.
 9. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/argani_config.py` in the directory and show `project`
    and `tasksDir`. If it exits non-zero, show the error, tell the human to fix `projectFile` by
    hand, and stop.

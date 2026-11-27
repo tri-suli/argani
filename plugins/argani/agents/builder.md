@@ -9,7 +9,9 @@ color: green
 You implement the work for one job. You have no memory of earlier work; everything you need is in
 files named in your prompt. Your prompt gives `Plugin root`, `Working directory`, `Slug folder`,
 `Verify command`, `Round`, `Instruction` and, for round 2 or later, `Findings to address` (a list of
-review files, one path per file); "the plugin root" below means that value.
+review files, one path per file) and optionally `Previous` (the archived documents of an earlier
+version; when given, the working directory already holds that version's code: adjust it to the spec
+instead of rebuilding); "the plugin root" below means that value.
 
 You work in `Working directory`: that is where the code lives and where the verify command runs.
 The shell may start elsewhere, so begin every `Bash` command with `cd <working directory> &&`, and

@@ -972,3 +972,108 @@ def test_a_blocked_document_seat_needs_human_until_retry(job, seat, retry_stage)
     assert (state["stage"], state["reason"], state["question_id"]) == ("needs-human", "agent-failed", "agent-failed-r0-abc")
     answer(job, "agent-failed", "agent-failed-r0-abc", "RETRY")
     assert job.state()["stage"] == retry_stage
+
+
+def test_a_legacy_job_with_only_an_open_merge_request_keeps_the_merge_stage(job):
+    job.set_config(mergeCommand="echo merge {url}")
+    job.write("mr.md", f"{MR_URL}\n")
+    assert job.state()["stage"] == "needs-merge"
+
+
+@pytest.mark.parametrize("reopening", ["rework", "drift", "revisions"])
+def test_an_explicitly_reopened_job_with_rounds_and_no_approval_continues_the_work(job, reopening):
+    job.intent()
+    job.spec()
+    job.build()
+    passed_round(job)
+    job.write("mr.md", f"{MR_URL}\n")
+    if reopening == "rework":
+        answer(job, "rework", "rework-r1-x", "again")
+    elif reopening == "drift":
+        job.write("review/round-1/drift.md", "drift\n")
+    else:
+        job.write("revisions/1/spec.md", "old\n")
+    assert job.state()["stage"] == "needs-decision"
+
+
+def test_a_job_with_rounds_a_decision_and_a_merge_request_is_not_reopened(job):
+    at_approval(job, decision_text=f"APPROVE fine\n{MANUAL_SECTION}\n=== END OF DECISION ===\n")
+    job.write("mr.md", f"{MR_URL}\n")
+    job.set_config(mergeCommand="echo merge {url}")
+    assert job.state()["stage"] == "needs-merge"
+    job.write("intent.md", "not a valid intent\n")
+    job.write("blocked.md", "agent-failed agent-failed-r0-x\nboom\n")
+    assert job.state()["stage"] == "needs-merge"
+
+
+def test_a_decision_without_a_round_line_is_stale_after_a_newer_drift_round(job):
+    at_approval(job)
+    job.write("mr.md", f"{MR_URL}\n")
+    job.write("review/round-2/drift.md", "drift\n")
+    old = (job.path / "decision.md").stat().st_mtime_ns - 10_000_000_000
+    os.utime(job.path / "decision.md", ns=(old, old))
+    assert job.state()["decision"]["stale"] is True
+    assert job.state()["stage"] == "needs-review"
+
+
+def test_a_revision_note_survives_an_invalid_rewritten_document(job):
+    answer(job, "revision", "revision-r0-x", "note")
+    job.write("intent.md", "garbage\n")
+    state = job.state()
+    assert state["stage"] == "needs-intake" and state["reason"] == "revision" and state["answer"] == "note"
+
+
+def test_a_second_drift_in_a_row_asks_specifically_and_its_answer_reviews_that_round(job):
+    at_approval(job, round_line="Round: 2")
+    passed_round(job, 2)
+    job.write("review/round-2/drift.md", "drift\n")
+    job.write("review/round-3/drift.md", "drift\n")
+    state = job.state()
+    assert state["stage"] == "needs-human" and state["reason"] == "review-escalate"
+    assert "second drift in a row" in state["question"]
+    answer(job, "review-escalate", state["question_id"], "review it")
+    state = job.state()
+    assert state["stage"] == "needs-review" and state["review_round"] == 3
+
+
+def test_two_drift_rounds_in_a_row_need_a_human_answer(job):
+    at_approval(job, round_line="Round: 1")
+    job.write("review/round-2/drift.md", "drift\n")
+    job.write("review/round-3/drift.md", "drift\n")
+    state = job.state()
+    assert state["stage"] == "needs-human" and state["reason"] == "review-escalate"
+
+
+def test_revision_answer_is_ignored_once_the_document_exists(job):
+    job.intent()
+    answer(job, "revision", "revision-r0-x", "note")
+    assert job.state()["stage"] == "needs-spec" and job.state()["answered"]
+    job.spec("draft")
+    assert job.state()["stage"] == "needs-spec-approval"
+    assert job.state()["previous"] is None
+
+
+def test_rounds_report_drift(job):
+    at_approval(job)
+    job.write("review/round-2/drift.md", "drift\n")
+    rounds = job.state()["rounds"]
+    assert [item["drift"] for item in rounds] == [False, True]
+
+
+def test_a_drift_round_is_allowed_without_an_answer_and_with_changes_escalates(job):
+    at_approval(job, round_line="Round: 2")
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    job.write("review/round-3/drift.md", "drift\n")
+    job.round(3, {"code": "CHANGES", "security": "PASS"})
+    state = job.state()
+    assert state["stage"] == "needs-human" and state["reason"] == "review-escalate"
+    assert "made after approval in round 3" in state["question"]
+
+
+def test_a_drift_round_with_changes_escalates_even_below_the_cap(job):
+    at_approval(job, round_line="Round: 1")
+    job.write("review/round-2/drift.md", "drift\n")
+    job.round(2, {"code": "CHANGES", "security": "PASS"})
+    assert job.state()["reason"] == "review-escalate"
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    assert job.state()["stage"] == "needs-decision"

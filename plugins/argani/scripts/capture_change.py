@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture the change under review for the next review round of one argani job.
 
-Usage: python3 capture_change.py <slug> [dir]
+Usage: python3 capture_change.py <slug> [dir] [--check-drift]
 
 Runs the project's diffCommand (a shell command that prints the change as a unified diff) with the
 project root (the nearest registered path or pattern match that contains `dir`) as its working
@@ -18,7 +18,14 @@ review-<checklist>.md is refused. The one exception is a round at stage needs-de
 change.diff is missing (a round reviewed before 2.0.0). Exit 1 with a message when diffCommand is
 unset or fails, or the job has no review round waiting (its stage is none of needs-build,
 needs-review, needs-rework); exit 2 for an invalid config or wrong usage.
+
+--check-drift (only while the decision is a current APPROVE and the merge request is not merged)
+runs diffCommand like a capture and compares the output with review/round-<N>/change.diff of the
+decided round. Prints {"drift": false} when equal; {"drift": false, "empty": true} (and a warning)
+when the output is empty, {"drift": false, "unknown": true} (and a warning) when that round has no change.diff; else creates review/round-<N+1>/ with change.diff and drift.md and prints
+{"drift": true, "round", "path"}, so the change made after approval is reviewed before the merge.
 """
+import datetime
 import json
 import os
 import signal
@@ -27,7 +34,9 @@ import sys
 
 import argani_config
 import factory_state
+import human_gate
 
+DRIFT_FLAG = "--check-drift"
 COMMAND_TIMEOUT_SECONDS = 120
 LARGE_DIFF_BYTES = 1_000_000
 # Stages whose review_round is a round that has not been reviewed yet.
@@ -68,9 +77,8 @@ def round_has_reviews(state, number):
     return bool(entry) and any(name != "human" for name in entry["present"])
 
 
-def capture(slug, start_dir):
-    """Write change.diff for the job's next review round and return the report. Raises CaptureError
-    or ValueError (invalid config)."""
+def load_job(slug, start_dir):
+    """(config, state) of the job; raises CaptureError when diffCommand is unset or the job is missing."""
     config = argani_config.load_config(start_dir, strict=True)
     if not config["diffCommand"]:
         raise CaptureError(UNSET_MESSAGE)
@@ -79,6 +87,47 @@ def capture(slug, start_dir):
         raise CaptureError(f"No job folder for slug '{slug}'"
                            + (f" under {config['tasksDir']}." if config["project"]
                               else "; this directory is not registered, run /argani:init"))
+    return config, state
+
+
+def write_change(path, output):
+    """Write the captured output unchanged (see the module docstring) and return its size in bytes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as stream:
+        stream.write(output)
+    return len(output.encode("utf-8"))
+
+
+def check_drift(slug, start_dir):
+    """Compare the change now with the one approved; open a drift round when they differ."""
+    config, state = load_job(slug, start_dir)
+    if not factory_state.approved_and_unmerged(state):
+        raise CaptureError("--check-drift needs a current APPROVE decision and a merge request that is not merged")
+    number = state["decision"]["round"] or state["round"]
+    approved = factory_state.round_path(state["job_dir"], number) / factory_state.CHANGE_FILE
+    if not approved.is_file():
+        print(f"argani: review/round-{number}/{factory_state.CHANGE_FILE} is missing (a round reviewed before 2.0.0); "
+              "drift cannot be checked", file=sys.stderr)
+        return {"drift": False, "unknown": True}
+    output = run_diff_command(config["diffCommand"], config["projectRoot"] or start_dir)
+    if not output:
+        print(EMPTY_MESSAGE, file=sys.stderr)
+        return {"drift": False, "empty": True}
+    if output.encode("utf-8") == approved.read_bytes():
+        return {"drift": False}
+    folder = factory_state.round_path(state["job_dir"], number + 1)
+    write_change(folder / factory_state.CHANGE_FILE, output)
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    (folder / human_gate.DRIFT_FILE).write_text(
+        f"The change differs from review/round-{number}/{factory_state.CHANGE_FILE} after APPROVE; "
+        f"found {stamp}.\n", encoding="utf-8")
+    return {"drift": True, "round": number + 1, "path": str(folder / factory_state.CHANGE_FILE)}
+
+
+def capture(slug, start_dir):
+    """Write change.diff for the job's next review round and return the report. Raises CaptureError
+    or ValueError (invalid config)."""
+    config, state = load_job(slug, start_dir)
     number = state["review_round"]
     path = factory_state.round_path(state["job_dir"], number) / factory_state.CHANGE_FILE if number else None
     old_round_without_diff = state["stage"] == "needs-decision" and path is not None and not path.exists()
@@ -88,10 +137,7 @@ def capture(slug, start_dir):
     if round_has_reviews(state, number) and not old_round_without_diff:
         raise CaptureError(f"round {number} already has reviews; the change is fixed for that round")
     output = run_diff_command(config["diffCommand"], config["projectRoot"] or start_dir)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="") as stream:
-        stream.write(output)
-    size = len(output.encode("utf-8"))
+    size = write_change(path, output)
     files = factory_state.diff_files(output)
     if size > LARGE_DIFF_BYTES:
         print("argani: the change is larger than 1 MB; reviewers read a large diff partially", file=sys.stderr)
@@ -103,6 +149,8 @@ def capture(slug, start_dir):
 
 
 def main(argv):
+    drift = argv[-1] == DRIFT_FLAG
+    argv = argv[:-1] if drift else argv
     if len(argv) not in (2, 3):
         print(__doc__.strip(), file=sys.stderr)
         return 2
@@ -110,7 +158,7 @@ def main(argv):
         print(f"Invalid slug '{argv[1]}': use lowercase letters, digits and hyphens.", file=sys.stderr)
         return 1
     try:
-        report = capture(argv[1], argv[2] if len(argv) == 3 else ".")
+        report = (check_drift if drift else capture)(argv[1], argv[2] if len(argv) == 3 else ".")
     except CaptureError as error:
         print(f"argani: {error}", file=sys.stderr)
         return 1

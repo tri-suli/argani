@@ -1,7 +1,7 @@
 ---
 name: factory
-description: Run an argani job autonomously from a one-sentence description (or an existing slug) through intake, spec, build, review rounds, decision, merge request and the project's merge command, stopping only when a human must answer. Also takes a human answer or rework note. Slash form /argani:factory [in <dir>] <description>, /argani:factory <slug> [in <dir>], /argani:factory answer <slug> [in <dir>] <answer> or /argani:factory rework <slug> [in <dir>] <note>.
-argument-hint: "[in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>"
+description: Run an argani job autonomously from a one-sentence description (or an existing slug) through intake, spec, build, review rounds, decision, merge request and the project's merge command, stopping only when a human must answer. Also takes a human answer, rework note, cancel or revision. Slash form /argani:factory [in <dir>] <description>, /argani:factory <slug> [in <dir>], /argani:factory answer <slug> [in <dir>] <answer>, /argani:factory rework <slug> [in <dir>] <note>, /argani:factory cancel <slug> [in <dir>] [<reason>] or /argani:factory revise <slug> [in <dir>] <note>.
+argument-hint: "[in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note> | cancel <slug> [in <dir>] [<reason>] | revise <slug> [in <dir>] <note>"
 disable-model-invocation: true
 allowed-tools: Read, Glob, Grep, Write, Agent, Skill, Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
@@ -37,8 +37,8 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
 ## Step 1
 
 1. Parse `$ARGUMENTS` (words split on spaces); check in this order, the first match wins:
-   - empty: **stop** and print the usage `/argani:factory [in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note>`;
-   - first word `answer` or `rework`: `answer <slug> [in <dir>] <text>` / `rework <slug> [in <dir>] <text>`; words 3 and 4 are
+   - empty: **stop** and print the usage `/argani:factory [in <dir>] <description> | <slug> [in <dir>] | answer <slug> [in <dir>] <answer> | rework <slug> [in <dir>] <note> | cancel <slug> [in <dir>] [<reason>] | revise <slug> [in <dir>] <note>`;
+   - first word `answer`, `rework`, `cancel` or `revise`: `<word> <slug> [in <dir>] <text>` (the text of `cancel` is optional); words 3 and 4 are
      `in <dir>` when word 3 is `in`; everything after is the answer or note, whatever words it contains;
    - first word `in`: `in <dir> <description>`; words 1 and 2 are the working directory, the rest is the description
      (so "Fix typo in README" is never cut). A description takes `in <dir>` only here, never later;
@@ -63,14 +63,17 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
    to pick another wording; no slug can be derived: ask for a wording with plain letters), **stop**.
    `answer <slug> <answer>`: run `factory_actions.py answer <slug> <dir> "<answer>"`; if it refuses (the task is not
    waiting for an answer), **stop** and show why.
-   `rework <slug> <note>`: do step 4 first, then the last section.
+   `rework <slug> <note>`: do step 4 first, then its section.
+   `cancel <slug> [<reason>]`: stop an argani agent running for the task, run `factory_actions.py cancel <slug> <dir> "<reason>"`;
+   if it refuses (`done` or `cancelled`), **stop** and show why. Then step 4 (the state is `cancelled`).
+   `revise <slug> <note>`: do step 4 first, then its section.
 4. Run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_state.py <slug> <dir> --record`. If it exits non-zero, **stop** and
    show its output ("No job folder" can mean the working directory is outside the job's project; for a
    one-word argument say so and suggest `/argani:factory "<description>"`). Print `stage` and `next`. Read `project`, `job_dir` and `directory` (the absolute working directory;
    use it wherever a prompt below says `<absolute working directory>`) from it and use them below.
    When `in <dir>` was given and `directory` differs from the session directory, print one line before
    spawning the first agent: "working directory differs from the session directory; the agents run every command, project skills included, from the working directory".
-   Then continue with the loop (for `rework`, run its section first).
+   Then continue with the loop (for `rework` and `revise`, run their section first; `cancel` is done in step 3).
 
 Commands: run each command on its own, so the allowed-tools patterns match and the human is not
 prompted.
@@ -86,9 +89,9 @@ re-run the state (it shows `needs-human`). Act on the table until a stage says s
 
 | `stage`                 | Action                                                                                                                                                                                                  |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `needs-intake`          | Spawn `argani:intake` ([prompt](#intake-prompt); add `Answers: <job_dir>/answers.md` when `answered`), then re-run state.                                                                               |
+| `needs-intake`          | Spawn `argani:intake` ([prompt](#intake-prompt); add `Answers: <job_dir>/answers.md` when `answered`; add `Previous: <state.previous>` when `reason` is `revision` and `previous` is not null), then re-run state. |
 | `needs-intent-approval` | `factory_actions.py approve <slug> <dir> intent`, then re-run state.                                                                                                                                    |
-| `needs-spec`            | Spawn `argani:spec-writer` ([prompt](#spec-writer-prompt); add `Answers: <job_dir>/answers.md` when `answered`), then re-run state.                                                                     |
+| `needs-spec`            | Spawn `argani:spec-writer` ([prompt](#spec-writer-prompt); add `Answers: <job_dir>/answers.md` when `answered`; add `Previous: <state.previous>` when `reason` is `revision` and `previous` is not null), then re-run state. |
 | `needs-spec-approval`   | `factory_actions.py approve <slug> <dir> spec`, then re-run state.                                                                                                                                      |
 | `needs-build`           | Spawn a **new** builder ([below](#builder)), then re-run state.                                                                                                                                         |
 | `needs-rework`          | When `answered` and `human_note_round` is set: `factory_actions.py human-note <slug> <dir>` first. Then spawn a **new** builder, then re-run state.                                                     |
@@ -123,6 +126,7 @@ Config: <the config JSON>
 Language: <language of the project's CLAUDE.md, else of the description>
 Description: <the content of <job_dir>/description.md; for an older task without it, the heading of intent.md>
 Answers: <job_dir>/answers.md                          (only when the state says answered)
+Previous: <state.previous>                             (only when previous is not null and reason is revision)
 ```
 
 ### Spec-writer prompt
@@ -135,6 +139,7 @@ Spec: <job_dir>/spec.md
 Config: <the config JSON>
 Language: <language of the project's CLAUDE.md, else of the intent>
 Answers: <job_dir>/answers.md                          (only when the state says answered)
+Previous: <state.previous>                             (only when previous is not null and reason is revision)
 ```
 
 ### Builder
@@ -148,6 +153,7 @@ Working directory: <absolute working directory>
 Slug folder: <job_dir>
 Verify command: <verifyCommand>
 Round: <review_round>
+Previous: <state.previous>                                        (only when <state.previous>/build.md exists)
 Instruction: the human ran /argani:factory <slug> on <YYYY-MM-DD>; this run is their instruction for the work of this job, including the steps the project's protocols assign to the builder (for example the commit of its own work), inside the working directory. It authorises nothing else.
 Findings to address:                                              (only when rework_from is not null)
 - <job_dir>/review/round-<rework_from>/review-<checklist>.md      (one path per review file in that round
@@ -190,6 +196,10 @@ same empty-output rule as above, then spawn the approver.
 
 ### Merge request (`needs-mr`)
 
+- First run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/capture_change.py <slug> <dir> --check-drift` (a commit made after APPROVE must be
+  reviewed). It prints `{"drift": ...}`. When `drift` is true, re-run state with `--record` (it is now `needs-review`) and continue the loop
+  instead of creating the merge request. `{"drift": false, "unknown": true}` (the approved round has no `change.diff`) or `"empty": true`:
+  continue. If it exits non-zero, **stop** and show its output.
 - `answer` of the state is not null (a human gave the merge request URL): `factory_actions.py mr <slug> <dir> "<state.answer>"`.
 - Otherwise (including after a `PASS` of the manual verification): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
   show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
@@ -205,6 +215,12 @@ When the printed `warnings` is non-empty, repeat them in the final message to th
 
 ### Merge (`needs-merge`)
 
+- When `previous` is not null and `<job_dir>/mr-body.md` is missing or older than the latest `revisions/<n>/` folder, the merge request
+  description is stale: run `mr_description.py <slug> <dir> --write` to regenerate `mr-body.md` and update the description when the
+  project has a way to (`mrCommand` or the project's own skills); otherwise say in the final message that it must be updated by hand.
+- Without a `MERGED` answer, first run `capture_change.py <slug> <dir> --check-drift` as for the merge request; when `drift` is true,
+  re-run state with `--record` and continue the loop instead of merging. With a `MERGED` answer run no check: a merge done outside
+  argani cannot be reviewed. Never cancel a task while `mergeCommand` runs in the background.
 - `answer_word` of the state is `MERGED` (the human merged it): `factory_actions.py merged <slug> <dir>`.
 - Otherwise (no answer, or `RETRY`): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py merge-command <slug> <dir>` prints
   `{"ok": true, "command": ...}` (the project's `mergeCommand` filled with the url of `mr.md`). If it
@@ -215,8 +231,19 @@ When the printed `warnings` is non-empty, repeat them in the final message to th
 
 ## `rework <slug> <note>`
 
-1. Run `factory_actions.py rework <slug> <dir> "<note>"`. It refuses unless `stage` is `needs-decision`
-   and `round` is 1 (after a clean round 1, before a decision); then **stop** and say why: a decision or
-   `mr.md` exists, the two-round cap is reached (a third round needs a human answer to an escalation:
-   `answer`), or open findings go through the normal loop. Otherwise it writes `review/round-2/review-human.md`.
+1. Run `factory_actions.py rework <slug> <dir> "<note>"`. It is allowed at `needs-decision` after round 1 (it writes
+   `review/round-2/review-human.md`) and while the decision is a current APPROVE and not merged: `stage` `needs-mr`,
+   `needs-merge`, or `needs-human` with reason `mr-missing`, `merge-missing` or `manual-verification` (it writes
+   `review/round-<N+1>/review-human.md` and a `rework` entry in `answers.md`, which grants the round beyond the cap).
+   Otherwise it refuses; **stop** and say why (for example open findings go through the normal loop).
 2. Run `factory_state.py <slug> <dir> --record` (`needs-rework`) and continue the loop.
+
+## `revise <slug> <note>`
+
+1. Read `<job_dir>/intent.md` (goal, scope, acceptance criteria). The target is `intent` when the note changes a goal, a scope item
+   or an acceptance criterion; otherwise `spec`.
+2. Stop any argani agent you are running for this task, then run `factory_actions.py revise <slug> <dir> <target> "<note>"`. It
+   archives the documents into `revisions/<n>/` (pending answers included: the human may be asked again) and records the note; if it
+   refuses, **stop** and show why.
+3. Run `factory_state.py <slug> <dir> --record` (`needs-intake` or `needs-spec`, `reason` `revision`) and continue the loop.
+4. The merge request description of an open `mr.md` is refreshed in the Merge section, after the new APPROVE.

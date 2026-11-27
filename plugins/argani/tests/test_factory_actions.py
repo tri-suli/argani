@@ -254,3 +254,139 @@ def test_merged_requires_the_needs_merge_stage(job):
     to_needs_mr(job)
     ok(job, "mr", URL)
     assert "needs-human" in act(job, "merged").stdout  # no mergeCommand: waits for the human
+
+
+# --- cancel, revise, rework after APPROVE -------------------------------------------------------
+
+def test_cancel_is_accepted_at_needs_build_and_records_history(job):
+    job.intent()
+    job.spec()
+    assert job.state()["stage"] == "needs-build"
+    ok(job, "cancel", "the", "scope", "moved")
+    entry = human_gate.parse_answers((job.path / "answers.md").read_text())[-1]
+    assert entry["reason"] == "cancel" and entry["note"] == "the scope moved"
+    assert entry["id"] == human_gate.question_id("cancel", "the scope moved", None)
+    assert job.state()["stage"] == "cancelled"
+    assert history(job)[-1]["stage"] == "cancelled"
+    assert act(job, "cancel").returncode == 1  # already cancelled
+
+
+def test_cancel_is_accepted_at_needs_human_without_a_reason(job):
+    job.intent()
+    ok(job, "block", "agent-failed", "builder crashed")
+    assert job.state()["stage"] == "needs-human"
+    ok(job, "cancel")
+    assert "CANCEL" in (job.path / "answers.md").read_text()
+    assert job.state()["stage"] == "cancelled"
+
+
+def test_cancel_is_refused_at_done(job):
+    to_needs_mr(job)
+    job.write("mr.md", f"{URL}\n\nMerged: 2026-11-27\n")
+    assert job.state()["stage"] == "done"
+    assert act(job, "cancel", "late").returncode == 1
+
+
+def test_revise_intent_archives_the_documents_and_restarts_at_intake(job):
+    to_needs_mr(job)
+    job.write("mr-body.md", "body\n")
+    job.write("description.md", "d\n")
+    ok(job, "revise", "intent", "also", "support", "dark", "mode")
+    archive = job.path / "revisions" / "1"
+    for name in ("intent.md", "spec.md", "build.md", "decision.md", "mr-body.md", "review/round-1/review-code.md"):
+        assert (archive / name).exists(), name
+    assert not (job.path / "spec.md").exists() and not (job.path / "intent.md").exists()
+    assert (job.path / "description.md").exists()
+    state = job.state()
+    assert state["stage"] == "needs-intake" and state["answered"]
+    assert state["reason"] == "revision" and state["answer"] == "also support dark mode"
+    assert state["previous"] == str(archive)
+    assert state["column"] == "Intake"
+    assert history(job)[-1]["stage"] == "needs-intake"
+
+
+def test_revise_spec_keeps_the_intent_and_numbers_the_revisions(job):
+    to_needs_mr(job)
+    ok(job, "revise", "spec", "use", "sqlite")
+    assert (job.path / "intent.md").exists() and not (job.path / "spec.md").exists()
+    assert (job.path / "revisions" / "1" / "spec.md").exists()
+    assert not (job.path / "revisions" / "1" / "intent.md").exists()
+    state = job.state()
+    assert state["stage"] == "needs-spec" and state["answer"] == "use sqlite"
+    job.spec()
+    ok(job, "revise", "spec", "no", "wait")
+    assert (job.path / "revisions" / "2" / "spec.md").exists()
+    assert job.state()["previous"] == str(job.path / "revisions" / "2")
+
+
+def test_revise_is_refused_for_an_empty_note_a_bad_target_and_a_closed_job(job):
+    to_needs_mr(job)
+    assert act(job, "revise", "spec").returncode == 1
+    assert act(job, "revise", "plan", "x").returncode == 1
+    assert (job.path / "spec.md").exists()
+    ok(job, "cancel")
+    assert act(job, "revise", "spec", "x").returncode == 1
+
+
+def test_revise_with_an_open_merge_request_restarts_and_ends_at_needs_merge(job):
+    to_needs_mr(job)
+    job.write("mr.md", f"{URL}\n")
+    job.set_config(mergeCommand="echo merge {url}")
+    ok(job, "revise", "spec", "change", "it")
+    assert job.state()["stage"] == "needs-spec"
+    job.spec()
+    assert job.state()["stage"] == "needs-build"
+    job.build()
+    job.round(1, {"code": "PASS", "security": "PASS"})
+    job.decision("APPROVE")
+    assert job.state()["stage"] == "needs-merge"
+
+
+@pytest.mark.parametrize("with_mr", [False, True])
+def test_rework_after_approve_opens_the_next_round_even_beyond_round_two(job, with_mr):
+    to_needs_mr(job)
+    job.round(2, {"code": "PASS", "security": "PASS"})
+    job.write("decision.md", "APPROVE fine\nRound: 2\n\n=== END OF DECISION ===\n")
+    if with_mr:
+        job.write("mr.md", f"{URL}\n")
+    assert job.state()["stage"] == ("needs-human" if with_mr else "needs-mr")
+    ok(job, "rework", "handle", "empty", "input")
+    assert (job.path / "review" / "round-3" / "review-human.md").exists()
+    entry = human_gate.parse_answers((job.path / "answers.md").read_text())[-1]
+    assert entry["reason"] == "rework" and entry["id"] == human_gate.question_id("rework", "handle empty input", 2)
+    state = job.state()
+    assert state["stage"] == "needs-rework" and state["review_round"] == 3
+
+
+def test_rework_after_approve_moves_an_old_blocked_file_out_of_the_way(job):
+    to_needs_mr(job)
+    ok(job, "block", "mr-missing", "mrCommand failed")
+    assert job.state()["stage"] == "needs-human"
+    ok(job, "rework", "fix", "it")
+    assert not (job.path / "blocked.md").exists()
+    assert (job.path / "blocked-before-round-2.md").read_text().startswith("mr-missing ")
+
+
+def test_revise_numbers_after_the_highest_folder_and_reports_a_failed_move(job, monkeypatch, tmp_path):
+    to_needs_mr(job)
+    (job.path / "revisions" / "5").mkdir(parents=True)
+    assert ok(job, "revise", "spec", "x")["revision"] == "6"
+    state, job_dir = factory_actions.load_state("demo", str(job.root))[1:]
+
+    def fail(*arguments):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(factory_actions.shutil, "move", fail)
+    with pytest.raises(factory_actions.ActionError) as error:
+        factory_actions.revise(state, job_dir, "intent", "y")
+    assert "revisions/7" in str(error.value) and "disk full" in str(error.value)
+
+
+def test_rework_is_refused_at_needs_build_and_after_the_merge(job):
+    job.intent()
+    job.spec()
+    assert act(job, "rework", "x").returncode == 1
+    to_needs_mr(job)
+    job.write("mr.md", f"{URL}\n\nMerged: 2026-11-27\n")
+    assert act(job, "rework", "x").returncode == 1
+    assert not (job.path / "review" / "round-2").exists()

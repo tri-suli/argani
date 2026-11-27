@@ -52,7 +52,7 @@ test.describe('with a live backend', () => {
   test('shows manual criteria and waiting time in the footer totals', async ({ page }) => {
     await expect(page.getByTestId('totals')).toContainText('1 manual ACs');
 
-    await expect(page.getByTestId('totals')).toHaveText(/[1-9]h\d\dm waiting for you/);
+    await expect(page.getByTestId('totals')).toHaveText(/[1-9]\d*h\d\dm waiting for you/);
   });
 
   test('lists the column history and metrics of a task in the drawer', async ({ page }) => {

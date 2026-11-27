@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -290,3 +291,19 @@ def test_update_of_merge_command_drops_a_1x_merge_policy(make_project, hub):
     assert update(directory, {"mergeCommand": "gh pr merge {url} --squash"})[0] == 0
     assert "mergePolicy" not in project_json(hub)
     assert argani_config.project_overrides(file)[0]["mergeCommand"] == "gh pr merge {url} --squash"
+
+
+def test_replacing_project_json_gives_it_the_default_mode_even_from_0600(make_project, hub):
+    first, second, third = make_project("one"), make_project("two"), make_project("three")
+    assert register(first)[0] == 0
+    file = hub / "projects" / "shop" / "project.json"
+    previous_umask = os.umask(0o022)
+    try:
+        file.chmod(0o600)
+        assert run_script("register_project.py", "shop", str(second), "--update", stdin="{}")[0] == 0
+        assert file.stat().st_mode & 0o777 == 0o644
+        file.chmod(0o600)
+        assert register(third)[0] == 0
+        assert file.stat().st_mode & 0o777 == 0o644
+    finally:
+        os.umask(previous_umask)

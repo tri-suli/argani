@@ -78,7 +78,13 @@ def _create(file, entry):
 
 
 def _replace(file, entry):
-    os.replace(_temporary_copy(file, entry), file)
+    """Swap file for the new entry with the mode _create gives (mkstemp makes 0600, which the office
+    container cannot read)."""
+    temporary = _temporary_copy(file, entry)
+    umask = os.umask(0)
+    os.umask(umask)
+    temporary.chmod(0o666 & ~umask)
+    os.replace(temporary, file)
 
 
 def _pattern_directory(pattern):

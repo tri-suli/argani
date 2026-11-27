@@ -421,8 +421,7 @@ def work_stage(slug, config, build, rounds, plan, gate):
     ignored = [n for n, v in rounds[-1]["verdicts"].items() if v == "CHANGES" and n not in reviewers and n != "human"]
     note = (f" Ignored, not in reviewers: {', '.join(ignored)} (CHANGES); the approver lists them."
             if ignored else "")
-    return outcome("needs-decision", f"Spawn argani:approver on review/round-{review_round}/ and tell it the "
-                   f"round number (`Round: {review_round}` in decision.md).{note}", review_round)
+    return outcome("needs-decision", f"Spawn argani:approver on review/round-{review_round}/.{note}", review_round)
 
 
 def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, mr, build_text, gate):

@@ -71,7 +71,8 @@ def test_the_factory_prompts_carry_the_change_and_no_branch_inputs():
     assert text.count("Change: <job_dir>/review/round-<review_round>/change.diff") == 1
     builder_prompt = text.split("### Builder")[1].split("### Review round")[0]
     assert [line.split(":")[0] for line in builder_prompt.splitlines() if re.match(r"^[A-Z][A-Za-z ]+:", line)] == [
-        "Plugin root", "Working directory", "Slug folder", "Verify command", "Round", "Previous", "Instruction",
+        "Plugin root", "Working directory", "Slug folder", "Verify command", "Round", "Previous", "Stale session copies",
+        "Instruction",
         "Findings to address"]
     assert "one path per review file" in builder_prompt and "review-<checklist>.md" in builder_prompt
 

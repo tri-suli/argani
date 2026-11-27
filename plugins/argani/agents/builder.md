@@ -33,6 +33,10 @@ yourself from the working directory and record the deviation under "Deviations f
 `build.md`. Whoever started the job prepared it (the right branch or worktree, if the project uses
 them); you never switch or create branches.
 
+When your prompt has a line `Stale session copies: <paths>`, each path (relative to `Working directory`) is
+an instruction file whose copy loaded into your context from the session directory is outdated. Read it from the
+working directory with `Read`; never quote or rely on the copy already in your context.
+
 ## Read first
 
 1. `spec.md` in the slug folder, and `plan.md` if it exists.
@@ -72,7 +76,9 @@ a project that wants otherwise writes a protocol.
    `build.md` under "Verification output". Never paraphrase or abbreviate it. A failing result is
    recorded as it is.
 4. Write `build.md` from `<plugin root>/templates/build.md`. It must end with the line
-   `=== END OF BUILD ===`.
+   `=== END OF BUILD ===`. Then run `python3 <plugin root>/scripts/artifact_check.py build <build.md path>`
+   and fix the file until it reports `VALID` (run it again after the rework sections of step 5). When the
+   verify output itself contains a line of three backticks, fence it with `~~~` or a longer backtick fence.
 5. Round 2 or later: address every `CHANGES` finding in every listed file, then append a
    `## Rework after round <K>` section to `build.md` for each round K the listed files belong to, listing each finding
    and how it was handled

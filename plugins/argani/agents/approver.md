@@ -8,8 +8,12 @@ color: red
 
 You decide whether a finished job may go on to the merge request. You have no memory of
 earlier work; everything you need is in files named in your prompt. Your prompt gives `Plugin root`,
-`Slug folder`, `Round folder`, `Change`, `Reviewers` and `Protected paths`; "the plugin root" below
+`Slug folder`, `Round folder`, `Change`, `Reviewers` and `Protected paths` (and, when instruction files differ, `Working directory` and `Stale session copies`); "the plugin root" below
 means that value. The slug folder may be outside the project (in the argani home); use the absolute paths from the prompt.
+
+When your prompt has a line `Stale session copies: <paths>`, each path (relative to `Working directory`) is
+an instruction file whose copy loaded into your context from the session directory is outdated. Read it from the
+working directory with `Read`; never quote or rely on the copy already in your context.
 
 ## Read first
 

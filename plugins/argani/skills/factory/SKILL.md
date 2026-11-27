@@ -73,6 +73,10 @@ manual loop (`/argani:spec`, `/argani:plan`, `/argani:review`) instead.
    use it wherever a prompt below says `<absolute working directory>`) from it and use them below.
    When `in <dir>` was given and `directory` differs from the session directory, print one line before
    spawning the first agent: "working directory differs from the session directory; the agents run every command, project skills included, from the working directory".
+   In that case also run once `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/instruction_drift.py <session directory> <directory>`;
+   it prints `{"stale": [paths]}`. When `stale` is not empty, add the line `Stale session copies: <paths, comma-separated>` to
+   the prompts of intake, spec-writer, builder, every reviewer seat, and approver (below); the agents then read those files from the
+   working directory instead of trusting the copy this session loaded.
    Then continue with the loop (for `rework` and `revise`, run their section first; `cancel` is done in step 3).
 
 Commands: run each command on its own, so the allowed-tools patterns match and the human is not
@@ -127,6 +131,7 @@ Language: <language of the project's CLAUDE.md, else of the description>
 Description: <the content of <job_dir>/description.md; for an older task without it, the heading of intent.md>
 Answers: <job_dir>/answers.md                          (only when the state says answered)
 Previous: <state.previous>                             (only when previous is not null and reason is revision)
+Stale session copies: <paths>                          (only when instruction_drift.py printed some)
 ```
 
 ### Spec-writer prompt
@@ -140,6 +145,7 @@ Config: <the config JSON>
 Language: <language of the project's CLAUDE.md, else of the intent>
 Answers: <job_dir>/answers.md                          (only when the state says answered)
 Previous: <state.previous>                             (only when previous is not null and reason is revision)
+Stale session copies: <paths>                          (only when instruction_drift.py printed some)
 ```
 
 ### Builder
@@ -154,6 +160,7 @@ Slug folder: <job_dir>
 Verify command: <verifyCommand>
 Round: <review_round>
 Previous: <state.previous>                                        (only when <state.previous>/build.md exists)
+Stale session copies: <paths>                                     (only when instruction_drift.py printed some)
 Instruction: the human ran /argani:factory <slug> on <YYYY-MM-DD>; this run is their instruction for the work of this job, including the steps the project's protocols assign to the builder (for example the commit of its own work), inside the working directory. It authorises nothing else.
 Findings to address:                                              (only when rework_from is not null)
 - <job_dir>/review/round-<rework_from>/review-<checklist>.md      (one path per review file in that round
@@ -175,7 +182,8 @@ After it returns, re-run state and continue the loop. Its reply is one line; if 
    may narrow the `reviewers` (`reviewerPaths`). When the round already has a review file, the change
    is fixed: do not capture again, the existing `change.diff` stays.
 2. Run steps 4 to 6 of `${CLAUDE_PLUGIN_ROOT}/skills/review/SKILL.md` for `N = review_round` and slug
-   folder `<job_dir>` (one message, all missing seats, wait for all, rerun a cut-off seat once). Seats
+   folder `<job_dir>` (one message, all missing seats, wait for all, rerun a cut-off seat once); when stale copies were found,
+   each seat's prompt also gets the `Stale session copies:` line. Seats
    already in `rounds[].complete` for that round are not spawned again. Do not print its table.
 
 ### Approver
@@ -187,6 +195,8 @@ Round folder: <job_dir>/review/round-<review_round>/
 Change: <job_dir>/review/round-<review_round>/change.diff
 Reviewers: <the state's reviewers, comma-separated>
 Protected paths: <protectedPaths, comma-separated, or "none">
+Working directory: <absolute working directory>                   (only with the next line)
+Stale session copies: <paths>                                     (only when instruction_drift.py printed some)
 ```
 
 Before spawning the approver, check that `change.diff` exists in the round folder. If it is missing (a

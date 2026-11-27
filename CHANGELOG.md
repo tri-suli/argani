@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- `register_project.py <name> --add-path <pattern-or-dir>` adds a `paths` pattern (for example git worktrees outside the project) or a real directory to a registered project; duplicates, overlaps with another project, a pattern matching the argani home, one of its ancestors or the user home, a pattern that would capture another project's directories (or the reverse) and a missing literal directory are refused; a pattern's literal directory is stored as its real path. `/argani:init` asks where work happens outside the directory and offers it.
+- `scripts/instruction_drift.py <session dir> <working dir>` prints the instruction files (`CLAUDE.md`, `@` imports, `.claude/rules`) that differ between the two; the factory runs it for `in <dir>` and passes `Stale session copies:` to the agents, which read those files from the working directory.
+- `artifact_check.py build <file>` validates `build.md` (sections, fenced verification output, closing line; a `~~~` or longer fence may hold a line of three backticks); the builder runs it. `build.complete` in the state still checks only the closing line.
+- Intake and spec-writer apply a human answer to an existing draft with `Edit` instead of rewriting it, and may state an external fact (latest version, availability) only with a `verify:` command or a `Source: <url> checked <date>` for a URL the human gave; otherwise they drop it.
 - `mrSkill` and `mergeSkill` (optional, project.json): the name of a project skill that opens / merges the merge request, for projects whose forge access is a skill or MCP tool; mutually exclusive with `mrCommand` / `mergeCommand`. The factory invokes the skill, the state machine treats it like a configured command (RETRY included), `mr_description.py` reports `skill`, and `/argani:init` lists the project's skills as candidates.
 - The factory records a merge request it opened, or a merge the human asked for in chat (through the drift check), as an `answer` marked `(recorded by the orchestrator: ...)` instead of asking the human to type it. `register_project.py --update` removes a key given as `null`.
 - `/argani:factory cancel <slug> [reason]` (answers.md reason `cancel`) and `revise <slug> <note>` (the orchestrator picks intent or spec): `revise` archives the documents into `revisions/<n>/`, records the note (reason `revision`) and restarts at intake or spec; the state exposes `previous` and the intake, spec-writer and builder agents take a `Previous:` prompt line.
@@ -28,6 +32,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `mr-body.md` no longer has an `## argani` section: the merge request body is about the project only (summary, acceptance criteria, human verification checklist).
 - A job with `mr.md` is reopened only by `revise`, `rework` after APPROVE or a drift round: its work continues and, after a new APPROVE, it goes to the merge instead of a second merge request. Any other job with `mr.md` goes straight to the merge as before.
 - A `revision` answer does not move a task to the Approve column.
+- The `needs-decision` hint no longer asks to pass a round number to the approver, which reads it from its `Round folder`.
 
 - The board columns are Intake, Spec, Build, Review, Approve, Needs human and Done, in `board.md` and `board.json` (a schema change for consumers); a multi-line question is shown on one line in `board.md`.
 - The stage `escalate` is replaced by `needs-human` with the reason `review-escalate`.

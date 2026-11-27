@@ -88,7 +88,7 @@ def test_reviewer_and_approver_read_the_captured_change(name):
 
 def test_intake_has_exact_tool_set():
     tools = tool_names(parse_frontmatter(AGENTS_DIR / "intake.md"))
-    assert tools == ["Read", "Glob", "Grep", "Write", "Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)"]
+    assert tools == ["Read", "Glob", "Grep", "Write", "Edit", "Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/*)"]
 
 
 def test_approver_writes_the_round_number_on_line_two():

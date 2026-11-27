@@ -206,6 +206,34 @@ def test_broken_config_is_needs_human(make_project, hub, register_project):
     assert task["next"]
 
 
+def test_project_with_invalid_project_json_stays_on_the_board_as_error_rows(hub, capsys):
+    folder = hub / "projects" / "broken"
+    (folder / "tasks" / "login").mkdir(parents=True)
+    (folder / "project.json").write_text("{not json")
+    (hub / "projects" / "aaa").mkdir()
+    (hub / "projects" / "aaa" / "project.json").write_text(json.dumps({"name": "aaa", "paths": []}))
+    data = board.board(hub)
+    assert [project["name"] for project in data["projects"]] == ["aaa", "broken"]
+    (row,) = data["projects"][1]["tasks"]
+    assert (row["slug"], row["stage"], row["column"]) == ("login", "error", "Needs human")
+    assert "project.json" in row["question"]
+    assert [project["name"] for project in board.board(hub, names={"aaa"})["projects"]] == ["aaa"]
+
+
+@pytest.mark.parametrize("content", [{"name": "other", "paths": []}, {"name": "odd", "paths": "x"}])
+def test_project_json_failing_the_registry_checks_shows_the_error(hub, content, capsys):
+    folder = hub / "projects" / "odd"
+    (folder / "tasks" / "login").mkdir(parents=True)
+    (folder / "project.json").write_text(json.dumps(content))
+    (hub / "projects" / ".trash").mkdir()
+    (hub / "projects" / ".trash" / "project.json").write_text("{}")
+    data = board.board(hub)
+    assert [project["name"] for project in data["projects"]] == ["odd"]
+    (row,) = data["projects"][0]["tasks"]
+    assert row["stage"] == "error" and "project.json" in row["question"]
+    assert capsys.readouterr().err.count("skipping") == 1
+
+
 def run_board(*arguments):
     return subprocess.run([sys.executable, str(SCRIPT), *arguments], capture_output=True, text=True)
 
@@ -382,10 +410,18 @@ def test_finish_with_unhashable_tool_use_id_does_not_crash(hub):
 
 
 def test_malformed_lines_are_skipped_with_one_warning(hub, capsys):
-    write_events(hub, 0, "{not json", "[1, 2]", "[" * 100000 + "]" * 100000, spawn_record())
+    write_events(hub, 0, "{not json", "[1, 2]", "[" * 100000 + "]" * 100000,
+                 {"event": ["spawn"], "tool_use_id": "x"}, spawn_record())
     assert board.board(hub)["agents"] == [spawn_record()]
     error = capsys.readouterr().err
-    assert error.count("skipped 3 malformed lines in") == 1
+    assert error.count("skipped 4 malformed lines in") == 1
+
+
+def test_start_and_stop_records_are_ignored_without_a_warning(hub, capsys):
+    write_events(hub, 0, {"ts": "2026-11-21T10:00:00Z", "event": "start", "session_id": "s1"},
+                 {"ts": "2026-11-21T10:09:00Z", "event": "stop", "session_id": "s1"}, spawn_record())
+    assert board.board(hub)["agents"] == [spawn_record()]
+    assert capsys.readouterr().err == ""
 
 
 def test_missing_events_folder_means_no_agents(hub):

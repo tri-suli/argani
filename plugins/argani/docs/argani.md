@@ -124,7 +124,7 @@ at launch, so it would be dropped early; argani's skills do not use them. `agent
 filter: it always lists every active agent of the home. An unreadable event file or malformed line is
 skipped with a warning on stderr.
 
-A project whose `project.json` is unreadable is skipped with a warning on stderr and is absent from the board.
+A project whose `project.json` is unreadable or invalid stays on the board: each of its tasks is a Needs human error row carrying the problem (a warning goes to stderr too). Folders under `projects/` that are not valid project names are ignored.
 
 Done is decided by `mr.md` alone: when the merge request is merged, the human appends a line
 `Merged: <YYYY-MM-DD>` (a valid date at the start of a line); in factory mode the orchestrator appends it after `mergeCommand` exits 0. argani never looks at branches or

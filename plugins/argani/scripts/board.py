@@ -24,6 +24,9 @@ import project_registry
 import task_history
 from board_columns import COLUMNS, NEEDS_HUMAN
 
+CORRELATED_EVENTS = {"spawn", "finish"}
+IGNORED_EVENTS = {"start", "stop"}
+
 BOARD_FILE = "board.md"
 BOARD_JSON_FILE = "board.json"
 
@@ -85,6 +88,8 @@ def project_tasks(home, entry, now):
         print(f"argani: cannot read {tasks_dir}: {error}", file=sys.stderr)
         return []
     try:
+        if "error" in entry:
+            raise ValueError(entry["error"])
         config = argani_config.load_project_config(home, name)
     except (ValueError, OSError) as error:
         return [error_row({"project": name, "slug": slug, "title": slug}, str(error), now) for slug in slugs]
@@ -93,7 +98,9 @@ def project_tasks(home, entry, now):
 
 def active_agents(home):
     """Spawn records of today's and yesterday's event files (local dates) without a finish record,
-    in file order (oldest file first). Records without a string tool_use_id count as malformed."""
+    in file order (oldest file first). Only spawn and finish records need a string tool_use_id, other
+    known events (start, stop) are ignored; non-objects, unknown events and spawn/finish without
+    one count as malformed."""
     now = datetime.now().astimezone()
     spawns, finished = [], set()
     for day in (now - timedelta(days=1), now):
@@ -112,19 +119,38 @@ def active_agents(home):
             except (ValueError, RecursionError):
                 record = None
             # a tool_use_id that is not a string cannot be correlated (and may be unhashable)
-            if not isinstance(record, dict) or not isinstance(record.get("tool_use_id"), str):
+            event = record.get("event") if isinstance(record, dict) else None
+            if isinstance(event, str) and event in IGNORED_EVENTS:
+                continue
+            if not isinstance(event, str) or event not in CORRELATED_EVENTS or not isinstance(record.get("tool_use_id"), str):
                 malformed += 1
-            elif record.get("event") == "spawn":
+            elif event == "spawn":
                 spawns.append(record)
-            elif record.get("event") == "finish":
+            else:
                 finished.add(record["tool_use_id"])
         if malformed:
             print(f"argani: skipped {malformed} malformed lines in {path}", file=sys.stderr)
     return [spawn for spawn in spawns if spawn["tool_use_id"] not in finished]
 
 
+def registered_entries(home):
+    """Every project folder with a project.json, sorted by name. A file that fails the registry
+    checks becomes {"name": folder, "error": message} so its tasks show as error rows instead of
+    the project vanishing; folders that are not valid project names are ignored."""
+    entries = []
+    for file in (home / argani_home.PROJECTS_DIR).glob(f"*/{project_registry.PROJECT_FILE}"):
+        if not project_registry.PROJECT_NAME.match(file.parent.name):
+            continue
+        try:
+            entries.append(project_registry.read_project(file))
+        except project_registry.ProjectError as error:
+            print(f"argani: skipping {file}: {error}", file=sys.stderr)
+            entries.append({"name": file.parent.name, "error": str(error)})
+    return sorted(entries, key=lambda entry: entry["name"])
+
+
 def board(home, names=None, now=None):
-    entries = project_registry.list_projects(home)
+    entries = registered_entries(home)
     if names is not None:
         entries = [entry for entry in entries if entry["name"] in names]
     now = now or datetime.now(timezone.utc)

@@ -230,6 +230,8 @@ def merge_command(config, state, directory):
     if not state["mr"]["url"]:
         raise ActionError("refused: mr.md has no url")
     command = argani_config.merge_command_for(config, state["mr"]["url"])
+    if not command and config["mergeSkill"]:
+        raise ActionError(f"refused: use the project skill {config['mergeSkill']} (mergeSkill) for the url in mr.md")
     if not command:
         raise ActionError("refused: mergeCommand is not configured")
     return {"command": f"cd {shlex.quote(os.path.realpath(directory))} && ( {command} )"}

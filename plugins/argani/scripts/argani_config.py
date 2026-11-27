@@ -28,8 +28,10 @@ DEFAULTS = {
     "reviewers": ["code"],
     "protectedPaths": [],
     "mrCommand": None,
+    "mrSkill": None,  # a project skill that opens the merge request; instead of mrCommand
     "mrTitleCommand": None,  # prints the merge request title
     "mergeCommand": None,  # merges the merge request at {url}; exit 0 means merged
+    "mergeSkill": None,  # a project skill that merges the merge request; instead of mergeCommand
     # Model per agent, or per job risk ({"default": ..., "low"|"medium"|"high": ...}). A key
     # "reviewer:<checklist>" overrides "reviewer" for that checklist.
     "agentModels": {
@@ -98,6 +100,14 @@ def _mr_title_command(value):
 
 def _merge_command(value):
     return _command_with_placeholders(value, MERGE_COMMAND_PLACEHOLDERS)
+
+
+def _skill_name(value):
+    """The name of a project skill, as the Skill tool takes it."""
+    name = _optional_string(value)
+    if not name or re.search(r"\s", name):
+        raise ValueError("must be a skill name: not empty, no spaces or line breaks")
+    return name
 
 
 def _optional_string(value):
@@ -203,6 +213,9 @@ def validate_overrides(overrides):
     unscoped = [name for name in config["reviewerPaths"] if name not in config["reviewers"]]
     if unscoped:
         raise ValueError(f"reviewerPaths names {', '.join(unscoped)}, which reviewers does not list")
+    for skill, command in (("mrSkill", "mrCommand"), ("mergeSkill", "mergeCommand")):
+        if config[skill] and config[command]:
+            raise ValueError(f"{skill} and {command} are both set; use one of them")
 
 
 COERCERS = {
@@ -211,8 +224,10 @@ COERCERS = {
     "verifyCommand": _optional_string,
     "diffCommand": _optional_string,
     "mrCommand": _mr_command,
+    "mrSkill": _skill_name,
     "mrTitleCommand": _mr_title_command,
     "mergeCommand": _merge_command,
+    "mergeSkill": _skill_name,
     "agentModels": _agent_models,
     "reviewerPaths": _reviewer_paths,
 }

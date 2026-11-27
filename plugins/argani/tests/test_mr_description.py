@@ -78,14 +78,19 @@ def test_no_checklist_section_without_one_in_the_decision(job):
     assert "Human verification" not in description(job)["body"]
 
 
-def test_job_points_at_the_task_folder_and_claims_a_clean_diff_and_names_no_branch(job):
+def test_body_is_about_the_project_only(job):
     job.intent()
     body = description(job)["body"]
-    assert ("Task `demo/demo` on the argani board; artifacts in `projects/demo/tasks/demo` "
-            "of the argani home") in body
+    assert "argani" not in body.lower()
     assert str(job.hub) not in body
-    assert "nothing argani-related is in this diff" in body
-    assert "branch" not in body.lower()
+
+
+def test_skill_is_reported_when_mr_skill_is_set(job):
+    job.intent()
+    assert "skill" not in description(job, "--write")
+    job.set_config(mrSkill="git-pull-request")
+    printed = description(job, "--write")
+    assert printed["skill"] == "git-pull-request" and "command" not in printed
 
 
 def test_write_saves_the_body_in_the_job_folder_and_still_prints_json(job):

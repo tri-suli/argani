@@ -3,13 +3,14 @@
 
 Usage: python3 mr_description.py <slug> [dir] [--write]
 
-Prints JSON {"title", "body", "directory", "titleSource", "warnings"}. The title is the intent's
+Prints JSON {"title", "body", "directory", "titleSource", "warnings"} and "skill" (the config's mrSkill)
+when set: the orchestrator then invokes that project skill instead of running a command. The title is the intent's
 heading, or
 the first non-empty line printed by the config's mrTitleCommand ({title} and {slug} shell-quoted;
 run in the working directory with stdin closed and a 30 s timeout, with or without --write;
 "titleSource" is then "mrTitleCommand", else "intent"). Exit 1 when that command fails, times out
 or prints no title. The body lists the summary, the acceptance criteria of intent.md, the human verification checklist of decision.md
-(when it has one) and where the job's artifacts live; "directory" is the real path of [dir], the
+(when it has one), nothing else: the body is about the project only; "directory" is the real path of [dir], the
 working directory of the job. With --write the body is saved to <job_dir>/mr-body.md and the JSON
 also has "bodyFile" (that path) and, when the config has mrCommand, "command": `cd <directory> &&`
 followed by the mrCommand in parentheses (a `||` or `;` inside it cannot run after a failed `cd`)
@@ -121,13 +122,6 @@ def criterion_line(number, claim, verify):
     return f"- [ ] AC-{number}: {claim} (verify: {verify})"
 
 
-def argani_section(state):
-    task = (f"Task `{state['project']}/{state['slug']}` on the argani board; artifacts in "
-            f"`projects/{state['project']}/tasks/{state['slug']}` of the argani home "
-            "(nothing argani-related is in this diff).")
-    return [task]
-
-
 STALE_CHECKLIST_WARNING = ("intent.md changed after decision.md; check that the human verification "
                            "checklist still matches the acceptance criteria")
 
@@ -144,7 +138,6 @@ def build_description(state, intent_text, decision_text):
     checklist = human_checklist(decision_text)
     if checklist:
         blocks.append([f"## {CHECKLIST_HEADING}", *checklist])
-    blocks.append(["## argani", *argani_section(state)])
     body = "\n\n".join("\n".join(block) for block in blocks) + "\n"
     return {"title": intent_title(intent_text, state["slug"]), "body": body}
 
@@ -198,6 +191,8 @@ def main(argv):
             print(f"mr_description: {error}")
             return 1
         description["titleSource"] = "mrTitleCommand"
+    if config["mrSkill"]:
+        description["skill"] = config["mrSkill"]
     if write:
         body_file = job_dir / "mr-body.md"
         body_file.write_text(description["body"], encoding="utf-8")

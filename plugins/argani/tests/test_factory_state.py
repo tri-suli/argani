@@ -1077,3 +1077,47 @@ def test_a_drift_round_with_changes_escalates_even_below_the_cap(job):
     assert job.state()["reason"] == "review-escalate"
     job.round(2, {"code": "PASS", "security": "PASS"})
     assert job.state()["stage"] == "needs-decision"
+
+
+def test_mr_skill_makes_approve_needs_mr_naming_the_skill(job):
+    job.set_config(mrSkill="git-pull-request")
+    state = finished_job_without_mr(job)
+    assert state["stage"] == "needs-mr" and "git-pull-request" in state["next"]
+
+
+def test_blocked_mr_missing_with_mr_skill_retries(job):
+    job.set_config(mrSkill="git-pull-request")
+    at_approval(job)
+    blocked(job, "mr-missing", "mr-missing-r0-abc")
+    assert job.state()["stage"] == "needs-human"
+    answer(job, "mr-missing", "mr-missing-r0-abc", "RETRY")
+    assert job.state()["stage"] == "needs-mr"
+
+
+def test_merge_skill_makes_unmerged_mr_needs_merge(job):
+    job.set_config(mergeSkill="git-pull-request")
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["mr"]["url"]) == ("needs-merge", MR_URL)
+    assert "git-pull-request" in state["next"]
+
+
+def test_blocked_merge_missing_with_merge_skill_offers_retry(job):
+    job.set_config(mergeSkill="git-pull-request")
+    job.write("mr.md", MR_URL + "\n")
+    blocked(job, "merge-missing", "merge-missing-r0-abc")
+    assert "MERGED | RETRY | CANCEL" in finished_job(job, MR_URL + "\n")["next"]
+
+
+def finished_job_without_mr(job):
+    at_approval(job)
+    return job.state()
+
+
+def test_merge_skill_retry_answer_runs_the_skill_again(job):
+    job.set_config(mergeSkill="git-pull-request")
+    job.write("mr.md", MR_URL + "\n")
+    blocked(job, "merge-missing", "merge-missing-r0-abc")
+    answer(job, "merge-missing", "merge-missing-r0-abc", "RETRY")
+    state = finished_job(job, MR_URL + "\n")
+    assert (state["stage"], state["answer_word"]) == ("needs-merge", "RETRY")
+    assert "verified merge" in state["next"] and "exit 0" not in state["next"]

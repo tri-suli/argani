@@ -202,3 +202,21 @@ def test_fill_command_fills_each_placeholder_once_even_when_a_value_holds_one():
     command = argani_config.fill_command("gh pr create --title {title} --body-file {bodyFile}",
                                          {"title": "Fix {bodyFile} x", "bodyFile": "/tmp/a b/mr-body.md"})
     assert shlex.split(command) == ["gh", "pr", "create", "--title", "Fix {bodyFile} x", "--body-file", "/tmp/a b/mr-body.md"]
+
+
+@pytest.mark.parametrize("key, command_key, command", [
+    ("mrSkill", "mrCommand", "gh pr create --title {title}"),
+    ("mergeSkill", "mergeCommand", "gh pr merge {url}"),
+])
+def test_skill_keys_are_optional_names_and_exclude_the_command_form(make_project, key, command_key, command):
+    assert argani_config.DEFAULTS[key] is None
+    assert argani_config.load_config(make_project("repo", {key: "git-pull-request"}))[key] == "git-pull-request"
+    with pytest.raises(ValueError, match=f"{key}.*{command_key}|{command_key}.*{key}"):
+        argani_config.validate_overrides({key: "git-pull-request", command_key: command})
+
+
+@pytest.mark.parametrize("key", ["mrSkill", "mergeSkill"])
+@pytest.mark.parametrize("value", ["", "two words", "a\nb", 5])
+def test_skill_keys_reject_an_invalid_name(key, value):
+    with pytest.raises(ValueError):
+        argani_config.COERCERS[key](value)

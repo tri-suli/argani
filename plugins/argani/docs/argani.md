@@ -47,7 +47,7 @@ build.md      work done, literal verification output, deviations; ends with === 
 review/round-N/change.diff              the change under review, captured by capture_change.py before the round
 review/round-N/review-<checklist>.md   line 1 is PASS or CHANGES; ends with === END OF REVIEW ===
 decision.md   line 1 is APPROVE or ESCALATE; ends with === END OF DECISION ===
-mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist, task folder)
+mr-body.md    merge request description generated from intent.md and decision.md (acceptance criteria, human checklist; nothing about argani)
 mr.md         merge request URL, written once the MR exists; `Merged: <YYYY-MM-DD>` is appended once it is merged (by the orchestrator after `mergeCommand`, or by the human in manual mode)
 description.md the one-sentence description a factory task started from; written once by `factory_actions.py new`, read by the intake agent
 answers.md    the human's answers, `## <reason> <question-id> <YYYY-MM-DD>` plus the reply; written by the orchestrator (`/argani:factory answer`)
@@ -197,10 +197,10 @@ work and calls `/argani:review`.
 **Factory.** `/argani:factory "<description>"` turns the session into an orchestrator that runs the whole
 loop autonomously: intake (the intake agent writes `intent.md` from the description and the repository),
 spec, build, review and decision with fresh subagents, each reading and writing files, then the merge
-request (`mrCommand`) and the merge (`mergeCommand`). The orchestrator writes the intent and spec
+request (`mrCommand` or the project skill `mrSkill`) and the merge (`mergeCommand` or `mergeSkill`). The orchestrator writes the intent and spec
 approvals itself (through `scripts/factory_actions.py`). It stops only when a human must answer a
 specific question: `## Questions for human` in the intent or spec, manual verification steps, an
-escalation, a missing or failed `mrCommand` / `mergeCommand`, or an agent that failed twice. The human
+escalation, a missing or failed `mrCommand` / `mrSkill` / `mergeCommand` / `mergeSkill`, or an agent that failed twice. The human
 answers with `/argani:factory answer <slug> <answer>`; the answer is recorded in `answers.md` and the
 loop continues. `plan.md` is written by the builder before it changes any code and is reviewed together
 with the change by the reviewers; the merge request is then merged by `mergeCommand`. Factory mode is expensive (several agents per job, up to two rounds

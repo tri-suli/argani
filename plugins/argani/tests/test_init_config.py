@@ -245,3 +245,46 @@ def test_unknown_legacy_keys_are_left_behind(make_project):
     assert result["legacyUnknownKeys"] == ["verifycommand"]
     assert "verifycommand" not in result["proposal"] and "verifycommand" not in result["legacyKeys"]
     assert result["proposal"]["verifyCommand"] == "true"
+
+
+def write_skill(repo, folder, front_matter):
+    skill = repo / ".claude" / "skills" / folder
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\n{front_matter}\n---\nbody\n")
+
+
+def test_project_skills_are_listed_as_candidates(make_project):
+    repo = make_project()
+    write_skill(repo, "git-pull-request", "name: git-pull-request\ndescription: Open and merge PRs")
+    result = propose(repo)
+    assert result["projectSkills"] == [{"name": "git-pull-request", "description": "Open and merge PRs",
+                                        "disableModelInvocation": False}]
+    assert question(result, "mrSkill")["candidates"] == ["git-pull-request"]
+    assert propose(make_project("other"))["projectSkills"] == []
+
+
+def test_a_skill_the_model_cannot_invoke_is_reported_but_not_a_candidate(make_project):
+    repo = make_project()
+    write_skill(repo, "manual-only", "name: manual-only\ndisable-model-invocation: true")
+    write_skill(repo, "usable", "name: usable")
+    result = propose(repo)
+    flags = {item["name"]: item["disableModelInvocation"] for item in result["projectSkills"]}
+    assert flags == {"manual-only": True, "usable": False}
+    assert question(result, "mergeSkill")["candidates"] == ["usable"]
+
+
+def test_skill_front_matter_takes_top_level_keys_unquoted_and_block_scalars(make_project):
+    repo = make_project()
+    write_skill(repo, "tricky", "metadata:\n  name: nested\nname: \"quoted-name\"\ndescription: >\n  first line\n  second line\nother: x")
+    item = propose(repo)["projectSkills"][0]
+    assert item["name"] == "quoted-name" and item["description"] == "first line second line"
+
+
+def test_a_skill_that_resolves_outside_the_repo_is_skipped(make_project, tmp_path):
+    repo = make_project()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "SKILL.md").write_text("---\nname: outside\n---\n")
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "linked").symlink_to(outside)
+    assert propose(repo)["projectSkills"] == []

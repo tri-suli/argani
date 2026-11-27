@@ -6,6 +6,7 @@ Usage:
   artifact_check.py intent <file>
   artifact_check.py spec <file>
   artifact_check.py plan <file>
+  artifact_check.py build <file>
   artifact_check.py status <file>   prints 'draft' or 'approved' if the file is valid
 
 Exit code 0 when valid, 1 with a list of violations otherwise. Skills rely on
@@ -41,6 +42,7 @@ PLACEHOLDER_PATTERN = re.compile(r"\{\{[^{}\n]+\}\}")
 COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.S)
 CODE_SPAN_PATTERN = re.compile(r"`[^`\n]*`")
 HEADING_PATTERN = re.compile(r"^## (.+?)\s*$")
+FENCE_PATTERN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 SECTIONS = {
     "Intent": [
@@ -53,6 +55,9 @@ SECTIONS = {
     ],
     "Plan": ["Files that change", "Order of work", "Risks", "Proof"],
 }
+
+BUILD_SECTIONS = ["What was done", "Verification output", "Pending human verification", "Deviations from plan"]
+BUILD_CLOSING_LINE = "=== END OF BUILD ==="
 
 
 def make_slug(title):
@@ -67,27 +72,45 @@ def normalize(raw):
     return COMMENT_PATTERN.sub("", text)
 
 
-def parse(text):
+def advance_fence(fence, line, strict=False):
+    """The fence state after a fence line: (char, length) of the open fence, or None. By default a line
+    starting with three backticks toggles it; strict (build.md, whose verify output may hold such a line)
+    follows CommonMark: a fence closes only with the same character, at least the same length and no text."""
+    marker = FENCE_PATTERN.match(line)
+    if not strict:
+        return None if fence else ("`", 3)
+    if fence is None:
+        return (marker.group(1)[0], len(marker.group(1)))
+    if marker.group(1)[0] == fence[0] and len(marker.group(1)) >= fence[1] and not marker.group(2).strip():
+        return None
+    return fence
+
+
+def is_fence_line(line, strict):
+    return FENCE_PATTERN.match(line) if strict else line.lstrip().startswith("```")
+
+
+def parse(text, strict_fences=False):
     """Split into header lines, sections (name -> lines), and all lines outside code fences.
 
     Headings inside code fences are ignored. Fenced lines stay in their section body
     (marked by the fence lines themselves) so section checks still see them.
     """
     header, sections, outside_fence = [], {}, []
-    current, in_fence = None, False
+    current, fence = None, None
     for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
+        if is_fence_line(line, strict_fences):
+            fence = advance_fence(fence, line, strict_fences)
             (header if current is None else sections[current]).append(line)
             continue
-        heading = None if in_fence else HEADING_PATTERN.match(line)
+        heading = None if fence else HEADING_PATTERN.match(line)
         if heading:
             current = heading.group(1)
             sections[current] = []
             outside_fence.append(line)
             continue
         (header if current is None else sections[current]).append(line)
-        if not in_fence:
+        if not fence:
             outside_fence.append(line)
     return header, sections, outside_fence
 
@@ -99,7 +122,7 @@ def placeholder_tokens():
     return tokens
 
 
-def find_placeholders(text):
+def find_placeholders(text, strict_fences=False):
     """Template placeholder tokens left in prose (code spans and fences ignored)."""
     known = placeholder_tokens()
 
@@ -108,11 +131,11 @@ def find_placeholders(text):
         inner = span.group(0)[1:-1]
         return inner if inner in known else ""
 
-    prose, in_fence = [], False
+    prose, fence = [], None
     for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
-        elif not in_fence:
+        if is_fence_line(line, strict_fences):
+            fence = advance_fence(fence, line, strict_fences)
+        elif not fence:
             prose.append(CODE_SPAN_PATTERN.sub(keep_bare_token, line))
     return sorted({t for t in PLACEHOLDER_PATTERN.findall("\n".join(prose)) if t in known})
 
@@ -235,6 +258,27 @@ def run_check(kind, text):
     return violations, status
 
 
+def check_build(text):
+    """Violations of a build.md: the title, the sections of templates/build.md (extra `## Rework after
+    round N` sections are fine), a fenced block under Verification output, the closing line last."""
+    violations = []
+    title = next((line for line in text.splitlines() if line.strip()), "")
+    if not re.match(r"^# Build: \S", title):
+        violations.append(f"first line must be '# Build: <title>', got: {title!r}")
+    _, sections, _ = parse(text, strict_fences=True)
+    for name in BUILD_SECTIONS:
+        if name not in sections:
+            violations.append(f"missing section '## {name}'")
+    if "Verification output" in sections and not any(FENCE_PATTERN.match(l) for l in sections["Verification output"]):
+        violations.append("Verification output must hold the literal output in a fenced block")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines or lines[-1] != BUILD_CLOSING_LINE:
+        violations.append(f"the last line must be '{BUILD_CLOSING_LINE}'")
+    for token in find_placeholders(text, strict_fences=True):
+        violations.append(f"leftover template placeholder {token} (wrap literal text in backticks)")
+    return violations
+
+
 def load(path):
     path = Path(path)
     if not path.is_file():
@@ -256,6 +300,15 @@ def main(argv):
             print("cannot derive an ASCII slug from this title; provide one explicitly", file=sys.stderr)
             return 1
         print(slug)
+        return 0
+    if len(argv) == 3 and argv[1] == "build":
+        text = load(argv[2])
+        if text is None:
+            return report(argv[2], ["file not found"])
+        violations = check_build(text)
+        if violations:
+            return report(argv[2], violations)
+        print(f"VALID {argv[2]}")
         return 0
     if len(argv) == 3 and argv[1] in ("intent", "spec", "plan", "status"):
         text = load(argv[2])

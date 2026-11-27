@@ -192,3 +192,87 @@ def test_questions_section_is_optional(tmp_path):
     assert run_check("intent", write(tmp_path, with_section)).returncode == 0
     spec = VALID_SPEC + "\n## Questions for human\n- None\n"
     assert run_check("spec", write(tmp_path, spec, "spec.md")).returncode == 0
+
+
+BUILD_TEXT = """# Build: Add login
+
+Spec: add-login
+Date: 2026-11-27
+
+## What was done
+
+- Added the login form
+- Commit: none, protocol forbids agent commits
+
+## Verification output
+
+```
+12 passed
+```
+
+## Pending human verification
+
+- None
+
+## Deviations from plan
+
+- None
+
+=== END OF BUILD ===
+"""
+
+
+def test_valid_build_from_the_template_shape(tmp_path):
+    result = run_check("build", write(tmp_path, BUILD_TEXT))
+    assert result.returncode == 0 and result.stdout.startswith("VALID")
+
+
+def test_build_missing_a_section_fails(tmp_path):
+    result = run_check("build", write(tmp_path, BUILD_TEXT.replace("## Deviations from plan", "## Notes")))
+    assert result.returncode == 1 and "missing section '## Deviations from plan'" in result.stdout
+
+
+def test_build_without_the_closing_line_fails(tmp_path):
+    result = run_check("build", write(tmp_path, BUILD_TEXT.replace("=== END OF BUILD ===\n", "")))
+    assert result.returncode == 1 and "last line must be '=== END OF BUILD ==='" in result.stdout
+
+
+def test_build_without_a_fenced_verification_block_fails(tmp_path):
+    result = run_check("build", write(tmp_path, BUILD_TEXT.replace("```\n12 passed\n```", "12 passed")))
+    assert result.returncode == 1 and "fenced block" in result.stdout
+
+
+def test_build_with_a_rework_section_is_valid(tmp_path):
+    text = BUILD_TEXT.replace("=== END OF BUILD ===", "## Rework after round 1\n\n- Fixed the finding\n\n=== END OF BUILD ===")
+    assert run_check("build", write(tmp_path, text)).returncode == 0
+
+
+def test_build_that_is_the_unfilled_template_fails(tmp_path):
+    result = run_check("build", write(tmp_path, (Path(SCRIPT).parents[1] / "templates" / "build.md").read_text()))
+    assert result.returncode == 1 and "placeholder" in result.stdout
+
+
+def test_build_whose_output_contains_backtick_fences_is_valid_in_a_tilde_fence(tmp_path):
+    text = BUILD_TEXT.replace("```\n12 passed\n```", "~~~\n```bash\n12 passed\n~~~")
+    result = run_check("build", write(tmp_path, text))
+    assert result.returncode == 0, result.stdout
+
+
+def test_build_whose_output_contains_backtick_fences_is_valid_in_a_longer_fence(tmp_path):
+    text = BUILD_TEXT.replace("```\n12 passed\n```", "````\n```\n12 passed\n````")
+    result = run_check("build", write(tmp_path, text))
+    assert result.returncode == 0, result.stdout
+
+
+import pytest as _pytest
+
+
+@_pytest.mark.parametrize("prose", [
+    "~~~",
+    "```\n```md\ninner\n```\n```",
+    "````\ntext\n```",
+])
+def test_intent_fence_handling_is_unchanged_by_the_build_fence_rule(tmp_path, prose):
+    text = VALID_INTENT.replace("Users cannot sign in.", f"Users cannot sign in.\n{prose}")
+    result = run_check("intent", write(tmp_path, text))
+    assert result.returncode == 0, result.stdout

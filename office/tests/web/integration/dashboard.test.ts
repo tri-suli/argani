@@ -7,6 +7,7 @@ import createDashboard from '@/components/dashboard';
 import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
 import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
+import eventually from './eventually';
 
 class FakePoller implements Poller {
   handlers!: PollHandlers;
@@ -24,8 +25,6 @@ class FakePoller implements Poller {
 
 // Alpine renders nested x-for templates over several ticks, so assertions on rendered output retry with vi.waitFor.
 const markdownRenderer = sampleMarkdownRenderer();
-
-const eventually = (assertions: () => void) => vi.waitFor(assertions);
 
 const text = (selector: string) => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
 

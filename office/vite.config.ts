@@ -8,6 +8,9 @@ const backendPort = Number(process.env.OFFICE_BACKEND_PORT ?? 2212);
 
 const apiProxy = { '/api': `http://127.0.0.1:${backendPort}` };
 
+// above the integration tests' 10 s retry window (tests/web/integration/eventually.ts), so a loaded machine is not a failure
+const testTimeoutMilliseconds = 30_000;
+
 export default defineConfig({
   plugins: [tailwindcss()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
@@ -15,6 +18,7 @@ export default defineConfig({
   preview: { host: '127.0.0.1', port: frontendPort, proxy: apiProxy },
   test: {
     include: ['tests/web/**/*.test.ts'],
+    testTimeout: testTimeoutMilliseconds,
     coverage: {
       provider: 'v8',
       include: ['src/**'],

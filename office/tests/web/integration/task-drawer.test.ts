@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import Alpine from 'alpinejs';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PollHandlers, Poller } from '@/types/poller';
 import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
@@ -9,6 +9,7 @@ import type { FileTone } from '@/types/task';
 import { FakeTaskClient, sampleDetail, sampleSnapshot, sampleTasks } from '../sample-snapshot';
 import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
+import eventually from './eventually';
 
 class FakePoller implements Poller {
   handlers!: PollHandlers;
@@ -23,8 +24,6 @@ class FakePoller implements Poller {
 // Alpine renders nested x-for templates over several ticks, so assertions on rendered output retry with vi.waitFor;
 // "nothing happened" assertions first let Alpine and the pending promises flush with Alpine.nextTick().
 const markdownRenderer = sampleMarkdownRenderer();
-
-const eventually = (assertions: () => void) => vi.waitFor(assertions);
 
 const flush = () => Alpine.nextTick();
 

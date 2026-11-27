@@ -146,3 +146,31 @@ def test_files_are_read_and_written_as_utf8(tmp_path):
     (tmp_path / human_gate.ANSWERS_FILE).write_bytes(
         "## review-escalate review-escalate-r2-aaaaaaaa 2026-11-22\n\ncatatan \u2014 ok\n".encode("utf-8"))
     assert human_gate.extra_round_allowed(tmp_path, 3) is True
+
+
+def test_new_reasons_are_valid_and_rework_grants_a_round(tmp_path):
+    for reason in ("cancel", "revision", "rework"):
+        assert reason in human_gate.REASONS
+    assert not human_gate.extra_round_allowed(tmp_path, 3)
+    qid = human_gate.question_id("rework", "note", 2)
+    (tmp_path / "answers.md").write_text(human_gate.render_answer("rework", qid, "2026-11-27", "note"))
+    assert human_gate.extra_round_allowed(tmp_path, 3)
+
+
+def test_notes_of_cancel_revision_and_rework_are_not_read_as_answer_words():
+    for reason, body in (("rework", "PASS the user id"), ("revision", "CANCEL"), ("rework", "FAIL fast on bad input")):
+        entry = human_gate.parse_answers(human_gate.render_answer(reason, "id-1", "2026-11-27", body))[0]
+        assert entry["word"] is None and entry["note"] == body
+
+
+def test_a_rework_note_starting_with_pass_still_grants_the_round(tmp_path):
+    qid = human_gate.question_id("rework", "PASS the user id", 2)
+    (tmp_path / "answers.md").write_text(human_gate.render_answer("rework", qid, "2026-11-27", "PASS the user id"))
+    assert human_gate.extra_round_allowed(tmp_path, 3)
+
+
+def test_a_round_with_a_drift_note_needs_no_answer(tmp_path):
+    (tmp_path / "review" / "round-5").mkdir(parents=True)
+    assert not human_gate.extra_round_allowed(tmp_path, 5)
+    (tmp_path / "review" / "round-5" / "drift.md").write_text("drift\n")
+    assert human_gate.extra_round_allowed(tmp_path, 5)

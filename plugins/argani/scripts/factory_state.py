@@ -37,6 +37,9 @@ URL_PATTERN = re.compile(r"https?://\S+")
 CRITERION_PATTERN = re.compile(r"^- \[ \] (.+?)\s*$")
 MANUAL_HEADING = "## Human verification before merge"
 RECORD_FLAG = "--record"
+REVISIONS_DIR = "revisions"
+APPROVED_STAGES = ("needs-mr", "needs-merge")
+APPROVED_HUMAN_REASONS = ("mr-missing", "merge-missing", "manual-verification")
 MR_QUESTION = "No merge request exists and mrCommand is not configured (or it failed). Create it by hand."
 MR_BODY_HINT = "Use the generated description in {job_dir}/mr-body.md."
 MERGE_QUESTION = "The merge request is not merged and mergeCommand is not configured (or it failed). Merge it by hand."
@@ -94,6 +97,7 @@ def round_state(round_dir, reviewers):
         "present": list(files),
         "complete": complete,
         "verdicts": verdicts,
+        "drift": (round_dir / human_gate.DRIFT_FILE).is_file(),
     }
 
 
@@ -103,7 +107,7 @@ def collect_rounds(job_dir, reviewers):
 
 def decision_state(path, latest_round=0, older_than_note=False):
     """stale: the decision names a round (`Round: N`) other than the latest round folder, or it names
-    none and is older than the latest round's review-human.md (the note answers that decision)."""
+    none and is older than the latest round's review-human.md or drift.md (they follow that decision)."""
     if not path.is_file():
         return {"exists": False, "complete": False, "verdict": None, "round": None, "stale": False}
     word = first_word(path)
@@ -156,6 +160,22 @@ def round_folders(job_dir):
     folders = [(int(path.name[len("round-"):]), path) for path in (job_dir / "review").glob("round-*")
                if path.is_dir() and re.fullmatch(r"round-\d+", path.name)]
     return sorted(folders)
+
+
+def revision_folders(job_dir):
+    """The archived revisions of a job (revisions/<n>) as paths, ascending by n."""
+    folders = [path for path in (Path(job_dir) / REVISIONS_DIR).glob("*") if path.is_dir() and path.name.isdigit()]
+    return sorted(folders, key=lambda path: int(path.name))
+
+
+def approved_and_unmerged(state):
+    """True while the decision is a current APPROVE and the job waits for the merge request, the merge or
+    a human at one of those steps (a merged job is at stage done)."""
+    decision = state["decision"]
+    if not (decision["complete"] and not decision["stale"] and decision["verdict"] == "APPROVE"):
+        return False
+    return state["stage"] in APPROVED_STAGES or (
+        state["stage"] == "needs-human" and state["reason"] in APPROVED_HUMAN_REASONS)
 
 
 def round_path(job_dir, number):
@@ -219,6 +239,8 @@ def review_plan(rounds, reviewers, build_text, job_dir):
         changes.append("human")
     if not changes:
         return "decide", n, None, None
+    if latest["drift"]:  # the change was made outside the job: a human decides, the builder must not revert it
+        return "escalate", n, None, f"the change made after approval in round {n} has CHANGES from {', '.join(changes)}"
     if n >= human_gate.ROUNDS_WITHOUT_ANSWER:
         return "escalate", n, None, f"round {n} still has CHANGES from {', '.join(changes)}"
     if addressed:
@@ -268,6 +290,9 @@ def document_stage(document, document_mtime, questions, gate, names):
     write_stage, approve_stage, reason, write_next, approve_next = names
     if document["status"] == "approved":
         return None
+    if document["status"] not in ("draft", "approved") and gate["revision"]:  # the writer starts from the previous version
+        return outcome(write_stage, f"{write_next} Revision note from the human: see `answer`.", reason="revision",
+                       answered=True, answer=gate["revision"]["note"])
     if document["status"] != "draft":  # missing or invalid: (re)write it
         return outcome(write_stage, write_next)
     if not questions:
@@ -292,6 +317,15 @@ def escalation_stage(gate, number, text):
     if has_reply(entry) and entry["word"] in (None, "FAIL", "RETRY"):
         return rework_with_human_note("review-escalate", text, qid, entry, number + 1)
     return needs_human(gate, "review-escalate", text, qid, f"{ANSWER_NOTE} (more rounds) | CANCEL")
+
+
+def repeated_drift_stage(gate, number):
+    """A drift round right after a drift round: the answer grants that round itself (its id names round
+    number - 1), so it is reviewed as it is and no builder runs."""
+    text = (f"the change differs again after approval (round {number} is a second drift in a row); "
+            "answer with a note to review it")
+    return needs_human(gate, "review-escalate", text,
+                       human_gate.question_id("review-escalate", text, number - 1), f"{ANSWER_NOTE} | CANCEL")
 
 
 def manual_stage(gate, number):
@@ -389,11 +423,14 @@ def work_stage(slug, config, build, rounds, plan, gate):
 def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, mr, build_text, gate):
     """The stage outcome (see outcome()). The first match wins: CANCEL, merge request,
     a failed agent, intent, spec, an approved or escalated decision, the review cap, then build/review/rework/decide."""
-    if any(entry["word"] == "CANCEL" for entry in gate["answers"]):
+    if any(entry["word"] == "CANCEL" or entry["reason"] == "cancel" for entry in gate["answers"]):
         return outcome("cancelled", "Nothing to do: a human cancelled this task.")
-    if mr["exists"]:
-        if mr["merged"]:
-            return outcome("done", "Nothing to do: the merge request is merged.")
+    if mr["merged"]:
+        return outcome("done", "Nothing to do: the merge request is merged.")
+    current = decision["complete"] and not decision["stale"]
+    approved = current and decision["verdict"] == "APPROVE"
+    reopened = bool(gate["revisions"] or gate["reopened"] or any(item["drift"] for item in rounds))
+    if mr["exists"] and not reopened:  # only its merge request is left
         return merge_stage(gate, config)
     stage = agent_failed_stage(gate)
     stage = stage or document_stage(intent, gate["intent_mtime"], gate["intent_questions"], gate, (
@@ -407,13 +444,16 @@ def decide_stage(slug, config, job_dir, intent, spec, build, rounds, decision, m
     if stage:
         return stage
     number = rounds[-1]["n"] if rounds else 0
-    current = decision["complete"] and not decision["stale"]
-    if current and decision["verdict"] == "APPROVE":
+    if approved:
         blocking = manual_stage(gate, number) if gate["criteria"] else None
-        return blocking or merge_request_stage(gate, config, bool(gate["criteria"]))
+        if blocking or mr["exists"]:
+            return blocking or merge_stage(gate, config)
+        return merge_request_stage(gate, config, bool(gate["criteria"]))
     plan = review_plan(rounds, config["reviewers"], build_text, job_dir)
     if current and decision["verdict"] == "ESCALATE":
         return escalation_stage(gate, number, gate["decision_question"])
+    if rounds and rounds[-1]["drift"] and not human_gate.extra_round_allowed(job_dir, number):
+        return repeated_drift_stage(gate, number)
     if plan[0] == "escalate":
         return escalation_stage(gate, number, plan[3])
     return work_stage(slug, config, build, rounds, plan, gate)
@@ -447,7 +487,8 @@ def build_state(slug, start_dir=".", config=None):
     rounds = collect_rounds(job_dir, reviewers)
     latest_round = rounds[-1]["n"] if rounds else 0
     human_note = round_path(job_dir, latest_round) / "review-human.md"
-    older_than_note = (decision_path_mtime(job_dir) < mtime_ns(human_note)) if rounds else False
+    drift_note = round_path(job_dir, latest_round) / human_gate.DRIFT_FILE
+    older_than_note = (decision_path_mtime(job_dir) < max(mtime_ns(human_note), mtime_ns(drift_note))) if rounds else False
     decision = decision_state(job_dir / "decision.md", latest_round, older_than_note)
     mr_file = job_dir / "mr.md"
     mr_text = read_text(mr_file) if mr_file.is_file() else ""
@@ -456,11 +497,16 @@ def build_state(slug, start_dir=".", config=None):
           "url": url_match.group(0) if url_match else None}
     current_decision = decision["complete"] and not decision["stale"]
     answers_file = job_dir / human_gate.ANSWERS_FILE
+    answers = human_gate.parse_answers(read_text(answers_file)) if answers_file.is_file() else []
+    revisions = revision_folders(job_dir)
     gate = {
         "slug": slug,
         "job_dir": str(job_dir),
-        "answers": human_gate.parse_answers(read_text(answers_file)) if answers_file.is_file() else [],
+        "answers": answers,
         "blocked": human_gate.read_blocked(job_dir),
+        "revisions": revisions,
+        "revision": next((e for e in reversed(answers) if e["reason"] == "revision"), None),
+        "reopened": any(e["reason"] == "rework" for e in answers),
         "answers_mtime": mtime_ns(answers_file),
         "intent_mtime": mtime_ns(intent_path),
         "spec_mtime": mtime_ns(spec_path),
@@ -502,6 +548,7 @@ def build_state(slug, start_dir=".", config=None):
         "rounds": rounds,
         "decision": decision,
         "mr": mr,
+        "previous": str(revisions[-1]) if revisions else None,
         "partial": partial,
         "stage": result["stage"],
         "next": result["next"],
@@ -512,7 +559,7 @@ def build_state(slug, start_dir=".", config=None):
         "answer": result["answer"],
         "answer_word": result["answer_word"],
         "human_note_round": result["human_note_round"],
-        "column": board_columns.column(result["stage"], result["answered"]),
+        "column": board_columns.column(result["stage"], result["answered"] and result["reason"] != "revision"),
         "manual_criteria": gate["criteria"],
     }
 

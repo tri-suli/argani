@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- `/argani:factory cancel <slug> [reason]` (answers.md reason `cancel`) and `revise <slug> <note>` (the orchestrator picks intent or spec): `revise` archives the documents into `revisions/<n>/`, records the note (reason `revision`) and restarts at intake or spec; the state exposes `previous` and the intake, spec-writer and builder agents take a `Previous:` prompt line.
+- `rework` is also allowed after APPROVE while the merge request is not merged (round N+1; the reason `rework` grants the round).
+- `capture_change.py --check-drift` compares the change with the approved round and opens a review round (`drift.md`) when it differs; the factory runs it before the merge request and before `mergeCommand`. CHANGES in a drift round go to a human.
 - `/argani:factory <description>` runs autonomously from a one-sentence description to the merge: the new `argani:intake` agent writes the intent, the orchestrator approves intent and spec, and a human is asked only specific questions.
 - The Needs human gate: `/argani:factory answer <slug> <answer>` records the reply in `answers.md`; `blocked.md` records a failed agent, merge request or merge. Replies are validated per reason (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, an http(s) URL for a missing merge request, or free text), and `CANCEL` cancels only as the whole reply.
 - `mergeCommand`: the command that merges the merge request, run in the background after the merge request exists; `/argani:init` offers candidates for GitHub and GitLab.
@@ -19,6 +22,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - `office/`: argani office v1, a read-only monitoring dashboard of the argani board at the repository root (not part of the plugin yet). A Python standard-library API (`GET /api/board`, the `board.json` snapshot computed live by `scripts/board.py`) on port 2212 and an Alpine.js + TypeScript page on port 1222 with a kanban of the factory pipeline (Intake, Spec, Build, Review, Approve, Needs human, Done; Needs human cards show the reason, the question and the number of visits, and the drawer shows the column history and metrics, all read from board.json), an active-agent pulse on cards and a project filter. A click on a card opens a task detail drawer with the task's files, verdict chips, and agent time and tokens per task, served by read-only task endpoints. Runs with Docker Compose (`office/compose.yaml`, `.env.example`) or directly. Tests under `office/tests/` (unit, integration, Playwright e2e) with a 100% coverage gate, run by `scripts/check.sh`.
 
 ### Changed
+
+- A job with `mr.md` is reopened only by `revise`, `rework` after APPROVE or a drift round: its work continues and, after a new APPROVE, it goes to the merge instead of a second merge request. Any other job with `mr.md` goes straight to the merge as before.
+- A `revision` answer does not move a task to the Approve column.
 
 - The board columns are Intake, Spec, Build, Review, Approve, Needs human and Done, in `board.md` and `board.json` (a schema change for consumers); a multi-line question is shown on one line in `board.md`.
 - The stage `escalate` is replaced by `needs-human` with the reason `review-escalate`.

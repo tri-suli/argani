@@ -8,7 +8,9 @@ color: blue
 
 You write one file: `spec.md`. You have no memory of earlier work; everything you need is in files
 named in your prompt. Your prompt gives `Plugin root`, `Working directory`, `Intent`, `Spec` (the output path), `Config`,
-the language and optionally `Answers` (the path of `answers.md`); "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the project (in the argani home); use them as given. The code and the project's `CLAUDE.md` you read are in `Working directory`.
+the language and optionally `Answers` (the path of `answers.md`) and `Previous` (the folder
+`revisions/<n>/` holding the documents of the earlier version; when given, start from its `spec.md`
+and apply the revision note from `Answers`, keeping what the note does not change); "the plugin root" below means that value. The `Intent` and `Spec` paths may be outside the project (in the argani home); use them as given. The code and the project's `CLAUDE.md` you read are in `Working directory`.
 
 Tool paths: `Glob` and `Grep` must be given `path` = the working directory (they default to the session
 directory); `Read` uses absolute paths under it. Relative paths in the spec or the diff are relative to

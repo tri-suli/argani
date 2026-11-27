@@ -51,6 +51,8 @@ mr-body.md    merge request description generated from intent.md and decision.md
 mr.md         merge request URL, written once the MR exists; `Merged: <YYYY-MM-DD>` is appended once it is merged (by the orchestrator after `mergeCommand`, or by the human in manual mode)
 description.md the one-sentence description a factory task started from; written once by `factory_actions.py new`, read by the intake agent
 answers.md    the human's answers, `## <reason> <question-id> <YYYY-MM-DD>` plus the reply; written by the orchestrator (`/argani:factory answer`)
+revisions/N/  the archived documents of an earlier version (`factory_actions.py revise`): `intent.md` (target intent only), `spec.md`, `plan.md`, `build.md`, `review/`, `decision.md`, `answers.md`, `blocked.md`, `mr-body.md`; `mr.md`, `description.md` and `history.jsonl` stay in the job folder
+review/round-N/drift.md  a round opened by `capture_change.py --check-drift` because the change differs from the approved one; needs no human answer
 blocked.md    line 1 `<reason> <id>` (`agent-failed`, `mr-missing`, `merge-missing`), then a summary; written by the orchestrator when a seat or command fails
 history.jsonl one line per change of (stage, column, reason); appended by `factory_state.py --record`, `factory_actions.py` and `board.py --write`
 ```
@@ -130,10 +132,21 @@ Done is decided by `mr.md` alone: when the merge request is merged, the human ap
 `Merged: <YYYY-MM-DD>` (a valid date at the start of a line); in factory mode the orchestrator appends it after `mergeCommand` exits 0. argani never looks at branches or
 remotes, so a merge by any means (squash, rebase, a deleted branch) is recognised the same way.
 
-After APPROVE the job's scope is closed: the approver judged the change against `spec.md` and the
+### Changing a job after it started
+
+`factory_actions.py` has three actions that change course; all only write or move files, so the stage stays derived from the files:
+
+- `cancel <slug> <dir> [reason]`: appends an `answers.md` entry with reason `cancel`; the stage becomes `cancelled`. Refused at `done` and `cancelled`.
+- `revise <slug> <dir> intent|spec <note>`: moves the documents of the current version into `revisions/<n>/` (see the file list above), then writes a fresh `answers.md` with one `revision` entry holding the note. With `spec` the approved intent stays and the job restarts at `needs-spec`; with `intent` it restarts at `needs-intake`. The writer agent gets the note as `answer` and the archive as `previous` (the state JSON field, the latest `revisions/<n>/` or null), starts from the previous document and keeps what the note does not change; the builder adjusts the code already in the working directory. Refused at `done` and `cancelled` and for an empty note.
+- `rework <slug> <dir> <note>`: besides `needs-decision` after round 1, it is allowed while the decision is a current APPROVE and the merge request is not merged (`needs-mr`, `needs-merge`, or `needs-human` with reason `mr-missing`, `merge-missing` or `manual-verification`). It writes `review/round-<N+1>/review-human.md` and a `rework` entry in `answers.md`, which grants round N+1 beyond the two-round cap; the decision is then stale and builder, review and approver run again.
+
+A job with `mr.md` is reopened only by an explicit action: a `revisions/` folder, a `rework` entry in `answers.md` or a round holding `drift.md`. Then work continues (intent, spec, build, review, decision) until a new APPROVE, which goes to the merge, not to a second merge request; a manual-verification gate still applies. Any other job with `mr.md` goes straight to the merge. After a `revise` the merge request description is stale: the orchestrator regenerates `mr-body.md` and updates the description when it can, else says so. Do not cancel while `mergeCommand` runs; `revise` archives pending answers, so the human may be asked again. `rework` after APPROVE moves an old `blocked.md` to `blocked-before-round-<N+1>.md`, so the next merge attempt starts clean. A second drift round in a row asks the human; the answer lets that round be reviewed as it is. A drift round needs no answer only when the round before it is not a drift round.
+
+Drift: `decision.stale` compares round numbers only, so a commit made after APPROVE would be merged unreviewed. Before creating the merge request and before running `mergeCommand`, the orchestrator runs `capture_change.py <slug> <dir> --check-drift` (allowed only in the stages above). It compares the output of `diffCommand` with `review/round-<N>/change.diff` of the decided round; when they differ it creates `review/round-<N+1>/` with `change.diff` and `drift.md`, and the job goes back to review. Changes found in a drift round go to a human at once (`review-escalate`): the change was made outside the job, so the builder does not revert it. Empty output is not drift. A merge a human did outside argani (answer `MERGED`) cannot be reviewed.
+
+Without these actions, after APPROVE the job's scope is closed: the approver judged the change against `spec.md` and the
 acceptance criteria of `intent.md`, and the merge request carries that judgement. Work that grows
-beyond the approved spec while the merge request is open is a new intent, not an edit of this
-job: a long-lived merge request that keeps absorbing scope leaves `mr-body.md`, the acceptance
+beyond the approved spec while the merge request is open is a new intent (or a `revise` of this job): a long-lived merge request that keeps absorbing scope leaves `mr-body.md`, the acceptance
 criteria and the human checklist stale, and nothing in argani re-reviews it. argani does not
 amend an approved spec; `mr_description.py` only warns when `intent.md` changed after
 `decision.md`.

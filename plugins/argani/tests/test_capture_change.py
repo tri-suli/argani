@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -273,3 +274,91 @@ def test_a_nested_checkout_listed_as_a_pattern_runs_the_diff_command_in_its_own_
     result = run(nested)
     assert result.returncode == 0, result.stderr
     assert (folder / "review" / "round-1" / "change.diff").read_text() == DIFF
+
+
+# --- --check-drift ------------------------------------------------------------------------------
+
+def check_drift(directory):
+    return subprocess.run([sys.executable, str(SCRIPT), "demo", str(directory), "--check-drift"],
+                          capture_output=True, text=True)
+
+
+def approved_job(job, with_mr=True):
+    """Round 1 passed with the captured DIFF, APPROVE decided, merge request written."""
+    folder = finish_round_one(job)
+    (folder / "change.diff").write_text(DIFF)
+    (job.folder / "decision.md").write_text("APPROVE ok\nRound: 1\n\n=== END OF DECISION ===\n")
+    if with_mr:
+        (job.folder / "mr.md").write_text("https://example.test/mr/1\n")
+    return folder
+
+
+def state_of(job):
+    return json.loads(subprocess.run([sys.executable, str(SCRIPT.with_name("factory_state.py")), "demo",
+                                      str(job.directory)], capture_output=True, text=True).stdout)
+
+
+def test_check_drift_equal_change_is_no_drift(job):
+    approved_job(job)
+    result = check_drift(job.directory)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {"drift": False}
+    assert not (job.folder / "review" / "round-2").exists()
+
+
+def test_check_drift_replays_the_pilot_commit_after_approve(job):
+    approved_job(job)
+    assert state_of(job)["stage"] == "needs-human"  # no mergeCommand: the merge waits for a human
+    (job.directory / "change.txt").write_text(DIFF + "diff --git a/x b/x\n")
+    report = json.loads(check_drift(job.directory).stdout)
+    target = job.folder / "review" / "round-2"
+    assert report == {"drift": True, "round": 2, "path": str(target / "change.diff")}
+    assert (target / "change.diff").read_text().endswith("diff --git a/x b/x\n")
+    assert "round-1" in (target / "drift.md").read_text()
+    state = state_of(job)
+    assert state["stage"] == "needs-review" and state["review_round"] == 2
+
+
+def test_check_drift_round_passes_to_the_decision_and_changes_escalate(job):
+    approved_job(job, with_mr=False)
+    (job.directory / "change.txt").write_text("diff --git a/x b/x\n")
+    assert json.loads(check_drift(job.directory).stdout)["drift"] is True
+    (job.folder / "review" / "round-2" / "review-code.md").write_text(f"PASS ok\n{REVIEW_END}\n")
+    assert state_of(job)["stage"] == "needs-decision"
+    (job.folder / "review" / "round-2" / "review-code.md").write_text(f"CHANGES no\n{REVIEW_END}\n")
+    state = state_of(job)
+    assert state["stage"] == "needs-human" and state["reason"] == "review-escalate"
+
+
+def test_check_drift_empty_output_is_not_drift(job, hub):
+    approved_job(job)
+    set_diff_command(hub, "true")
+    result = check_drift(job.directory)
+    assert json.loads(result.stdout) == {"drift": False, "empty": True}
+    assert "printed nothing" in result.stderr
+    assert not (job.folder / "review" / "round-2").exists()
+
+
+def test_check_drift_without_a_round_line_still_detects_drift_once(job):
+    approved_job(job)
+    (job.folder / "decision.md").write_text("APPROVE ok\n\n=== END OF DECISION ===\n")
+    old = (job.folder / "decision.md").stat().st_mtime_ns - 10_000_000_000
+    os.utime(job.folder / "decision.md", ns=(old, old))
+    (job.directory / "change.txt").write_text("diff --git a/x b/x\n")
+    assert json.loads(check_drift(job.directory).stdout)["drift"] is True
+    assert check_drift(job.directory).returncode == 1  # no longer an APPROVE; the drift round is reviewed first
+
+
+def test_check_drift_with_an_approved_round_without_a_diff_is_unknown(job):
+    folder = approved_job(job)
+    (folder / "change.diff").unlink()
+    result = check_drift(job.directory)
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {"drift": False, "unknown": True}
+    assert "change.diff" in result.stderr
+
+
+def test_check_drift_is_refused_without_a_current_approve(job):
+    finish_round_one(job)
+    result = check_drift(job.directory)
+    assert result.returncode == 1 and "APPROVE" in result.stderr

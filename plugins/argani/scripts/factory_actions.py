@@ -7,7 +7,10 @@ Usage: python3 factory_actions.py <action> <slug> <dir> [args]
   answer <text...>                 append the human's answer to answers.md (stage needs-human only)
   approve intent|spec              replace `Status: draft` by `Status: approved by argani on <date>`
   block <reason> <summary...>      write blocked.md (reason: agent-failed, mr-missing, merge-missing)
-  rework <note...>                 write review/round-2/review-human.md (stage needs-decision, round 1)
+  rework <note...>                 write review/round-<N+1>/review-human.md (stage needs-decision after round 1,
+                                   or while the decision is a current APPROVE and not merged)
+  cancel [reason...]               cancel the task (any stage but done and cancelled)
+  revise intent|spec <note...>     archive the documents into revisions/<n>/ and restart at intent or spec
   human-note                       write review/round-<N>/review-human.md from the recorded answer
   mr <url-or-output...>            write mr.md (stage needs-mr; refused when mr.md exists)
   merge-command                    print the mergeCommand filled with the url of mr.md
@@ -20,6 +23,7 @@ import datetime
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -30,7 +34,8 @@ import factory_state
 import human_gate
 import task_history
 
-ACTIONS = ("answer", "approve", "block", "human-note", "rework", "mr", "merge-command", "merged")
+ACTIONS = ("answer", "approve", "block", "human-note", "rework", "mr", "merge-command", "merged",
+           "cancel", "revise")
 NEW_ACTION = "new"
 DESCRIPTION_FILE = "description.md"
 REWORK_ROUND = 2
@@ -52,6 +57,10 @@ VALID_FORMS = {
     "mr-missing": "a reply containing an http(s) URL | RETRY | CANCEL",
 }
 NOTE_SUMMARY_LENGTH = 60
+CLOSED_STAGES = ("done", "cancelled")
+REVISION_TARGETS = ("intent", "spec")
+REVISED_ITEMS = ("spec.md", "plan.md", "build.md", "review", "decision.md", "answers.md", "blocked.md", "mr-body.md")
+CANCEL_TEXT = "CANCEL"
 FAILURE_EXIT_CODE = 1
 USAGE_EXIT_CODE = 2
 
@@ -116,9 +125,7 @@ def answer(state, job_dir, text):
     require_text(text, "the answer")
     require_stage(state, "needs-human")
     text = normalize_answer(state["reason"], text)
-    entry = human_gate.render_answer(state["reason"], state["question_id"], today(), text)
-    with (job_dir / human_gate.ANSWERS_FILE).open("a", encoding="utf-8") as file:
-        file.write(entry)
+    append_answer(job_dir, state["reason"], state["question_id"], text)
     return {"reason": state["reason"], "question_id": state["question_id"]}
 
 
@@ -154,12 +161,58 @@ def human_note(state, job_dir):
     return {"round": number}
 
 
+def append_answer(job_dir, reason, qid, text):
+    with (job_dir / human_gate.ANSWERS_FILE).open("a", encoding="utf-8") as file:
+        file.write(human_gate.render_answer(reason, qid, today(), text))
+
+
 def rework(state, job_dir, note):
     require_text(note, "the note")
+    if factory_state.approved_and_unmerged(state):
+        number = state["round"]
+        write_review_note(job_dir, number + 1, note)
+        blocked = job_dir / human_gate.BLOCKED_FILE
+        if blocked.exists():  # an old failure must not hide the next merge attempt; outside review/, the approver ignores it
+            shutil.move(str(blocked), str(job_dir / f"blocked-before-round-{number + 1}.md"))
+        append_answer(job_dir, "rework", human_gate.question_id("rework", note, number), note)
+        return {"round": number + 1}
     if state["stage"] != "needs-decision" or state["round"] != 1:
-        raise ActionError("refused: rework is allowed only at needs-decision after round 1")
+        raise ActionError("refused: rework is allowed only at needs-decision after round 1, "
+                          "or while the decision is an APPROVE and the merge request is not merged")
     write_review_note(job_dir, REWORK_ROUND, note)
     return {"round": REWORK_ROUND}
+
+
+def require_open(state):
+    if state["stage"] in CLOSED_STAGES:
+        raise ActionError(f"refused: the task is {state['stage']}")
+
+
+def cancel(state, job_dir, reason):
+    require_open(state)
+    reason = reason.strip()
+    append_answer(job_dir, "cancel", human_gate.question_id("cancel", reason, None), reason or CANCEL_TEXT)
+    return {"cancelled": True}
+
+
+def revise(state, job_dir, target, note):
+    """Archive the documents of the current version into revisions/<n>/ and start a new answers.md
+    holding the note; the stage then falls back to needs-intake (intent) or needs-spec (spec)."""
+    if target not in REVISION_TARGETS:
+        raise ActionError("revise takes intent or spec")
+    require_text(note, "the note")
+    require_open(state)
+    existing = factory_state.revision_folders(job_dir)
+    archive = job_dir / factory_state.REVISIONS_DIR / str(int(existing[-1].name) + 1 if existing else 1)
+    try:
+        archive.mkdir(parents=True)
+        for name in (["intent.md"] if target == "intent" else []) + list(REVISED_ITEMS):
+            if (job_dir / name).exists():
+                shutil.move(str(job_dir / name), str(archive / name))
+    except OSError as error:
+        raise ActionError(f"revise stopped half-way ({error}); the files moved so far are in {archive}")
+    append_answer(job_dir, "revision", human_gate.question_id("revision", note, None), note)
+    return {"revision": archive.name, "previous": str(archive)}
 
 
 def merge_request(state, job_dir, text):
@@ -231,6 +284,10 @@ def run_action(action, slug, directory, arguments):
         result = human_note(state, job_dir)
     elif action == "rework":
         result = rework(state, job_dir, " ".join(arguments))
+    elif action == "cancel":
+        result = cancel(state, job_dir, " ".join(arguments))
+    elif action == "revise":
+        result = revise(state, job_dir, arguments[0] if arguments else "", " ".join(arguments[1:]))
     elif action == "mr":
         result = merge_request(state, job_dir, " ".join(arguments))
     elif action == "merge-command":

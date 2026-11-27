@@ -16,12 +16,14 @@ ANSWERS_FILE = "answers.md"
 BLOCKED_FILE = "blocked.md"
 REASONS = (
     "intake-question", "spec-question", "manual-verification", "review-escalate",
-    "mr-missing", "merge-missing", "agent-failed", "error",
+    "mr-missing", "merge-missing", "agent-failed", "error", "cancel", "revision", "rework",
 )
 BLOCKED_REASONS = ("agent-failed", "mr-missing", "merge-missing")
 ANSWER_WORDS = ("PASS", "FAIL", "CANCEL", "RETRY", "MERGED")
 CANCEL_WORD = "CANCEL"
-ROUND_GRANTING_REASONS = ("review-escalate", "manual-verification")
+ROUND_GRANTING_REASONS = ("review-escalate", "manual-verification", "rework")
+DRIFT_FILE = "drift.md"  # written by capture_change.py --check-drift: a change made after APPROVE
+NOTE_ONLY_REASONS = ("cancel", "revision", "rework")  # the whole body is a note, never an answer word
 ROUNDS_WITHOUT_ANSWER = 2
 ID_HASH_LENGTH = 8
 QUESTIONS_HEADING = "## Questions for human"
@@ -54,7 +56,7 @@ def is_valid_heading(match):
 def build_entry(match, body):
     note = body.strip()
     words = note.split(maxsplit=1)
-    word = words[0] if words and words[0] in ANSWER_WORDS else None
+    word = words[0] if words and words[0] in ANSWER_WORDS and match.group(1) not in NOTE_ONLY_REASONS else None
     if word == CANCEL_WORD and len(words) > 1:  # CANCEL cancels only when it is the whole reply
         word = None
     if word:
@@ -136,6 +138,9 @@ def questions_for_human(markdown):
 def extra_round_allowed(job_dir, round_number):
     if round_number <= ROUNDS_WITHOUT_ANSWER:
         return True
+    rounds = Path(job_dir) / "review"
+    if (rounds / f"round-{round_number}" / DRIFT_FILE).is_file() and not (rounds / f"round-{round_number - 1}" / DRIFT_FILE).is_file():
+        return True  # made outside the job; the review plan escalates its CHANGES to a human
     path = Path(job_dir) / ANSWERS_FILE
     if not path.is_file():
         return False

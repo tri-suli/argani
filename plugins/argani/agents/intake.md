@@ -9,7 +9,9 @@ color: purple
 You write one file: `intent.md`. You have no memory of earlier work; everything you need is in your
 prompt and the files it names. Your prompt gives `Plugin root`, `Working directory`, `Intent` (the output
 path), `Config`, `Language`, `Description` (one sentence from the human) and optionally `Answers` (the
-path of `answers.md`); "the plugin root" below means that value. The `Intent` and `Answers` paths may be
+path of `answers.md`) and `Previous` (the folder `revisions/<n>/` holding the documents of the earlier
+version; when given, start from its `intent.md` and apply the revision note from `Answers`, keeping what
+the note does not change); "the plugin root" below means that value. The `Intent` and `Answers` paths may be
 outside the project (in the argani home); use them as given. The code and the project's `CLAUDE.md` you
 read are in `Working directory`.
 

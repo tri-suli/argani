@@ -17,7 +17,7 @@ a note on stderr naming them. A `mergeCommand` is also ignored as a 1.x leftover
 Every key is optional and has a default, except that factory mode and the review need
 `verifyCommand` and `diffCommand`. `/argani:init` proposes the config from what the directory
 already uses (test command) and scans the Git workflow of the repository read-only (CLAUDE.md, CONTRIBUTING, templates, CI, four read-only git commands), interviews only the gaps, validates it and registers the project; it carries
-over the keys of an old `.claude/argani.json` and never overwrites an existing project. On a registered project it offers update mode, which replaces only the approved keys (`register_project.py <name> <dir> --update`; `name` and `paths` are never changed).
+over the keys of an old `.claude/argani.json` and never overwrites an existing project. On a registered project it offers update mode, which replaces only the approved keys (`register_project.py <name> <dir> --update`; `name` and `paths` are never changed; `--add-path` is the way to add a `paths` entry, `/argani:init` asks about worktrees and offers it).
 
 ## Location
 
@@ -177,8 +177,9 @@ Each project registered on the board has an entry, `projects/<name>/project.json
 
 `name` matches `[a-z0-9][a-z0-9-]*` and equals the folder name. `paths` are the real paths of the
 project's directories. An entry may also be a pattern: `*` and `?` stay inside one path segment; there is no `**`
-(it is two `*`, so `.worktrees/**` is `.worktrees/*`). Patterns are added by hand to
-`project.json` (`register_project.py` registers real directories only), for example
+(it is two `*`, so `.worktrees/**` is `.worktrees/*`). A pattern (or another real directory) is added to a registered
+project with `register_project.py <name> --add-path <pattern-or-dir>` (an absolute pattern whose literal directory
+exists; refused when it duplicates an entry, overlaps another project or matches the argani home), for example
 `"paths": ["/p/app", "/p/app/.worktrees/*"]`: inside `/p/app/.worktrees/job-a/src` the project root is
 `/p/app/.worktrees/job-a`, inside `/p/app/src` it is `/p/app`, and the pattern never matches
 `/p/app` or `/p/app/.worktrees` themselves. A directory belongs to the project that lists its real

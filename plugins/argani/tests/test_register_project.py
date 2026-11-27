@@ -317,3 +317,176 @@ def test_replacing_project_json_gives_it_the_default_mode_even_from_0600(make_pr
         assert file.stat().st_mode & 0o777 == 0o644
     finally:
         os.umask(previous_umask)
+
+
+def add_path(value, name="shop"):
+    return run_script("register_project.py", name, "--add-path", str(value))
+
+
+def test_add_path_appends_a_pattern_to_an_existing_project(make_project, hub, tmp_path):
+    directory = make_project("one")
+    assert register(directory)[0] == 0
+    (tmp_path / "trees").mkdir()
+    pattern = f"{tmp_path.resolve()}/trees/*"
+    code, out = add_path(pattern)
+    assert code == 0, out
+    assert project_json(hub)["paths"] == [str(directory.resolve()), pattern]
+    assert json.loads(out)["paths"][-1] == pattern
+    assert oct((hub / "projects" / "shop" / "project.json").stat().st_mode & 0o777) != "0o600"
+
+
+def test_add_path_appends_a_real_directory_by_its_real_path(make_project, hub, tmp_path):
+    assert register(make_project("one"))[0] == 0
+    other = make_project("two")
+    code, out = add_path(other)
+    assert code == 0, out
+    assert project_json(hub)["paths"][-1] == str(other.resolve())
+
+
+def test_add_path_refuses_a_duplicate(make_project, hub, tmp_path):
+    assert register(make_project("one"))[0] == 0
+    (tmp_path / "trees").mkdir()
+    pattern = f"{tmp_path.resolve()}/trees/*"
+    assert add_path(pattern)[0] == 0
+    code, out = add_path(pattern)
+    assert code == 1 and "already" in out
+    assert project_json(hub)["paths"].count(pattern) == 1
+
+
+def test_add_path_refuses_a_pattern_whose_literal_directory_is_missing(make_project, hub, tmp_path):
+    assert register(make_project("one"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/missing/*")
+    assert code == 1 and "does not exist" in out
+    assert len(project_json(hub)["paths"]) == 1
+
+
+def test_add_path_refuses_a_pattern_that_matches_the_argani_home(make_project, hub):
+    assert register(make_project("one"))[0] == 0
+    code, out = add_path(f"{hub.resolve().parent}/*")
+    assert code == 1 and "argani home" in out
+    assert len(project_json(hub)["paths"]) == 1
+
+
+def test_add_path_refuses_a_directory_inside_the_argani_home(make_project, hub):
+    assert register(make_project("one"))[0] == 0
+    code, out = add_path(hub / "projects")
+    assert code == 1 and "argani home" in out
+
+
+def test_add_path_refuses_a_pattern_inside_a_path_of_another_project(make_project, register_project, hub, tmp_path):
+    parent = make_project("one")
+    (parent / "trees").mkdir()
+    register_project("legacy", paths=[str(parent.resolve())])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{parent.resolve()}/trees/*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_pattern_matching_a_path_of_another_project(make_project, register_project, hub, tmp_path):
+    (tmp_path / "trees" / "job").mkdir(parents=True)
+    register_project("legacy", paths=[str((tmp_path / "trees" / "job").resolve())])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/trees/*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_pattern_overlapping_a_pattern_of_another_project(make_project, register_project, hub, tmp_path):
+    (tmp_path / "trees").mkdir()
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/trees/*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/trees/*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_missing_project_and_a_relative_pattern(make_project, hub, tmp_path):
+    code, out = add_path(f"{tmp_path.resolve()}/*", name="ghost")
+    assert code == 1 and "does not exist" in out
+    assert register(make_project("one"))[0] == 0
+    code, out = add_path("trees/*")
+    assert code == 1 and "absolute" in out
+
+
+def test_add_path_refuses_a_pattern_that_covers_a_pattern_of_another_project(make_project, register_project, hub, tmp_path):
+    (tmp_path / "w").mkdir()
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/b-*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_pattern_that_would_capture_a_directory_inside_another_projects_path(
+        make_project, register_project, hub, tmp_path):
+    (tmp_path / "w" / "b").mkdir(parents=True)
+    register_project("legacy", paths=[str((tmp_path / "w" / "b").resolve())])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/*/wt")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_real_directory_that_another_projects_pattern_would_capture(
+        make_project, register_project, hub, tmp_path):
+    (tmp_path / "w" / "b-1" / "sub").mkdir(parents=True)
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/b-*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(tmp_path / "w" / "b-1" / "sub")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_real_directory_that_is_already_a_path(make_project, hub):
+    directory = make_project("one")
+    assert register(directory)[0] == 0
+    code, out = add_path(directory)
+    assert code == 1 and "already" in out
+
+
+def test_add_path_stores_a_pattern_with_its_literal_directory_canonicalised(make_project, hub, tmp_path):
+    assert register(make_project("one"))[0] == 0
+    (tmp_path / "real").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "real")
+    code, out = add_path(f"{tmp_path.resolve()}/link/../link//trees-*")
+    assert code == 0, out
+    assert project_json(hub)["paths"][-1] == f"{tmp_path.resolve()}/real/trees-*"
+
+
+def test_add_path_refuses_patterns_of_different_depth_that_claim_one_directory(
+        make_project, register_project, hub, tmp_path):
+    (tmp_path / "w" / "b").mkdir(parents=True)
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/b/x-*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_a_shallow_pattern_over_a_deeper_pattern_of_another_project(
+        make_project, register_project, hub, tmp_path):
+    (tmp_path / "w" / "b").mkdir(parents=True)
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/b/x-*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/*")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_accepts_two_disjoint_patterns_under_one_directory(make_project, register_project, hub, tmp_path):
+    (tmp_path / "wt").mkdir()
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/wt/b-*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/wt/a-*")
+    assert code == 0, out
+
+
+def test_add_path_refuses_a_pattern_that_matches_the_filesystem_root_the_home_ancestors_or_the_user_home(
+        make_project, hub, tmp_path):
+    assert register(make_project("one"))[0] == 0
+    (tmp_path / "user-home").mkdir(exist_ok=True)
+    for pattern in ("/*", f"{tmp_path.resolve()}/*", f"{tmp_path.resolve()}/user-*"):
+        code, out = add_path(pattern)
+        assert code == 1 and "too broad" in out, (pattern, out)
+    assert len(project_json(hub)["paths"]) == 1
+
+
+def test_add_path_refuses_a_pattern_inside_the_argani_home(make_project, hub):
+    assert register(make_project("one"))[0] == 0
+    for pattern in (f"{hub.resolve()}/projects/*", f"{hub.resolve()}/*"):
+        code, out = add_path(pattern)
+        assert code == 1 and "inside the argani home" in out, (pattern, out)
+    assert len(project_json(hub)["paths"]) == 1

@@ -266,6 +266,16 @@ def test_update_replaces_only_given_keys(make_project, hub):
     assert project_json(hub) == expected and json.loads(out) == expected
 
 
+def test_update_with_null_removes_the_key_so_a_command_can_become_a_skill(make_project, hub):
+    directory = make_project("one")
+    register(directory, config={"verifyCommand": "make test", "mrCommand": "gh pr create --title {title}"})
+    code, out = update(directory, {"mrSkill": "git-pull-request", "mrCommand": None})
+    assert code == 0, out
+    saved = project_json(hub)
+    assert saved["mrSkill"] == "git-pull-request" and "mrCommand" not in saved and saved["verifyCommand"] == "make test"
+    assert update(directory, {"mrSkill": "git-pull-request", "mrCommand": "gh pr create"})[0] != 0
+
+
 def test_update_refuses_identity_unknown_and_invalid_keys(make_project, hub):
     directory = make_project("one")
     register(directory, config={"verifyCommand": "make test"})

@@ -28,7 +28,9 @@ class RegistrationError(ValueError):
     pass
 
 
-def _validated_config(raw_text):
+def _validated_config(raw_text, cleared=None):
+    """The coerced non-null config keys; the keys given as null are appended to cleared."""
+    cleared = [] if cleared is None else cleared
     try:
         data = json.loads(raw_text or "{}")
     except ValueError as error:
@@ -45,6 +47,7 @@ def _validated_config(raw_text):
     config = {}
     for key, value in data.items():
         if value is None:
+            cleared.append(key)
             continue
         try:
             config[key] = argani_config.COERCERS[key](value)
@@ -161,10 +164,13 @@ def update(name, raw_config):
     file = project_registry.project_file(argani_home.home_path(), name)
     if not project_registry.PROJECT_NAME.match(name) or not file.exists():
         raise RegistrationError(f"the project {name} does not exist")
-    config = _validated_config(raw_config)
+    cleared = []
+    config = _validated_config(raw_config, cleared)
     entry = project_registry.read_project(file)
     entry.pop("remotes", None)
     entry.update(config)
+    for key in cleared:  # null removes the key, so a command can be swapped for a skill
+        entry.pop(key, None)
     if "mergeCommand" in config:
         entry.pop("mergePolicy", None)  # a 1.x mergePolicy would make argani_config ignore the new mergeCommand
     try:

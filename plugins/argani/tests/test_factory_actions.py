@@ -390,3 +390,20 @@ def test_rework_is_refused_at_needs_build_and_after_the_merge(job):
     job.write("mr.md", f"{URL}\n\nMerged: 2026-11-27\n")
     assert act(job, "rework", "x").returncode == 1
     assert not (job.path / "review" / "round-2").exists()
+
+
+def test_merge_command_refuses_with_a_merge_skill(job):
+    to_needs_mr(job)
+    ok(job, "mr", URL)
+    job.set_config(mergeSkill="git-pull-request")
+    result = act(job, "merge-command")
+    assert result.returncode == 1 and "git-pull-request" in result.stdout
+
+
+@pytest.mark.parametrize("reason,text", [
+    ("mr-missing", "https://example.test/mr/1 (recorded by the orchestrator: github skill result)"),
+    ("merge-missing", "MERGED (recorded by the orchestrator: pull_request_read https://example.test/mr/1 merged)"),
+    ("merge-missing", "RETRY (recorded by the orchestrator: the human asked in chat to merge)"),
+])
+def test_a_recorded_by_the_orchestrator_suffix_is_kept_in_the_answer(reason, text):
+    assert factory_actions.normalize_answer(reason, text) == text

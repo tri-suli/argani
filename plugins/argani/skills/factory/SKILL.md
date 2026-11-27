@@ -99,7 +99,7 @@ re-run the state (it shows `needs-human`). Act on the table until a stage says s
 | `needs-decision`        | Spawn `argani:approver` ([below](#approver)), then re-run state.                                                                                                                                        |
 | `needs-mr`              | [Merge request](#merge-request-needs-mr), then re-run state.                                                                                                                                            |
 | `needs-merge`           | [Merge](#merge-needs-merge), then re-run state.                                                                                                                                                         |
-| `needs-human`           | Stop. When `reason` is `mr-missing` and `mrCommand` is not configured, first run `mr_description.py <slug> <dir> --write` so `mr-body.md` exists. Print `reason`, `question` and how to answer: `/argani:factory answer <slug> <answer>`, with the words from `next` (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, or free text) where they apply. |
+| `needs-human`           | When `reason` is `mr-missing` or `merge-missing`, first apply the [self-recording rule](#self-recording-an-mr-or-a-merge-the-session-already-holds). Stop, unless that rule records an answer (then continue the loop). Before stopping, when `reason` is `mr-missing` and neither `mrCommand` nor `mrSkill` is configured, run `mr_description.py <slug> <dir> --write` so `mr-body.md` exists. Print `reason`, `question` and how to answer: `/argani:factory answer <slug> <answer>`, with the words from `next` (`PASS`, `FAIL <note>`, `MERGED`, `RETRY`, `CANCEL`, or free text) where they apply, as one short copyable line; add that the human can also just say it in chat. |
 | `done`, `cancelled`     | Say so, print `next`. Terminal: stop.                                                                                                                                                                   |
 
 `partial` entries are cut-off files: say in that agent's prompt "the previous attempt was cut off;
@@ -203,12 +203,16 @@ same empty-output rule as above, then spawn the approver.
 - `answer` of the state is not null (a human gave the merge request URL): `factory_actions.py mr <slug> <dir> "<state.answer>"`.
 - Otherwise (including after a `PASS` of the manual verification): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/mr_description.py <slug> <dir> --write`. If it exits non-zero, stop and
   show its output. It writes `<job_dir>/mr-body.md` (acceptance criteria of `intent.md`, human
-  verification checklist of `decision.md`, where the task folder is) and prints JSON with `title` (the intent heading, or the output of `mrTitleCommand` when configured),
-  `bodyFile`, `directory`, `titleSource` and, when `mrCommand` is configured, `command`. Run the printed
-  `command` verbatim with Bash (it starts with `cd` into the working directory); never rebuild or re-quote it.
+  verification checklist of `decision.md`) and prints JSON with `title` (the intent heading, or the output of `mrTitleCommand` when configured),
+  `bodyFile`, `directory`, `titleSource` and, when `mrCommand` is configured, `command`, or, when `mrSkill` is configured, `skill`.
+  With `command`: run it verbatim with Bash (it starts with `cd` into the working directory); never rebuild or re-quote it.
+  With `skill`: invoke that project skill with the Skill tool, passing the working directory (`directory`), the title and the path
+  `bodyFile` as material the skill may use under the project's own conventions; take the merge request URL from the skill's result
+  or tool output; then run `factory_actions.py mr <slug> <dir> "<the merge request url>"` (the URL and the branch, not the skill's whole output).
+  On failure `block ... mr-missing "<short reason>"`.
   On success: `factory_actions.py mr <slug> <dir> "<its output>"`. On failure:
   `factory_actions.py block <slug> <dir> mr-missing "<short stderr>"`. Without `mrCommand` the state is
-  already `needs-human` (`mr-missing`) and this section is not reached: there, first run
+  already `needs-human` (`mr-missing`) and this section is not reached (neither `mrCommand` nor `mrSkill`): there, first run
   `mr_description.py <slug> <dir> --write` so `mr-body.md` exists, then print the question.
 
 When the printed `warnings` is non-empty, repeat them in the final message to the human.
@@ -217,17 +221,41 @@ When the printed `warnings` is non-empty, repeat them in the final message to th
 
 - When `previous` is not null and `<job_dir>/mr-body.md` is missing or older than the latest `revisions/<n>/` folder, the merge request
   description is stale: run `mr_description.py <slug> <dir> --write` to regenerate `mr-body.md` and update the description when the
-  project has a way to (`mrCommand` or the project's own skills); otherwise say in the final message that it must be updated by hand.
+  project has a way to (`mrCommand`, `mrSkill` or the project's own skills); otherwise say in the final message that it must be updated by hand.
 - Without a `MERGED` answer, first run `capture_change.py <slug> <dir> --check-drift` as for the merge request; when `drift` is true,
   re-run state with `--record` and continue the loop instead of merging. With a `MERGED` answer run no check: a merge done outside
   argani cannot be reviewed. Never cancel a task while `mergeCommand` runs in the background.
 - `answer_word` of the state is `MERGED` (the human merged it): `factory_actions.py merged <slug> <dir>`.
-- Otherwise (no answer, or `RETRY`): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py merge-command <slug> <dir>` prints
+- `mergeSkill` is configured (the drift check above comes first): invoke that project skill with the Skill tool for the url in `mr.md`.
+  Confirm the merge request is merged, from the skill's result or by asking the skill or the forge tool for its status (a merge only
+  scheduled, such as auto-merge, is not merged); then
+  `factory_actions.py merged <slug> <dir>`. Otherwise `factory_actions.py block <slug> <dir> merge-missing "<short reason>"`.
+- Otherwise (no answer, or `RETRY`; `mergeCommand`): `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/factory_actions.py merge-command <slug> <dir>` prints
   `{"ok": true, "command": ...}` (the project's `mergeCommand` filled with the url of `mr.md`). If it
   refuses, run `factory_actions.py block <slug> <dir> merge-missing "<its refusal>"`. Otherwise run that
   `command` verbatim with the **Bash tool and `run_in_background`**, and wait for its completion
   notification (do not poll). Exit 0: `factory_actions.py merged <slug> <dir>`. Non-zero:
   `factory_actions.py block <slug> <dir> merge-missing "<short stderr>"`.
+
+### Self-recording an MR or a merge the session already holds
+
+Before printing the `answer` hint for `mr-missing` or `merge-missing`, check whether this session already holds the answer:
+
+- (a) The merge request you opened in this session for `<slug>` from `<directory>` (for example through a project skill on the human's
+  request) and whose URL a tool call showed: record it with
+  `factory_actions.py answer <slug> <dir> "<url> (recorded by the orchestrator: <tool and URL>)"` and continue the loop.
+  When in doubt that the merge request is this job's, print the hint.
+- (b) The human asked in this conversation to merge this merge request:
+  - When `next` offers `RETRY` (`mergeCommand` or `mergeSkill` is configured), record
+    `factory_actions.py answer <slug> <dir> "RETRY (recorded by the orchestrator: the human asked in chat to merge)"` and continue the
+    loop: it runs the drift check and the configured merge.
+  - Without a configured way, run `capture_change.py <slug> <dir> --check-drift` first; on drift, re-run state with `--record` and
+    continue the loop (review) instead of merging. Only without drift may you merge on the chat request, verify with a tool that it is
+    merged, and record `factory_actions.py answer <slug> <dir> "MERGED (recorded by the orchestrator: <tool and URL>)"`, then continue.
+  - Outside these steps the orchestrator never merges.
+
+Print the hint only when none of this holds. Record only what the human said in this conversation or what a tool call in this session
+showed; never infer one.
 
 ## `rework <slug> <note>`
 

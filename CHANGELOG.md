@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- `mrSkill` and `mergeSkill` (optional, project.json): the name of a project skill that opens / merges the merge request, for projects whose forge access is a skill or MCP tool; mutually exclusive with `mrCommand` / `mergeCommand`. The factory invokes the skill, the state machine treats it like a configured command (RETRY included), `mr_description.py` reports `skill`, and `/argani:init` lists the project's skills as candidates.
+- The factory records a merge request it opened, or a merge the human asked for in chat (through the drift check), as an `answer` marked `(recorded by the orchestrator: ...)` instead of asking the human to type it. `register_project.py --update` removes a key given as `null`.
 - `/argani:factory cancel <slug> [reason]` (answers.md reason `cancel`) and `revise <slug> <note>` (the orchestrator picks intent or spec): `revise` archives the documents into `revisions/<n>/`, records the note (reason `revision`) and restarts at intake or spec; the state exposes `previous` and the intake, spec-writer and builder agents take a `Previous:` prompt line.
 - `rework` is also allowed after APPROVE while the merge request is not merged (round N+1; the reason `rework` grants the round).
 - `capture_change.py --check-drift` compares the change with the approved round and opens a review round (`drift.md`) when it differs; the factory runs it before the merge request and before `mergeCommand`. CHANGES in a drift round go to a human.
@@ -23,6 +25,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Changed
 
+- `mr-body.md` no longer has an `## argani` section: the merge request body is about the project only (summary, acceptance criteria, human verification checklist).
 - A job with `mr.md` is reopened only by `revise`, `rework` after APPROVE or a drift round: its work continues and, after a new APPROVE, it goes to the merge instead of a second merge request. Any other job with `mr.md` goes straight to the merge as before.
 - A `revision` answer does not move a task to the Approve column.
 

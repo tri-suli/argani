@@ -354,10 +354,12 @@ def merge_request_stage(gate, config, answered):
                        reason="mr-missing", question_id=qid, answered=True, answer=entry["note"],
                        answer_word=entry["word"])
     retry = bool(entry) and entry["word"] == "RETRY"
-    if not config["mrCommand"] or (blocked and not retry):
+    way = config["mrCommand"] or config["mrSkill"]
+    if not way or (blocked and not retry):
         question = ((blocked or {}).get("summary") or MR_QUESTION) + " " + MR_BODY_HINT.format(job_dir=gate["job_dir"])
         return needs_human(gate, "mr-missing", question, qid, "<merge request url> | RETRY | CANCEL")
-    return outcome("needs-mr", "Create the merge request (mrCommand) and write mr.md. If it fails, write blocked.md "
+    how = f"the project skill {config['mrSkill']} (mrSkill)" if config["mrSkill"] else "mrCommand"
+    return outcome("needs-mr", f"Create the merge request with {how} and write mr.md. If it fails, write blocked.md "
                    "with human_gate.write_blocked (reason mr-missing).", answered=answered)
 
 
@@ -369,14 +371,17 @@ def merge_stage(gate, config):
     if word == "MERGED":
         return outcome("needs-merge", "Append `Merged: <today>` to mr.md: the human merged it.",
                        reason="merge-missing", question_id=qid, answered=True, answer_word=word)
-    if word == "RETRY" and config["mergeCommand"]:
-        return outcome("needs-merge", "Run mergeCommand again; on exit 0 append `Merged: <today>` to mr.md.",
+    way = config["mergeCommand"] or config["mergeSkill"]
+    how = f"the project skill {config['mergeSkill']} (mergeSkill)" if config["mergeSkill"] else "mergeCommand"
+    success = "a verified merge" if config["mergeSkill"] else "exit 0"
+    if word == "RETRY" and way:
+        return outcome("needs-merge", f"Run {how} again; on {success} append `Merged: <today>` to mr.md.",
                        reason="merge-missing", question_id=qid, answered=True, answer_word=word)
-    if blocked or not config["mergeCommand"]:
+    if blocked or not way:
         question = (blocked or {}).get("summary") or MERGE_QUESTION
-        words = "MERGED | RETRY | CANCEL" if config["mergeCommand"] else "MERGED | CANCEL"
+        words = "MERGED | RETRY | CANCEL" if way else "MERGED | CANCEL"
         return needs_human(gate, "merge-missing", question, qid, words)
-    return outcome("needs-merge", "Run mergeCommand for the url in mr.md; on exit 0 append `Merged: <today>` "
+    return outcome("needs-merge", f"Run {how} for the url in mr.md; on {success} append `Merged: <today>` "
                    "to mr.md, else write blocked.md with human_gate.write_blocked (reason merge-missing).")
 
 

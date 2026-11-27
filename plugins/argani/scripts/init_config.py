@@ -154,6 +154,56 @@ DIFF_COMMAND_NOTE = ("`git diff origin/main...HEAD` shows committed work only; `
                      "need `git add -N <path>` (intent to add) to appear in it.")
 
 
+SKILL_FILE_LIMIT = 64 * 1024
+UNINVOCABLE_FLAG = "disable-model-invocation"
+
+
+def _front_matter(lines):
+    """Top-level (unindented) key: value pairs of a front matter block; quotes are stripped and a
+    block scalar (`>` or `|`) takes its indented lines joined by spaces."""
+    fields, key = {}, None
+    for line in lines[1:] if lines[:1] == ["---"] else []:
+        if line.strip() == "---":
+            break
+        if key and (line[:1] in (" ", "\t") or not line.strip()):
+            fields[key] = (fields[key] + " " + line.strip()).strip()
+            continue
+        key = None
+        name, separator, value = line.partition(":")
+        if not separator or line[:1] in (" ", "\t", "#"):
+            continue
+        value = value.strip()
+        if value[:1] in (">", "|"):
+            value, key = "", name.strip()
+        elif len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        fields[name.strip()] = value
+    return fields
+
+
+def _project_skills(top):
+    """name, description and disableModelInvocation from the front matter of each
+    .claude/skills/*/SKILL.md that is a regular file inside the repository (untrusted data)."""
+    skills = []
+    for file in sorted((top / ".claude" / "skills").glob("*/SKILL.md")):
+        try:
+            if not file.resolve().is_relative_to(top) or not file.is_file():
+                continue
+            with file.open("rb") as stream:
+                lines = stream.read(SKILL_FILE_LIMIT).decode("utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        fields = _front_matter(lines)
+        skills.append({"name": fields.get("name") or file.parent.name, "description": fields.get("description", ""),
+                       "disableModelInvocation": fields.get(UNINVOCABLE_FLAG, "").lower() == "true"})
+    return skills
+
+
+MR_SKILL_ASK = ("Does this project open merge requests, or merge them, through one of its skills (projectSkills)? "
+                "Pick one for mrSkill and/or mergeSkill, or keep the command form. Both are optional, and "
+                "mrSkill excludes mrCommand just as mergeSkill excludes mergeCommand.")
+
+
 def propose(start_dir="."):
     top = Path(os.path.realpath(start_dir))
     if not top.is_dir():
@@ -190,6 +240,12 @@ def propose(start_dir="."):
                              "{bodyFile} the path of the generated description."})
     questions.append({"key": "mergeCommand", "candidates": MERGE_COMMAND_CANDIDATES, "ask": MERGE_COMMAND_ASK})
 
+    skills = _project_skills(top)
+    invocable = [item["name"] for item in skills if not item["disableModelInvocation"]]  # the Skill tool cannot run the rest
+    if invocable:
+        questions.append({"key": "mrSkill", "candidates": invocable, "ask": MR_SKILL_ASK})
+        questions.append({"key": "mergeSkill", "candidates": invocable, "ask": MR_SKILL_ASK})
+
     carried = legacy.get("legacyKeys") or {}
     proposal.update(carried)
     questions = [item for item in questions if item["key"] == "project" or item["key"] not in carried]
@@ -200,6 +256,7 @@ def propose(start_dir="."):
         **hub,
         "legacyConfig": str(legacy_path),
         **legacy,
+        "projectSkills": skills,
         "proposal": proposal,
         "questions": questions,
     }

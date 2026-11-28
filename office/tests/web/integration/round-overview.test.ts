@@ -198,6 +198,20 @@ describe('round overview: the entry in the file list', () => {
     await eventually(() => expect(all('[data-testid=round-overview-row]').map((row) => row.dataset.round)).toEqual(['2']));
   });
 
+  it('names the content section after what it shows', async () => {
+    const content = document.querySelector('[data-testid=task-content]') as HTMLElement;
+
+    expect(content.getAttribute('aria-label')).toBe('Selected file');
+
+    await openOverview(1);
+
+    expect(content.getAttribute('aria-label')).toBe('Review round overview');
+
+    all('.file')[0].click();
+
+    await eventually(() => expect(content.getAttribute('aria-label')).toBe('Selected file'));
+  });
+
   it('opens the overview on click: the address names it, the reader gives way, and the row is the current one', async () => {
     await openOverview(1);
 

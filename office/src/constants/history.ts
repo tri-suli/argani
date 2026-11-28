@@ -10,6 +10,8 @@ const STEP_PASS = 'pass' as const satisfies StepKind;
 
 const STEP_NOW = 'now' as const satisfies StepKind;
 
+const STEP_CANCELLED = 'cancelled' as const satisfies StepKind;
+
 /** The colour legend of the history strip, in the order of the design. */
 const STEP_LEGEND: LegendEntry[] = [
   { kind: STEP_AGENT, label: 'agent worked' },
@@ -17,6 +19,7 @@ const STEP_LEGEND: LegendEntry[] = [
   { kind: STEP_CHANGES, label: 'changes asked' },
   { kind: STEP_PASS, label: 'passed' },
   { kind: STEP_NOW, label: 'now' },
+  { kind: STEP_CANCELLED, label: 'cancelled' },
 ];
 
 const OUTCOME_CHANGES_NOTE = 'changes asked';
@@ -35,6 +38,7 @@ export {
   STEP_CHANGES,
   STEP_PASS,
   STEP_NOW,
+  STEP_CANCELLED,
   STEP_LEGEND,
   OUTCOME_CHANGES_NOTE,
   OUTCOME_PASS_NOTE,

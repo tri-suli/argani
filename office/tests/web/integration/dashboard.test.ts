@@ -667,7 +667,7 @@ describe('task page header and history', () => {
   it('explains the strip and lists the colour legend', async () => {
     await openTask('stuck');
 
-    await eventually(() => expect(all('[aria-label="Colour legend"] li')).toEqual(['agent worked', 'waited for you', 'changes asked', 'passed', 'now']));
+    await eventually(() => expect(all('[aria-label="Colour legend"] li')).toEqual(['agent worked', 'waited for you', 'changes asked', 'passed', 'now', 'cancelled']));
 
     expect(text('[data-testid=task-history] h2')).toBe('History');
 

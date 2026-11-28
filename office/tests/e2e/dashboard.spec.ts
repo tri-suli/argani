@@ -259,7 +259,7 @@ test.describe('with a live backend', () => {
 
     await expect(page.getByRole('heading', { level: 2, name: 'History' })).toBeVisible();
 
-    await expect(page.getByLabel('Colour legend').getByRole('listitem')).toHaveText(['agent worked', 'waited for you', 'changes asked', 'passed', 'now']);
+    await expect(page.getByLabel('Colour legend').getByRole('listitem')).toHaveText(['agent worked', 'waited for you', 'changes asked', 'passed', 'now', 'cancelled']);
   });
 
   test('shows a dash for a task without history', async ({ page }) => {

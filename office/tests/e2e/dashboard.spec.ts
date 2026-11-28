@@ -455,6 +455,8 @@ test.describe('the project picker', () => {
 
     await page.keyboard.press('Enter');
 
+    await expect(page.getByTestId('project-search')).toBeFocused();
+
     await page.keyboard.press('ArrowDown');
 
     await page.keyboard.press('ArrowDown');
@@ -467,7 +469,7 @@ test.describe('the project picker', () => {
 
     await page.keyboard.press('Enter');
 
-    await expect(page.getByRole('listbox')).toBeVisible();
+    await expect(page.getByTestId('project-search')).toBeFocused();
 
     await page.keyboard.press('Escape');
 

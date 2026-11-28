@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Fixed
 
+- `register_project.py` refuses two path patterns that can match the same directory even when each has a wildcard the other lacks (`/w/a*` and `/w/*b`), which made resolving `/w/ab` fail later; `[` in a pattern is a literal here, as in resolution.
 - `register_project.py` gives a rewritten `project.json` the default file mode (umask-based, like a new one) instead of 0600, which the office container could not read; affected files heal on the next rewrite.
 - The board no longer warns about "malformed lines" for the `start` and `stop` records of the event log.
 - A project whose `project.json` cannot be read or fails the registry checks stays on the board, with its tasks shown as error rows carrying the message, instead of vanishing.

@@ -4,6 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+import register_project
+
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 
@@ -396,6 +400,39 @@ def test_add_path_refuses_a_pattern_overlapping_a_pattern_of_another_project(mak
     assert register(make_project("two"))[0] == 0
     code, out = add_path(f"{tmp_path.resolve()}/trees/*")
     assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_two_patterns_with_a_wildcard_on_opposite_ends(make_project, register_project, hub, tmp_path):
+    (tmp_path / "w").mkdir()
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/a*"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/*b")
+    assert code == 1 and "legacy" in out
+
+
+def test_add_path_refuses_two_patterns_with_a_wildcard_on_opposite_ends_in_the_other_order(
+        make_project, register_project, hub, tmp_path):
+    (tmp_path / "w").mkdir()
+    register_project("legacy", paths=[f"{tmp_path.resolve()}/w/*b"])
+    assert register(make_project("two"))[0] == 0
+    code, out = add_path(f"{tmp_path.resolve()}/w/a*")
+    assert code == 1 and "legacy" in out
+
+
+@pytest.mark.parametrize("first, second, expected", [
+    ("/w/a*", "/w/*b", True),
+    ("/w/a?c", "/w/*b*", True),
+    ("/w/a*", "/w/b*", False),
+    ("/w/a?", "/w/abc", False),
+    ("/w/*", "/w/*", True),
+    ("/w/b-*", "/w/*", True),
+    ("/w/x[1]*", "/w/x[1]y", True),
+    ("/w/x[1]*", "/w/x1y", False),
+    ("/w/*", "/w/a/*", False),
+])
+def test_patterns_overlap_when_one_string_matches_both(first, second, expected):
+    assert register_project._patterns_overlap(first, second) is expected
+    assert register_project._patterns_overlap(second, first) is expected
 
 
 def test_add_path_refuses_a_missing_project_and_a_relative_pattern(make_project, hub, tmp_path):

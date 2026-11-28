@@ -17,7 +17,7 @@ With --update the project must exist: only the config keys given on stdin are re
 as a new registration); name and paths are never changed.
 Prints the resulting project.json; exit 1 with one message on any error.
 """
-import fnmatch
+import functools
 import json
 import os
 import sys
@@ -108,13 +108,33 @@ def _pattern_prefixes(pattern):
     return ["/" + "/".join(segments[:count]) for count in range(1, len(segments) + 1)]
 
 
+def _segments_overlap(first, second):
+    """True when some string matches both segment patterns (`*` any run, `?` one character, the rest literal)."""
+    @functools.lru_cache(maxsize=None)
+    def overlap_from(first_index, second_index):
+        first_done, second_done = first_index == len(first), second_index == len(second)
+        if first_done and second_done:
+            return True
+        if not first_done and first[first_index] == "*":
+            return overlap_from(first_index + 1, second_index) or (
+                not second_done and overlap_from(first_index, second_index + 1))
+        if not second_done and second[second_index] == "*":
+            return overlap_from(first_index, second_index + 1) or (
+                not first_done and overlap_from(first_index + 1, second_index))
+        if first_done or second_done:
+            return False
+        same_character = "?" in (first[first_index], second[second_index]) or first[first_index] == second[second_index]
+        return same_character and overlap_from(first_index + 1, second_index + 1)
+
+    return overlap_from(0, 0)
+
+
 def _patterns_overlap(first, second):
-    """True when two patterns of the same depth can match one directory (a segment is compared with the
-    other as a literal, so `b-*` and `*` overlap; `a*` and `*b` are not detected)."""
+    """True when two patterns of the same depth can match one directory: every segment pair has a string
+    matching both (`b-*` and `*`, `a*` and `*b` overlap)."""
     first_segments, second_segments = first.strip("/").split("/"), second.strip("/").split("/")
     return len(first_segments) == len(second_segments) and all(
-        fnmatch.fnmatchcase(one, other) or fnmatch.fnmatchcase(other, one)
-        for one, other in zip(first_segments, second_segments))
+        _segments_overlap(one, other) for one, other in zip(first_segments, second_segments))
 
 
 def refuse_overlap_with_registered_paths(real_dir, home, name):

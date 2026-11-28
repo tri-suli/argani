@@ -1,5 +1,5 @@
 import { buildTaskHash, parseTaskRoute } from '@/board/task-route';
-import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_PROJECT_OPTION } from '@/constants/dashboard';
+import { ALL_PROJECTS, APP_TITLE, CLOCK_INTERVAL_MILLISECONDS, NO_PROJECT_OPTION, TITLE_SEPARATOR } from '@/constants/dashboard';
 import { STEP_LEGEND } from '@/constants/history';
 import { BOARD_HASH } from '@/constants/route';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
@@ -182,6 +182,10 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
 
     get taskSummary() {
       return this.taskPage.detail ?? this.tasks.find((summary) => summary.project === this.taskPage.project && summary.slug === this.taskPage.slug) ?? null;
+    },
+
+    get documentTitle() {
+      return this.taskPage.isOpen ? `${this.taskTitle}${TITLE_SEPARATOR}${APP_TITLE}` : APP_TITLE;
     },
 
     get taskTitle() {

@@ -131,6 +131,32 @@ describe('task page', () => {
     expect(fileButtons()[1].hasAttribute('aria-current')).toBe(false);
   });
 
+  it('has one main landmark for the task view, not nested in another landmark', async () => {
+    await openTask();
+
+    const page = document.querySelector('[data-testid=task-page]') as HTMLElement;
+
+    expect(page.tagName).toBe('MAIN');
+
+    expect(page.querySelector('main')).toBeNull();
+
+    expect(page.closest('section, nav, aside, header, footer')).toBeNull();
+
+    expect(document.querySelector('[data-testid=task-content]')?.tagName).toBe('SECTION');
+  });
+
+  it('sets the document title to the task while it is open, and back to the app on the board', async () => {
+    expect(document.title).toBe('Argani Office');
+
+    await openTask();
+
+    await eventually(() => expect(document.title).toBe('Fix export · Argani Office'));
+
+    leave();
+
+    await eventually(() => expect(document.title).toBe('Argani Office'));
+  });
+
   it('is no dialog: no scrim, no aria-modal, nothing inert, Escape does nothing', async () => {
     await openTask();
 
@@ -758,6 +784,8 @@ describe('task page', () => {
     leave();
 
     await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
+
+    await eventually(() => expect(document.activeElement).toBe(document.querySelector('[data-testid=board-title]')));
   });
 });
 

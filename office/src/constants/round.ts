@@ -1,4 +1,5 @@
 import { RUNNING_ICON } from '@/constants/file-tree';
+import { ICON } from '@/constants/icons';
 import type { FindingFilter, RoundStatus } from '@/types/round';
 import type { FindingPartKind, FindingSeverity } from '@/types/review-file';
 
@@ -18,7 +19,7 @@ const ROUND_GROUP_PREFIX = 'Round ';
 
 const PART_LABELS: Record<FindingPartKind, string> = { what: 'What', why: 'Why', fix: 'Fix', text: '' };
 
-const SEVERITY_ICONS: Record<FindingSeverity, string> = { important: 'priority_high', nit: 'info', other: 'help' };
+const SEVERITY_ICONS: Record<FindingSeverity, string> = { important: ICON.priorityHigh, nit: ICON.info, other: ICON.help };
 
 /** Important first, then nits, then what the protocol does not define. */
 const SEVERITY_RANK: Record<FindingSeverity, number> = { important: 0, nit: 1, other: 2 };
@@ -35,11 +36,11 @@ const FILTER_ALL = 'all' as const satisfies FindingFilter;
 
 const STATUS_RUNNING: RoundStatus = { label: 'RUNNING', icon: RUNNING_ICON, tone: 'now', spinning: true, toneLabel: 'running' };
 
-const STATUS_UNDECIDED: RoundStatus = { label: 'UNDECIDED', icon: 'hourglass_top', tone: 'none', spinning: false, toneLabel: 'not decided yet' };
+const STATUS_UNDECIDED: RoundStatus = { label: 'UNDECIDED', icon: ICON.hourglassTop, tone: 'none', spinning: false, toneLabel: 'not decided yet' };
 
-const STATUS_NOT_REPORTED: RoundStatus = { label: 'NOT REPORTED', icon: 'more_horiz', tone: 'none', spinning: false, toneLabel: 'has not reported' };
+const STATUS_NOT_REPORTED: RoundStatus = { label: 'NOT REPORTED', icon: ICON.moreHoriz, tone: 'none', spinning: false, toneLabel: 'has not reported' };
 
-const STATUS_INVALID: RoundStatus = { label: 'INVALID', icon: 'cancel', tone: 'stop', spinning: false, toneLabel: 'no valid verdict' };
+const STATUS_INVALID: RoundStatus = { label: 'INVALID', icon: ICON.cancel, tone: 'stop', spinning: false, toneLabel: 'no valid verdict' };
 
 const MESSAGE_NOT_REPORTED = 'Has not reported yet.';
 

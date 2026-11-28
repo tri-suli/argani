@@ -53,6 +53,8 @@ const openTask = async () => {
   });
 };
 
+const diffRows = () => [...document.querySelectorAll('[data-testid=diff-row]')].map((row) => row.textContent);
+
 const selectFile = (index: number) => fileButtons()[index].click();
 
 const pollAgain = () => poller.handlers.onSnapshot(sampleSnapshot(), sampleTasks());
@@ -452,17 +454,19 @@ describe('task page', () => {
     expect(fileButtons()[2].getAttribute('aria-current')).toBe('true');
   });
 
-  it('switches files; diffs and other files show as plain text, markdown with verdict and summary', async () => {
+  it('switches files; diffs show as rows, other files as plain text, markdown with verdict and summary', async () => {
     await openTask();
 
     selectFile(1);
 
     await eventually(() => {
-      expect(isShown('[data-testid=task-plain]')).toBe(true);
+      expect(isShown('[data-testid=task-diff]')).toBe(true);
+
+      expect(isShown('[data-testid=task-plain]')).toBe(false);
 
       expect(isShown('[data-testid=task-markdown]')).toBe(false);
 
-      expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('+added line\n-removed line\n');
+      expect(diffRows()).toEqual(['+added line', '-removed line']);
     });
 
     selectFile(2);
@@ -495,7 +499,7 @@ describe('task page', () => {
 
     selectFile(1);
 
-    await eventually(() => expect(text('[data-testid=task-plain]')).toBe('+added line -removed line'));
+    await eventually(() => expect(diffRows()).toEqual(['+added line', '-removed line']));
 
     taskClient.texts['build.diff'] = '+changed\n';
 
@@ -503,7 +507,7 @@ describe('task page', () => {
 
     pollAgain();
 
-    await eventually(() => expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('+changed\n'));
+    await eventually(() => expect(diffRows()).toEqual(['+changed']));
 
     expect(fileButtons()[1].getAttribute('aria-current')).toBe('true');
   });
@@ -607,13 +611,15 @@ describe('task page', () => {
 
     expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('');
 
+    expect(isShown('[data-testid=task-diff]')).toBe(false);
+
     taskClient.failure = null;
 
     taskClient.detail = sampleDetail({ updatedAt: '2026-11-24T11:00:00Z' });
 
     pollAgain();
 
-    await eventually(() => expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('+added line\n-removed line\n'));
+    await eventually(() => expect(diffRows()).toEqual(['+added line', '-removed line']));
 
     expect(text('[data-testid=task-error]')).toBe('');
   });

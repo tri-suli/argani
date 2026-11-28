@@ -64,8 +64,6 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 const FIRST_INDEX = 0;
 
-const NOT_FOUND_ENTRY = -1;
-
 // how many lines of a diff are put in the page; the rest is counted and named in a note
 const DIFF_ROW_LIMIT = 1500;
 
@@ -91,6 +89,9 @@ const TRAILING_CARRIAGE_RETURN = /\r$/;
 const STATUS_DATE_SUFFIX_PATTERN = / on \d{4}-\d{2}-\d{2}$/;
 
 const TRAILING_NEWLINES_PATTERN = /\n+$/;
+
+// a status without a tone yet: a draft
+const NEUTRAL_STATUS_ICON = 'edit_note';
 
 const INFO_STRING_SEPARATOR = /\s+/;
 
@@ -128,7 +129,6 @@ export {
   INSTANT_SCROLL,
   REDUCED_MOTION_QUERY,
   FIRST_INDEX,
-  NOT_FOUND_ENTRY,
   DIFF_ROW_LIMIT,
   DIFF_FILE_START,
   DIFF_FILE_MARKERS,
@@ -141,6 +141,7 @@ export {
   TRAILING_CARRIAGE_RETURN,
   STATUS_DATE_SUFFIX_PATTERN,
   TRAILING_NEWLINES_PATTERN,
+  NEUTRAL_STATUS_ICON,
   INFO_STRING_SEPARATOR,
   HEADING_OPENING_PATTERN,
 };

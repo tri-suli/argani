@@ -10,6 +10,7 @@ import HashNavigation from '@/board/hash-navigation';
 import HistorySteps from '@/board/history-steps';
 import addLinkHook from '@/board/link-hook';
 import MarkdownRenderer from '@/board/markdown-renderer';
+import RoundOverview from '@/board/round-overview';
 import createBrowserReaderEnvironment from '@/board/reader-environment';
 import FetchTaskClient from '@/board/task-client';
 import createDashboard from '@/components/dashboard';
@@ -48,6 +49,6 @@ addLinkHook(purify);
 
 const markdownRenderer = new MarkdownRenderer(purify, marked);
 
-Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, diffRows: new DiffRows(), readerEnvironment: createBrowserReaderEnvironment(window), clipboard, now: () => new Date() }));
+Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, historySteps, fileTree, roundOverview: new RoundOverview(markdownRenderer), navigation, markdownRenderer, diffRows: new DiffRows(), readerEnvironment: createBrowserReaderEnvironment(window), clipboard, now: () => new Date() }));
 
 Alpine.start();

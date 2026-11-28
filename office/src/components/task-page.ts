@@ -2,19 +2,54 @@ import type DiffRows from '@/board/diff-rows';
 import { fileName, isDiffFile, isMarkdownFile } from '@/board/file-view';
 import type FileTree from '@/board/file-tree';
 import type MarkdownRenderer from '@/board/markdown-renderer';
+import type RoundOverview from '@/board/round-overview';
 import type { TaskClient } from '@/types/client';
 import type { OutlineTracker } from '@/types/document';
 import type { TaskPage } from '@/types/components';
-import type { TaskDetail } from '@/types/task';
+import type { TaskDetail, TaskFile } from '@/types/task';
 import { BOARD_TITLE_SELECTOR } from '@/constants/dashboard';
+import { FILTER_ALL } from '@/constants/round';
 
-function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree, diffRows: DiffRows, outline: OutlineTracker): TaskPage {
+function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree, diffRows: DiffRows, roundOverview: RoundOverview, outline: OutlineTracker): TaskPage {
+  // The review files read for the overview, by task and path: not state of the page, so a poll that finds them unchanged draws nothing.
+  const reviewTexts = new Map<string, { stamp: string; text: string }>();
+
+  /** The text of a review file: the one read before while its listing and the task's last change are the same, otherwise a fresh read. */
+  const readReview = async (project: string, slug: string, file: TaskFile, updatedAt: string | null, failures: string[]): Promise<string | null> => {
+    const key = `${project}/${slug}/${file.path}`;
+
+    const stamp = JSON.stringify([updatedAt, file]);
+
+    const cached = reviewTexts.get(key);
+
+    if (cached?.stamp === stamp) {
+      return cached.text;
+    }
+
+    try {
+      const text = await taskClient.fetchFile(project, slug, file.path);
+
+      reviewTexts.set(key, { stamp, text });
+
+      return text;
+    } catch (error) {
+      failures.push((error as Error).message);
+
+      // the last good text stays on screen until a read succeeds
+      return cached?.text ?? null;
+    }
+  };
+
   return {
     isOpen: false,
     project: '',
     slug: '',
     detail: null,
     selectedPath: null,
+    selectedRound: null,
+    round: null,
+    roundSignature: '',
+    findingFilter: FILTER_ALL,
     fileText: '',
     loadedPath: null,
     loadedStamp: null,
@@ -29,8 +64,10 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     openCount: 0,
     closeCount: 0,
 
-    async open({ project, slug, path }) {
-      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, diff: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null, knownRounds: [] });
+    async open({ project, slug, path, round }) {
+      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, selectedRound: round ?? null, round: null, roundSignature: '', findingFilter: FILTER_ALL, fileText: '', rendered: null, diff: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null, knownRounds: [] });
+
+      reviewTexts.clear();
 
       this.openCount += 1;
 
@@ -40,6 +77,14 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     async show(route) {
       if (!this.isOpen || route.project !== this.project || route.slug !== this.slug) {
         await this.open(route);
+
+        return;
+      }
+
+      if (route.round !== undefined) {
+        if (route.round !== this.selectedRound && this.detail !== null && fileTree.roundNumbers(this.detail.files).includes(route.round)) {
+          await this.selectRound(route.round);
+        }
 
         return;
       }
@@ -90,11 +135,31 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     async select(path) {
       this.selectedPath = path;
 
+      Object.assign(this, { selectedRound: null, round: null, roundSignature: '' });
+
       this.openRounds = fileTree.withRoundOf(this.openRounds as number[], path, (this.detail as TaskDetail).files);
 
       this.clearFile();
 
       await this.loadFile(++this.generation);
+    },
+
+    async selectRound(round) {
+      if (round === this.selectedRound) {
+        return;
+      }
+
+      Object.assign(this, { selectedPath: null, selectedRound: round, round: null, roundSignature: '', findingFilter: FILTER_ALL });
+
+      this.openRounds = (this.openRounds as number[]).includes(round) ? this.openRounds : fileTree.toggled(this.openRounds as number[], round);
+
+      this.clearFile();
+
+      await this.loadRound(++this.generation);
+    },
+
+    setFindingFilter(filter) {
+      this.findingFilter = filter;
     },
 
     async refresh() {
@@ -115,13 +180,24 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
 
         this.detail = detail;
 
-        if (!detail.files.some((file) => file.path === this.selectedPath)) {
+        // a round that is no longer there leaves the page on the first file, like a file that is gone
+        if (this.selectedRound !== null && !fileTree.roundNumbers(detail.files).includes(this.selectedRound)) {
+          Object.assign(this, { selectedRound: null, round: null, roundSignature: '' });
+        }
+
+        if (this.selectedRound === null && !detail.files.some((file) => file.path === this.selectedPath)) {
           this.selectedPath = detail.files[0]?.path ?? null;
 
           this.clearFile();
         }
 
         this.chooseOpenRounds(detail);
+
+        if (this.selectedRound !== null) {
+          await this.loadRound(generation);
+
+          return;
+        }
 
         // shortcut: updatedAt has one-second resolution, so a rewrite within the second of the last fetch is
         // missed until the next change; upgrade to a size/mtime in the file listing if that ever shows.
@@ -175,11 +251,42 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       }
     },
 
+    async loadRound(generation) {
+      const detail = this.detail as TaskDetail;
+
+      const round = this.selectedRound as number;
+
+      const failures: string[] = [];
+
+      const files = roundOverview.reviewFiles(detail, round);
+
+      const read = await Promise.all(files.map((file) => readReview(this.project, this.slug, file, detail.updatedAt, failures)));
+
+      if (generation !== this.generation) {
+        return;
+      }
+
+      const texts = Object.fromEntries(files.map((file, index) => [file.path, read[index]]));
+
+      // what the view is made of: an identical poll keeps the cards (and the scroll and focus inside them) as they are
+      const signature = JSON.stringify([round, detail.column, detail.models, detail.rounds.find((candidate) => candidate.n === round), files, texts]);
+
+      if (signature !== this.roundSignature) {
+        this.round = roundOverview.build({ detail, round, texts });
+
+        this.roundSignature = signature;
+      }
+
+      this.errorMessage = failures[0] ?? null;
+    },
+
     chooseOpenRounds(detail) {
       const numbers = fileTree.roundNumbers(detail.files);
 
       if (this.openRounds === null) {
-        this.openRounds = fileTree.initialOpenRounds(detail.files, detail.rounds, detail.column, this.selectedPath);
+        const initial = fileTree.initialOpenRounds(detail.files, detail.rounds, detail.column, this.selectedPath);
+
+        this.openRounds = this.selectedRound === null || initial.includes(this.selectedRound) ? initial : fileTree.toggled(initial, this.selectedRound);
       } else {
         // a round that is new and already running opens once; the rounds the reader has seen keep the reader's choice
         const running = fileTree.runningRound(detail.files, detail.rounds, detail.column);
@@ -208,6 +315,26 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
 
     get sections() {
       return this.detail === null ? [] : fileTree.sections(this.detail.files, this.detail.rounds, this.detail.column, this.openRounds as number[]);
+    },
+
+    get roundOptions() {
+      return this.detail === null ? [] : roundOverview.options(this.detail);
+    },
+
+    get selectedRoundOption() {
+      return this.roundOptions.find((option) => option.round === this.selectedRound) ?? null;
+    },
+
+    get roundChips() {
+      return this.round === null ? [] : roundOverview.chips(this.round);
+    },
+
+    get visibleFindings() {
+      return this.round === null ? [] : roundOverview.visible(this.round, this.findingFilter);
+    },
+
+    get emptyFindingsMessage() {
+      return this.round === null ? '' : roundOverview.emptyMessage(this.round, this.findingFilter);
     },
 
     get selectedFile() {

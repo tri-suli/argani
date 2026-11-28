@@ -42,6 +42,11 @@ class RoundOverview {
     return this.fileTree.roundNumbers(detail.files).sort((left, right) => left - right).map((round) => ({ round, title: this.title(round), status: this.roundStatus(detail, round) }));
   }
 
+  /** The review files (`review-<checklist>.md`) of a round, in the order the task lists them. */
+  reviewFiles(detail: TaskDetail, round: number): TaskFile[] {
+    return detail.files.filter((file) => file.group === `${ROUND_GROUP_PREFIX}${round}` && REVIEW_FILE_NAME.test(fileName(file.path)));
+  }
+
   build({ detail, round, texts }: BuildInput): RoundView {
     const running = this.isRunning(detail, round);
 
@@ -115,12 +120,8 @@ class RoundOverview {
   private seats(detail: TaskDetail, round: number, texts: Record<string, string | null>): Seat[] {
     const files = new Map<string, TaskFile>();
 
-    for (const file of detail.files) {
-      const name = file.group === `${ROUND_GROUP_PREFIX}${round}` ? REVIEW_FILE_NAME.exec(fileName(file.path))?.[1] : undefined;
-
-      if (name !== undefined) {
-        files.set(name, file);
-      }
+    for (const file of this.reviewFiles(detail, round)) {
+      files.set((REVIEW_FILE_NAME.exec(fileName(file.path)) as RegExpExecArray)[1], file);
     }
 
     const reviews = detail.rounds.find((candidate) => candidate.n === round)?.reviews ?? {};

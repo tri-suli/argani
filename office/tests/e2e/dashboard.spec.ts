@@ -88,7 +88,7 @@ test.describe('with a live backend', () => {
 
     await expect(tile(page, 'waiting').getByTestId('tile-detail')).toHaveText('1 task');
 
-    await expect(tile(page, 'tokens').getByTestId('tile-value')).toHaveText('6.0k');
+    await expect(tile(page, 'tokens').getByTestId('tile-value')).toHaveText('0');
 
     await expect(tile(page, 'tokens').getByTestId('tile-detail')).toHaveText('across 4 open tasks');
 

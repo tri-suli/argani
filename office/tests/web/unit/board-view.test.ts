@@ -172,15 +172,23 @@ describe('board view', () => {
     expect(tiles.map((tile) => [tile.id, tile.label, tile.value, tile.detail, tile.tone])).toEqual([
       ['agents', 'Agents working', '1', 'builder', 'active'],
       ['waiting', 'Waiting for you', '40m', '2 tasks', 'human'],
-      ['tokens', 'Tokens', '1.2M', 'across 5 open tasks', ''],
+      ['tokens', 'Tokens', '48.2k', 'across 5 open tasks', ''],
       ['manual', 'Manual acceptance criteria', '3', 'to check by hand before merge', ''],
     ]);
+  });
+
+  it('counts the tokens of the open tasks only, never those of a Done task', () => {
+    const tasks = [sampleTask({ project: 'p', slug: 'open' }), sampleTask({ project: 'p', slug: 'finished', column: 'Done' })];
+
+    const usage = (slug: string, total: number) => sampleSummary({ project: 'p', slug, tokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total } });
+
+    expect(boardView.totalTiles(snapshotOf(...tasks), [usage('open', 1500), usage('finished', 900_000)], null, now)[2]).toMatchObject({ value: '1.5k', detail: 'across 1 open task' });
   });
 
   it('follows the project filter in every tile', () => {
     const [agents, waiting, tokens, manual] = boardView.totalTiles(sampleSnapshot(), sampleTasks(), 'other', now);
 
-    expect([agents.value, agents.detail, waiting.value, waiting.detail, tokens.value, tokens.detail, manual.value]).toEqual(['0', '—', '—', '1 task', '1.2M', 'across 1 open task', '1']);
+    expect([agents.value, agents.detail, waiting.value, waiting.detail, tokens.value, tokens.detail, manual.value]).toEqual(['0', '—', '—', '1 task', '0', 'across 1 open task', '1']);
   });
 
   it('shows dashes and zero when nothing runs, waits or is open', () => {

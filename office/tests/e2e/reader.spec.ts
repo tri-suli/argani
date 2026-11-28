@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DECISION_DOCUMENT, DIFF_DOCUMENT, INTENT_DOCUMENT, REVIEW_DOCUMENT, SPEC_DOCUMENT } from './reader-documents';
+import { DECISION_DOCUMENT, DESCRIPTION_DOCUMENT, DIFF_DOCUMENT, INTENT_DOCUMENT, REVIEW_DOCUMENT, SPEC_DOCUMENT } from './reader-documents';
 
 const liveUrl = 'http://127.0.0.1:22122';
 
@@ -8,6 +8,17 @@ const taskUrl = (path: string) => `${liveUrl}/#/task/demo/ship-report/${encodeUR
 /** Serves `text` for a file of the task instead of the fixture file. */
 async function serveFile(page: Page, path: string, text: string) {
   await page.route(`**/api/tasks/demo/ship-report/file?path=${encodeURIComponent(path)}`, (route) => route.fulfill({ body: text, contentType: 'text/plain' }));
+}
+
+/** Lists one more file in the task, for a document the fixture home does not have. */
+async function listFile(page: Page, path: string) {
+  await page.route('**/api/tasks/demo/ship-report', async (route) => {
+    const task = await (await route.fetch()).json();
+
+    task.files.unshift({ path, group: 'Job', firstLine: '', tone: null });
+
+    await route.fulfill({ json: task });
+  });
 }
 
 const hasNoSidewaysScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -93,6 +104,32 @@ test.describe('document reader', () => {
     await expect(entries.filter({ hasText: 'Flagged concerns' })).toHaveAttribute('aria-current', 'location');
 
     expect(page.url()).toBe(route);
+  });
+
+  test('lets go of the last section after a click when it is too short to reach the zone, and follows the End key', async ({ page }) => {
+    await page.goto(taskUrl('spec.md'));
+
+    const entries = page.getByTestId('outline-entry');
+
+    await entries.last().click();
+
+    await expect(entries.last()).toHaveAttribute('aria-current', 'location');
+
+    await expect(page.locator('#doc-out-of-scope')).toBeFocused();
+
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+
+    await expect(entries.first()).toHaveAttribute('aria-current', 'location');
+
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+
+    await page.keyboard.press('End');
+
+    await expect(page.locator('[data-testid=outline-entry][aria-current=location]')).toHaveText(/Open questions|Out of scope/);
+
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+
+    await expect(entries.first()).toHaveAttribute('aria-current', 'location');
   });
 
   test('jumps instantly under reduced motion', async ({ page }) => {
@@ -221,6 +258,20 @@ test.describe('document reader', () => {
     await expect(page.getByTestId('task-verdict')).toContainText('APPROVE');
 
     await expect(page.getByTestId('meta-entry')).toHaveText([/Round\s*1/]);
+  });
+
+  test('shows a real description.md as text under its file name, not as a meta cell', async ({ page }) => {
+    await serveFile(page, 'description.md', DESCRIPTION_DOCUMENT);
+
+    await listFile(page, 'description.md');
+
+    await page.goto(taskUrl('description.md'));
+
+    await expect(page.getByTestId('task-body')).toContainText('DOCKER STABLE STACK: setup Docker dengan tiga layanan');
+
+    await expect(page.getByTestId('task-meta')).toBeHidden();
+
+    await expect(page.getByTestId('task-status')).toBeHidden();
   });
 
   test('reads a review file with the same reader', async ({ page }) => {

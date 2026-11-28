@@ -7,6 +7,8 @@ const META_KEYS = ['Author', 'Status', 'Risk', 'Date', 'Intent', 'Spec', 'Round'
 
 const TITLE_PREFIX = '# ';
 
+const BYTE_ORDER_MARK_PATTERN = /^\uFEFF/;
+
 const NEWLINE_PATTERN = /\r\n?/g;
 
 const LINE_BREAK = '\n';
@@ -139,6 +141,7 @@ export {
   META_LINE_PATTERN,
   META_KEYS,
   TITLE_PREFIX,
+  BYTE_ORDER_MARK_PATTERN,
   NEWLINE_PATTERN,
   LINE_BREAK,
   STATUS_KEY,

@@ -275,6 +275,20 @@ describe('renderDocument', () => {
     expect(crlf.blocks).toEqual(document.blocks);
   });
 
+  it('ignores a byte order mark at the start of the file', () => {
+    const bom = renderer.renderDocument(`\uFEFF${SPEC}`, null);
+
+    expect(bom.titleHtml).toBe(document.titleHtml);
+
+    expect(bom.meta).toEqual(document.meta);
+
+    expect(renderer.renderDocument('\uFEFFPASS ok\n\nbody', 'good').status).toMatchObject({ label: 'PASS ok' });
+  });
+
+  it('labels an outline entry with the text of its heading, without html tags', () => {
+    expect(renderer.renderDocument('## Using <b>bold</b> and <span class="x">spans</span>', null).outline[0].label).toBe('Using bold and spans');
+  });
+
   it('survives an empty file and a file without a title', () => {
     expect(renderer.renderDocument('', null)).toMatchObject({ titleHtml: null, meta: [], summaryHtml: null, blocks: [], outline: [] });
 

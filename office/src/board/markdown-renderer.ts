@@ -5,7 +5,7 @@ import HeadingIds from '@/board/heading-ids';
 import readingStats from '@/board/reading-time';
 import tokenText from '@/board/token-text';
 import {
-  ACCEPTANCE_CRITERIA_TITLE, APPROVED_STATUS_PREFIX, CRITERION_ID_PREFIX, HEADING_OPENING_PATTERN, INFO_STRING_SEPARATOR, LINE_BREAK, MAX_HEADING_DEPTH,
+  ACCEPTANCE_CRITERIA_TITLE, APPROVED_STATUS_PREFIX, BYTE_ORDER_MARK_PATTERN, CRITERION_ID_PREFIX, HEADING_OPENING_PATTERN, INFO_STRING_SEPARATOR, LINE_BREAK, MAX_HEADING_DEPTH,
   MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NEWLINE_PATTERN, RAW_HEADING_TAG_PATTERN, TOKEN_CODE, TOKEN_HEADING, TOKEN_HTML, TOKEN_LIST, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
 } from '@/constants/document';
 import { FILE_TONE_ICONS } from '@/constants/file-tree';
@@ -44,7 +44,7 @@ class MarkdownRenderer {
   }
 
   renderDocument(text: string, tone: FileTone | null): RenderedDocument {
-    const normalized = text.replace(NEWLINE_PATTERN, LINE_BREAK);
+    const normalized = text.replace(BYTE_ORDER_MARK_PATTERN, '').replace(NEWLINE_PATTERN, LINE_BREAK);
 
     const parts = this.documentHead.split(normalized, tone !== null);
 

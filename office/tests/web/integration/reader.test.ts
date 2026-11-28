@@ -61,6 +61,7 @@ const files: TaskFile[] = [
   { path: 'spec.md', group: 'Job', firstLine: '# Spec', tone: null },
   { path: 'change.diff', group: 'Job', firstLine: 'diff --git', tone: null },
   { path: 'notes.txt', group: 'Job', firstLine: 'notes', tone: null },
+  { path: 'notes.md', group: 'Job', firstLine: 'plain words', tone: null },
   { path: 'review.md', group: 'Job', firstLine: 'CHANGES missing a test', tone: 'warn' },
 ];
 
@@ -97,7 +98,7 @@ const mount = async (path = 'spec.md') => {
 
   taskClient.detail = sampleDetail({ files });
 
-  taskClient.texts = { 'spec.md': SPEC, 'change.diff': DIFF, 'notes.txt': 'plain notes', 'review.md': 'CHANGES missing a test\n\n## Summary\n- one\n\n## Details\nmore' };
+  taskClient.texts = { 'spec.md': SPEC, 'change.diff': DIFF, 'notes.txt': 'plain notes', 'notes.md': 'plain words', 'review.md': 'CHANGES missing a test\n\n## Summary\n- one\n\n## Details\nmore' };
 
   navigation = new FakeNavigation(`#/task/demo/fix-export/${encodeURIComponent(path)}`);
 
@@ -369,6 +370,16 @@ describe('document reader', () => {
     await eventually(() => expect(environment.latest.disconnected).toBe(true));
   });
 
+  it('shows no "On this page" list for a document without sections, only the word count', async () => {
+    await mount('notes.md');
+
+    await eventually(() => expect(text('[data-testid=reader-stats]')).toBe('2 words · 1 min read'));
+
+    expect(isShown('[data-testid=reader-outline-list]')).toBe(false);
+
+    expect(isShown('[data-testid=reader-outline-title]')).toBe(false);
+  });
+
   it('reads a review file with the same reader: the verdict is the status pill and the summary a callout', async () => {
     await mount('review.md');
 
@@ -442,6 +453,6 @@ describe('diff reader', () => {
 
     expect(isShown('[data-testid=task-markdown]')).toBe(false);
 
-    expect(fileButtons()).toHaveLength(4);
+    expect(fileButtons()).toHaveLength(5);
   });
 });

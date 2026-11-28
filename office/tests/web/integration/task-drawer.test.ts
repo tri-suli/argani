@@ -59,7 +59,7 @@ let poller: FakePoller;
 let taskClient: FakeTaskClient;
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now: () => new Date() }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, clipboard: { writeText: async () => {} }, now: () => new Date() }));
 
   Alpine.start();
 });

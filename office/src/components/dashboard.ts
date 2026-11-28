@@ -1,11 +1,13 @@
-import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_COUNT, NO_TOTALS } from '@/constants/dashboard';
+import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_COUNT, NO_PROJECT_OPTION } from '@/constants/dashboard';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
-import { formatCount, formatDuration } from '@/board/format';
+import { formatDuration } from '@/board/format';
+import createCommandCopier from '@/components/command-copier';
+import createProjectPicker from '@/components/project-picker';
 import createTaskDrawer from '@/components/task-drawer';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
-function createDashboard({ poller, taskClient, boardView, markdownRenderer, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, markdownRenderer, clipboard, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
@@ -16,6 +18,8 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, now 
     clockMilliseconds: 0,
     selectedProject: ALL_PROJECTS,
     drawer: createTaskDrawer(taskClient, markdownRenderer),
+    picker: createProjectPicker(),
+    copier: createCommandCopier(clipboard),
 
     init() {
       this.clockMilliseconds = now().getTime();
@@ -77,32 +81,44 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, now 
       return age < MILLISECONDS_PER_MINUTE ? `updated ${Math.floor(age / MILLISECONDS_PER_SECOND)}s ago` : `updated ${formatDuration(age)} ago`;
     },
 
-    get projects() {
-      return this.snapshot === null ? [] : boardView.projectNames(this.snapshot);
+    get projectOptions() {
+      return this.snapshot === null ? [] : boardView.projectOptions(this.snapshot);
+    },
+
+    get matchingProjectOptions() {
+      return boardView.searchProjectOptions(this.projectOptions, this.picker.query);
+    },
+
+    get selectedOption() {
+      return this.projectOptions.find((option) => option.value === this.selectedProject) ?? NO_PROJECT_OPTION;
     },
 
     get columns() {
-      return this.snapshot === null ? [] : boardView.groupTasksByColumn(this.snapshot, this.tasks, this.selectedProject || null);
+      return this.snapshot === null ? [] : boardView.groupTasksByColumn(this.snapshot, this.tasks, this.selectedProject || null, this.clockMilliseconds);
     },
 
-    get agentsRunning() {
-      return this.snapshot === null ? 0 : this.snapshot.agents.length;
+    get tiles() {
+      return this.snapshot === null ? [] : boardView.totalTiles(this.snapshot, this.tasks, this.selectedProject || null, this.clockMilliseconds);
     },
 
-    get tokensLabel() {
-      return formatCount(boardView.totalTokens(this.tasks));
+    get needsHumanRows() {
+      return this.snapshot === null ? [] : boardView.needsHumanRows(this.snapshot, this.selectedProject || null, this.clockMilliseconds);
     },
 
-    get manualLabel() {
-      return this.visibleTotals.manualAcceptanceCriteria.toString();
+    get doneRows() {
+      return this.snapshot === null ? [] : boardView.doneRows(this.snapshot, this.tasks, this.selectedProject || null);
     },
 
-    get waitingLabel() {
-      return formatDuration(this.visibleTotals.needsHumanMilliseconds);
+    chooseProject(value, button) {
+      this.selectedProject = value;
+
+      this.closePicker(button);
     },
 
-    get visibleTotals() {
-      return this.snapshot === null ? NO_TOTALS : boardView.totalsOf(this.snapshot, this.selectedProject || null);
+    closePicker(button) {
+      this.picker.close();
+
+      button.focus();
     },
 
     get drawerTask() {

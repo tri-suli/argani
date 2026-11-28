@@ -16,16 +16,27 @@ const DONE = 'Done';
 
 /** The factory pipeline's columns in order; each card's column comes from board.json. */
 const PIPELINE: PipelineColumn[] = [
-  { name: COLUMN_INTAKE, who: 'intake', tone: '' },
-  { name: COLUMN_SPEC, who: 'spec-writer', tone: '' },
-  { name: COLUMN_BUILD, who: 'builder · verify', tone: '' },
-  { name: COLUMN_REVIEW, who: 'reviewers', tone: '' },
-  { name: COLUMN_APPROVE, who: 'approver · merge', tone: '' },
-  { name: NEEDS_HUMAN, who: 'you', tone: 'human' },
-  { name: DONE, who: 'merged', tone: 'merged' },
+  { step: '01', name: COLUMN_INTAKE, who: 'intake' },
+  { step: '02', name: COLUMN_SPEC, who: 'spec-writer' },
+  { step: '03', name: COLUMN_BUILD, who: 'builder · verify' },
+  { step: '04', name: COLUMN_REVIEW, who: 'reviewers' },
+  { step: '05', name: COLUMN_APPROVE, who: 'approver · merge' },
 ];
 
-const PIPELINE_NAMES = new Set(PIPELINE.map((column) => column.name));
+/** Every column board.json may name; a task in any other column is shown as Needs human. */
+const KNOWN_COLUMNS = new Set([...PIPELINE.map((column) => column.name), NEEDS_HUMAN, DONE]);
+
+const STAGE_CANCELLED = 'cancelled';
+
+const OUTCOME_MERGED = 'merged';
+
+const OUTCOME_CANCELLED = 'cancelled';
+
+const OUTCOME_ICONS: Record<string, string> = { [OUTCOME_MERGED]: 'merge', [OUTCOME_CANCELLED]: 'block' };
+
+const ANSWER_COMMAND_PREFIX = '/argani:factory answer';
+
+const ANSWER_PLACEHOLDER = '<answer>';
 
 const WORKING_COLUMNS = new Set([COLUMN_BUILD, COLUMN_REVIEW]);
 
@@ -38,6 +49,12 @@ export {
   NEEDS_HUMAN,
   DONE,
   PIPELINE,
-  PIPELINE_NAMES,
+  KNOWN_COLUMNS,
+  STAGE_CANCELLED,
+  OUTCOME_MERGED,
+  OUTCOME_CANCELLED,
+  OUTCOME_ICONS,
+  ANSWER_COMMAND_PREFIX,
+  ANSWER_PLACEHOLDER,
   WORKING_COLUMNS,
 };

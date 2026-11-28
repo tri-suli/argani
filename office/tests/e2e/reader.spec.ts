@@ -228,6 +228,11 @@ test.describe('document reader', () => {
   test('draws the callout and the code block with their own tokens in light and dark', async ({ page }) => {
     await page.goto(taskUrl('spec.md'));
 
+    // the document is fetched after the load event: wait for it before reading its styles
+    await expect(page.getByTestId('code-block').first().locator('pre')).toBeVisible();
+
+    await expect(page.getByTestId('task-summary')).toBeVisible();
+
     const colours = () => page.evaluate(() => [getComputedStyle(document.querySelector('[data-testid=task-summary]')!).backgroundColor, getComputedStyle(document.querySelector('[data-testid=code-block] pre')!).backgroundColor]);
 
     await page.emulateMedia({ colorScheme: 'light' });

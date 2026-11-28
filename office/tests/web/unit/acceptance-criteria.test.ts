@@ -10,13 +10,16 @@ describe('acceptance criteria', () => {
       claim: '`compose.yaml` defines the services',
       verify: '`docker compose config --services`',
       manual: false,
+      checked: false,
     });
   });
 
-  it('accepts a ticked box and a multi-digit number', () => {
-    expect(criteria.parse('12. [x] done — verify: npm test')).toMatchObject({ number: 12, claim: 'done', verify: 'npm test' });
+  it('accepts a ticked box, which it reports, and a multi-digit number', () => {
+    expect(criteria.parse('12. [x] done — verify: npm test')).toMatchObject({ number: 12, claim: 'done', verify: 'npm test', checked: true });
 
-    expect(criteria.parse('3. [X] done — verify: npm test')).not.toBeNull();
+    expect(criteria.parse('3. [X] done — verify: npm test')).toMatchObject({ checked: true });
+
+    expect(criteria.parse('3. [ ] done — verify: npm test')).toMatchObject({ checked: false });
   });
 
   it('splits at the last " — verify: " like artifact_check.py does', () => {

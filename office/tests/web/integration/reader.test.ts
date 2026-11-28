@@ -48,7 +48,7 @@ const SPEC = [
   '',
   '## Acceptance criteria',
   '',
-  '1. [ ] The stack starts — verify: `docker compose ps`',
+  '1. [x] The stack starts — verify: `docker compose ps`',
   '2. [ ] The page renders — verify: manual: open it in a browser',
   '3. [ ] no verification here',
   '',
@@ -196,6 +196,10 @@ describe('document reader', () => {
 
     expect(cards[1].querySelector('[data-testid=criterion-manual]')?.textContent).toContain('open it in a browser');
 
+    expect(cards.map((card) => card.querySelector('[data-testid=criterion-state]')?.textContent?.trim())).toEqual(['Checked', 'Not checked']);
+
+    expect(cards.map((card) => card.querySelector('[data-testid=criterion-box]')?.textContent)).toEqual(['check_box', 'check_box_outline_blank']);
+
     expect(text('[data-testid=task-body]')).toContain('no verification here');
   });
 
@@ -206,7 +210,7 @@ describe('document reader', () => {
       'Summary',
       'Approach',
       'Commit order',
-      'Acceptance criteria3',
+      'Acceptance criteria2',
       'Out of scope',
     ]);
   });

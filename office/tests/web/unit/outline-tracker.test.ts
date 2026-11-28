@@ -161,6 +161,22 @@ describe('outline tracker', () => {
     expect(document.getElementById('doc-a')?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
   });
 
+  it('moves the focus to the heading without scrolling again, so keyboard reading continues there', () => {
+    const tracker = trackerOver(['doc-a', 'doc-b']);
+
+    const heading = document.getElementById('doc-b') as HTMLElement;
+
+    const focus = vi.spyOn(heading, 'focus');
+
+    tracker.scrollTo('doc-b');
+
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+
+    expect(document.activeElement).toBe(heading);
+  });
+
   describe('after a click', () => {
     it('keeps the clicked section while it is on its way, and when an earlier one shares the zone with it at the end of the page', () => {
       const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);

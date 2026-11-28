@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Changed
 
+- The office bundles a committed subset of the Material Symbols icon font (about 4 KB) instead of the full 4 MB font; the icon names live in `office/src/constants/icons.ts` and `office/README.md` explains how to regenerate the subset.
 - `office/`: the task page reads markdown files in a document reader (file name and status pill, title, meta strip, summary callout, 70-character body, code blocks with Copy, acceptance criteria as cards with the verify command or a manual badge, and an "On this page" outline that scrolls to the section being read without touching the route); `.diff` files get a row view that tells lines apart by colour and marker and caps what it renders.
 - `office/`: a task opens as a full page in place of the board, linkable by the URL hash (`#/task/<project>/<slug>[/<file>]`), with a Back button that returns to the board, a header with the column, risk, time, tokens, manual acceptance criteria, visits and the merge request, a History strip of numbered fixed-width steps (wait reasons, review round outcomes, the running step), and a file list whose review rounds open and close. It replaces the side drawer; Escape no longer closes the task view, use "← Board" or the Back button.
 - `mr-body.md` no longer has an `## argani` section: the merge request body is about the project only (summary, acceptance criteria, human verification checklist).

@@ -108,6 +108,8 @@ interface TaskPage {
   generation: number;
   /** The review rounds whose files are listed; null until the first load of the task has chosen them. */
   openRounds: number[] | null;
+  /** The round numbers listed at the last load, to tell a round that has just appeared from one the reader has seen. */
+  knownRounds: number[];
   /** Where the board was scrolled when the task was opened from it. */
   boardScrollY: number;
   /** Counts the opens and the closes, so the page can move the focus once per change. */
@@ -127,6 +129,8 @@ interface TaskPage {
   toggleRound(round: number): void;
   /** Reloads the open task, called after every board poll. */
   refresh(): Promise<void>;
+  /** Chooses the rounds shown open: at the first load, and for a running round that has appeared since. */
+  chooseOpenRounds(detail: TaskDetail): void;
   clearFile(): void;
   fileStamp(detail: TaskDetail): string;
   load(): Promise<void>;

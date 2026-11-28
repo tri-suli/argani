@@ -129,4 +129,16 @@ describe('file tree', () => {
 
     expect(fileTree.sections(files, rounds, 'Review', [])[1].rows.map((row) => row.toneLabel)).toEqual(['changes requested', 'passed', 'running']);
   });
+
+  it('names the round numbers of the files, and the running round when there is one', () => {
+    expect(fileTree.roundNumbers(files)).toEqual([1, 2, 3]);
+
+    expect(fileTree.roundNumbers([file('intent.md')])).toEqual([]);
+
+    expect(fileTree.runningRound(files, rounds, 'Review')).toBe(3);
+
+    expect(fileTree.runningRound(files, rounds, 'Approve')).toBeNull();
+
+    expect(fileTree.runningRound([file('intent.md')], [], 'Review')).toBeNull();
+  });
 });

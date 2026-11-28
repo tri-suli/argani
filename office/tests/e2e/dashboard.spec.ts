@@ -14,7 +14,10 @@ const column = (page: Page, name: string) => page.locator(`[data-column="${name}
 
 const tile = (page: Page, id: string) => page.locator(`[data-tile="${id}"]`);
 
-/** Serves the live board with `change` applied to its JSON, to show states the fixture home does not have. */
+/**
+ * Serves the live board with `change` applied to its JSON, to show states the fixture home does not have.
+ * Reloads the page so the changed board is on screen at once: the next poll is as far away as an assertion's timeout.
+ */
 async function changeBoard(page: Page, change: (board: { projects: { tasks: Record<string, unknown>[] }[] }) => void) {
   await page.route('**/api/board', async (route) => {
     const board = await (await route.fetch()).json();
@@ -23,6 +26,10 @@ async function changeBoard(page: Page, change: (board: { projects: { tasks: Reco
 
     await route.fulfill({ json: board });
   });
+
+  await page.reload();
+
+  await expect(page.getByTestId('status')).toHaveText('Connected');
 }
 
 const findTask = (board: { projects: { tasks: Record<string, unknown>[] }[] }, slug: string) => board.projects.flatMap((project) => project.tasks).find((task) => task.slug === slug)!;

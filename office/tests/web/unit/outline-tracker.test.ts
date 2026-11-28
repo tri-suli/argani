@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import createOutlineTracker from '@/components/outline-tracker';
 import FakeReaderEnvironment from '../fake-reader-environment';
-import type { SectionPosition } from '@/types/document';
+import type { OutlineTracker, SectionPosition } from '@/types/document';
 
 let environment: FakeReaderEnvironment;
 
@@ -276,6 +276,16 @@ describe('outline tracker', () => {
   });
 
   describe('in-document links', () => {
+    let stopListening: AbortController;
+
+    beforeEach(() => {
+      stopListening = new AbortController();
+    });
+
+    afterEach(() => stopListening.abort());
+
+    const listen = (tracker: OutlineTracker) => document.body.addEventListener('click', (event) => tracker.followAnchor(event), { signal: stopListening.signal });
+
     const click = (html: string) => {
       document.body.insertAdjacentHTML('beforeend', html);
 
@@ -289,7 +299,7 @@ describe('outline tracker', () => {
     it('scrolls to the heading and keeps the route: the click is not left to the browser', () => {
       const tracker = createOutlineTracker(environment);
 
-      document.body.addEventListener('click', (event) => tracker.followAnchor(event));
+      listen(tracker);
 
       const event = click('<a data-test-link data-document-anchor href="#b"><b>inner</b></a>');
 
@@ -305,7 +315,7 @@ describe('outline tracker', () => {
 
       (document.getElementById('doc-é') as HTMLElement).scrollIntoView = vi.fn();
 
-      document.body.addEventListener('click', (event) => tracker.followAnchor(event));
+      listen(tracker);
 
       click('<a data-test-link data-document-anchor href="#%C3%A9">x</a>');
 
@@ -316,10 +326,50 @@ describe('outline tracker', () => {
       expect(click('<a data-test-link data-document-anchor href="#%E0%A4%A">x</a>').defaultPrevented).toBe(true);
     });
 
+    it('finds the section through the same slug as the heading ids: any case, spaces, a GitHub-style anchor', () => {
+      const tracker = createOutlineTracker(environment);
+
+      document.body.insertAdjacentHTML('beforeend', '<h3 id="doc-out-of-scope">x</h3><h3 id="doc-problem">y</h3>');
+
+      for (const id of ['doc-out-of-scope', 'doc-problem']) {
+        (document.getElementById(id) as HTMLElement).scrollIntoView = vi.fn();
+      }
+
+      listen(tracker);
+
+      click('<a data-test-link data-document-anchor href="#Problem">x</a>');
+
+      expect(document.getElementById('doc-problem')?.scrollIntoView).toHaveBeenCalledTimes(1);
+
+      document.querySelector('[data-test-link]')?.remove();
+
+      click('<a data-test-link data-document-anchor href="#Out%20of%20Scope">x</a>');
+
+      expect(document.getElementById('doc-out-of-scope')?.scrollIntoView).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing, and still keeps the route, for a fragment no section has', () => {
+      const tracker = createOutlineTracker(environment);
+
+      tracker.track(['doc-a']);
+
+      listen(tracker);
+
+      const event = click('<a data-test-link data-document-anchor href="#nothing-like-this">x</a>');
+
+      expect(event.defaultPrevented).toBe(true);
+
+      expect(tracker.activeId).toBe('doc-a');
+
+      for (const element of document.querySelectorAll('h3')) {
+        expect(element.scrollIntoView).not.toHaveBeenCalled();
+      }
+    });
+
     it('leaves other clicks alone', () => {
       const tracker = createOutlineTracker(environment);
 
-      document.body.addEventListener('click', (event) => tracker.followAnchor(event));
+      listen(tracker);
 
       expect(click('<a data-test-link href="https://example.test">x</a>').defaultPrevented).toBe(false);
 

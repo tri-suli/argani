@@ -1,3 +1,4 @@
+import slugOf from '@/board/slug';
 import { ANCHOR_SELECTOR, IN_ZONE, NOT_FOUND_INDEX, PASSED, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
 import type { OutlineTracker, ReaderEnvironment, SectionObserver } from '@/types/document';
 
@@ -96,7 +97,7 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       // the address hash is the route: the browser must not follow the link
       event.preventDefault();
 
-      this.scrollTo(DOCUMENT_ID_PREFIX + decodedFragment((anchor.getAttribute('href') as string).slice(FRAGMENT_PREFIX.length)));
+      this.scrollTo(DOCUMENT_ID_PREFIX + slugOf(decodedFragment((anchor.getAttribute('href') as string).slice(FRAGMENT_PREFIX.length))));
     },
 
     settle() {

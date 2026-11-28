@@ -21,9 +21,9 @@ describe('document head', () => {
   });
 
   it('keeps colons in the value and in a value that looks like a key', () => {
-    const parts = head.split('# T\n\nMR: https://example.test/a/b: c\nNote: Status: x\n\nbody', false);
+    const parts = head.split('# T\n\nMR: https://example.test/a/b: c\nSpec: x: Status: y\n\nbody', false);
 
-    expect(parts.meta).toEqual([{ key: 'MR', value: 'https://example.test/a/b: c' }, { key: 'Note', value: 'Status: x' }]);
+    expect(parts.meta).toEqual([{ key: 'MR', value: 'https://example.test/a/b: c' }, { key: 'Spec', value: 'x: Status: y' }]);
   });
 
   it('reads the block of a decision, which has a verdict line and no title', () => {
@@ -32,8 +32,26 @@ describe('document head', () => {
     expect(parts).toMatchObject({ verdict: 'APPROVE all three pass', title: null, meta: [{ key: 'Round', value: '1' }], body: '\n## Reviewers\n- code: PASS' });
   });
 
-  it('leaves the first line alone when the file has no verdict line', () => {
-    expect(head.split('Round: 1\n\nbody', false).meta).toEqual([{ key: 'Round', value: '1' }]);
+  it('reads a block only after a title or a verdict line, so a file that starts with a Key: value line keeps it', () => {
+    expect(head.split('Round: 1\n\nbody', false)).toMatchObject({ meta: [], body: 'Round: 1\n\nbody' });
+
+    expect(head.split('Round: 1\n\nbody', true).meta).toEqual([]);
+  });
+
+  it('keeps a real description.md, whose first line is a label and a long sentence, as body', () => {
+    const description = `DOCKER STABLE STACK: ${'setup Docker with three services only: app (PHP-FPM and Composer), web (Nginx) and db (PostgreSQL), no Laravel yet. '.repeat(4)}`;
+
+    expect(head.split(description, false)).toEqual({ verdict: null, title: null, meta: [], body: description });
+  });
+
+  it('reads only the keys the plugin templates and agents define', () => {
+    expect(head.split('# T\n\nNote: remember this.', false)).toMatchObject({ meta: [], body: '\nNote: remember this.' });
+
+    expect(head.split('# T\n\nStatus: draft\nNote: remember this.\n\nbody', false).meta).toEqual([]);
+
+    const keys = ['Author', 'Status', 'Risk', 'Date', 'Intent', 'Spec', 'Round', 'MR', 'Opened', 'Merged'];
+
+    expect(head.split(`# T\n\n${keys.map((key) => `${key}: x`).join('\n')}\n`, false).meta.map((entry) => entry.key)).toEqual(keys);
   });
 
   it('does not take a Key: value line later in the body', () => {

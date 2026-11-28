@@ -1,4 +1,4 @@
-import { LINE_BREAK, META_LINE_PATTERN, TITLE_PREFIX } from '@/constants/document';
+import { LINE_BREAK, META_KEYS, META_LINE_PATTERN, TITLE_PREFIX } from '@/constants/document';
 import type { DocumentHeadParts, MetaEntry } from '@/types/document';
 
 /** Splits the head of an artifact (verdict line, `# title`, the `Key: value` block) from its body. Line endings must already be `\n`. */
@@ -20,9 +20,8 @@ class DocumentHead {
       afterTitle = titleIndex + 1;
     }
 
-    const metaStart = this.skipBlank(lines, afterTitle);
-
-    const { meta, end } = this.readMeta(lines, metaStart);
+    // a block counts only right after a title or a verdict line; elsewhere a `Key: value` line is prose
+    const { meta, end } = title !== null || withVerdict ? this.readMeta(lines, this.skipBlank(lines, afterTitle)) : { meta: [], end: 0 };
 
     return { verdict, title, meta, body: lines.slice(meta.length > 0 ? end : afterTitle).join(LINE_BREAK) };
   }
@@ -33,13 +32,19 @@ class DocumentHead {
 
     let end = start;
 
-    for (let match = META_LINE_PATTERN.exec(lines[end]?.trimEnd() ?? ''); match !== null; match = META_LINE_PATTERN.exec(lines[end]?.trimEnd() ?? '')) {
-      meta.push({ key: match[1], value: match[2] });
+    for (let match = this.entryOf(lines[end]); match !== null; match = this.entryOf(lines[end])) {
+      meta.push(match);
 
       end += 1;
     }
 
     return end < lines.length && lines[end].trim() !== '' ? { meta: [], end: start } : { meta, end };
+  }
+
+  private entryOf(line: string | undefined): MetaEntry | null {
+    const match = META_LINE_PATTERN.exec(line?.trimEnd() ?? '');
+
+    return match !== null && META_KEYS.includes(match[1]) ? { key: match[1], value: match[2] } : null;
   }
 
   private skipBlank(lines: string[], from: number): number {

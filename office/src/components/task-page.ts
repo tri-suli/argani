@@ -14,11 +14,14 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
   // The review files read for the overview, by task and path: not state of the page, so a poll that finds them unchanged draws nothing.
   const reviewTexts = new Map<string, { stamp: string; text: string }>();
 
-  /** The text of a review file: the one read before while its listing and the task's last change are the same, otherwise a fresh read. */
-  const readReview = async (project: string, slug: string, file: TaskFile, updatedAt: string | null, failures: string[]): Promise<string | null> => {
+  /**
+   * The text of a review file: the one read before while its listing, the task's last change and the verdicts of the round are the same,
+   * otherwise a fresh read. updatedAt has a one-second resolution, so a file read while it was being written (no closing line yet) is never kept.
+   */
+  const readReview = async (project: string, slug: string, file: TaskFile, version: unknown[], failures: string[]): Promise<string | null> => {
     const key = `${project}/${slug}/${file.path}`;
 
-    const stamp = JSON.stringify([updatedAt, file]);
+    const stamp = JSON.stringify([...version, file]);
 
     const cached = reviewTexts.get(key);
 
@@ -29,7 +32,11 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     try {
       const text = await taskClient.fetchFile(project, slug, file.path);
 
-      reviewTexts.set(key, { stamp, text });
+      if (roundOverview.isComplete(text)) {
+        reviewTexts.set(key, { stamp, text });
+      } else {
+        reviewTexts.delete(key);
+      }
 
       return text;
     } catch (error) {
@@ -266,7 +273,9 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
 
       const files = roundOverview.reviewFiles(detail, round);
 
-      const read = await Promise.all(files.map((file) => readReview(this.project, this.slug, file, detail.updatedAt, failures)));
+      const version = [detail.updatedAt, detail.rounds.find((candidate) => candidate.n === round)?.reviews];
+
+      const read = await Promise.all(files.map((file) => readReview(this.project, this.slug, file, version, failures)));
 
       if (generation !== this.generation) {
         return;

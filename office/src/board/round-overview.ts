@@ -32,6 +32,11 @@ class RoundOverview {
     return detail.files.filter((file) => file.group === `${ROUND_GROUP_PREFIX}${round}` && REVIEW_FILE_NAME.test(fileName(file.path)));
   }
 
+  /** Whether a review file is finished: it ends with the closing line. A file read before that may be half written. */
+  isComplete(text: string): boolean {
+    return this.parser.parse(text).isClosed;
+  }
+
   build({ detail, round, texts }: BuildInput): RoundView {
     const running = this.isRunning(detail, round);
 

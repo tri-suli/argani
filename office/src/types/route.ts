@@ -9,9 +9,11 @@ interface TaskRoute {
 interface Navigation {
   /** The current hash, "#/task/..." or "" for the board. */
   hash(): string;
-  /** Adds a history entry for the hash. */
-  push(hash: string): void;
-  /** Rewrites the current entry without adding one. */
+  /** Adds a history entry for the hash; `fromBoard` records in the entry that Back leads to the board. */
+  push(hash: string, fromBoard?: boolean): void;
+  /** Whether the current entry was added from the board: it is kept in the history state, so it holds across Back, Forward and edits of the address. */
+  fromBoard(): boolean;
+  /** Rewrites the address of the current entry without adding one or changing its state. */
   replace(hash: string): void;
   back(): void;
   /** Calls the listener whenever the hash changes by Back, Forward or an edit of the address. */
@@ -22,7 +24,7 @@ interface Navigation {
 /** The parts of `window` the navigation uses, so a test can hand in a fake. */
 interface NavigationWindow {
   location: Pick<Location, 'hash' | 'pathname' | 'search'>;
-  history: Pick<History, 'pushState' | 'replaceState' | 'back'>;
+  history: Pick<History, 'state' | 'pushState' | 'replaceState' | 'back'>;
   addEventListener(type: string, listener: () => void): void;
   removeEventListener(type: string, listener: () => void): void;
 }

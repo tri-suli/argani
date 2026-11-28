@@ -244,6 +244,40 @@ describe('task page', () => {
     await eventually(() => expect(document.activeElement).toBe(card()));
   });
 
+  it('leaves for the board, not for the task the history came from, when the address was edited to another task', async () => {
+    await openTask();
+
+    navigation.edit('#/task/demo/older');
+
+    await eventually(() => expect(text('[data-testid=task-title]')).toBe('Older work'));
+
+    leave();
+
+    await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
+
+    expect(navigation.hash()).toBe('');
+  });
+
+  it('leaves by going back when the task came from the board, also after Back and Forward, so the board is in the history once', async () => {
+    await openTask();
+
+    navigation.back();
+
+    await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
+
+    navigation.forward();
+
+    await eventually(() => expect(isShown('[data-testid=task-page]')).toBe(true));
+
+    leave();
+
+    await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
+
+    expect(navigation.position).toBe(0);
+
+    expect(navigation.entries).toHaveLength(2);
+  });
+
   it('opens a task from a link: the hash names it, and "← Board" leaves without a history entry to go back to', async () => {
     await mount('#/task/demo/fix-export');
 
@@ -261,7 +295,7 @@ describe('task page', () => {
 
     expect(navigation.hash()).toBe('');
 
-    expect(navigation.entries).toEqual(['']);
+    expect(navigation.entries.map((entry) => entry.hash)).toEqual(['']);
   });
 
   it('shows the slug as the title until the board has arrived, and the task is not "missing" before then', async () => {

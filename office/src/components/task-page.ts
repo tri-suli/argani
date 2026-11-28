@@ -19,7 +19,6 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     errorMessage: null,
     generation: 0,
     openRounds: null,
-    openedFromBoard: false,
     boardScrollY: 0,
     openCount: 0,
     closeCount: 0,
@@ -54,14 +53,10 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       this.generation += 1;
 
       this.closeCount += 1;
-
-      this.openedFromBoard = false;
     },
 
-    leaveBoard(scrollY) {
+    rememberBoardPosition(scrollY) {
       this.boardScrollY = scrollY;
-
-      this.openedFromBoard = true;
     },
 
     restoreBoard() {

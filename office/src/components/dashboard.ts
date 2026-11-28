@@ -133,15 +133,15 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
     },
 
     openTask(task) {
-      this.taskPage.leaveBoard(window.scrollY);
+      this.taskPage.rememberBoardPosition(window.scrollY);
 
-      navigation.push(buildTaskHash({ project: task.project, slug: task.slug, path: null }));
+      navigation.push(buildTaskHash({ project: task.project, slug: task.slug, path: null }), true);
 
       this.applyRoute();
     },
 
     leaveTask() {
-      if (this.taskPage.openedFromBoard) {
+      if (navigation.fromBoard()) {
         navigation.back();
 
         return;

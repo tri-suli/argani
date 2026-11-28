@@ -407,7 +407,11 @@ test.describe('with a live backend', () => {
 
     await expect(page.locator('.file').first()).toHaveAttribute('aria-current', 'true');
 
-    await expect(page.getByTestId('task-body').locator('h1')).toHaveText('Intent: Ship report');
+    await expect(page.getByTestId('reader-title')).toHaveText('Intent: Ship report');
+
+    await expect(page.getByTestId('reader-title')).toHaveJSProperty('tagName', 'H2');
+
+    await expect(page.getByTestId('task-page').locator('h1')).toHaveCount(1);
   });
 
   test('opens the task page from a Needs human row and from the Done rail', async ({ page }) => {
@@ -519,7 +523,7 @@ test.describe('with a live backend', () => {
 
     await page.locator('.file', { hasText: 'change.diff' }).first().click();
 
-    await expect(page.getByTestId('task-plain')).toContainText('diff --git');
+    await expect(page.getByTestId('task-diff')).toContainText('diff --git');
 
     await expect(page).toHaveURL(/#\/task\/demo\/ship-report\/review%2Fround-1%2Fchange\.diff$/);
 

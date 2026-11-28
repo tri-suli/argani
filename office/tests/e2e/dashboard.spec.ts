@@ -478,6 +478,16 @@ test.describe('the project picker', () => {
     await expect(picker(page)).toBeFocused();
   });
 
+  test('closes when Tab moves the focus out of the picker', async ({ page }) => {
+    await picker(page).click();
+
+    await expect(page.getByTestId('project-search')).toBeFocused();
+
+    await page.keyboard.press('Tab');
+
+    await expect(page.getByRole('listbox')).toBeHidden();
+  });
+
   test('closes on a click outside', async ({ page }) => {
     await picker(page).click();
 

@@ -450,6 +450,28 @@ describe('dashboard board', () => {
     await eventually(() => expect(menuOpen()).toBe(false));
   });
 
+  it('closes when the focus leaves the picker, but not while it moves inside it', async () => {
+    await deliver();
+
+    await openMenu();
+
+    const search = document.querySelector('[data-testid=project-search]') as HTMLElement;
+
+    const leave = (relatedTarget: EventTarget | null) => search.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget }));
+
+    leave(option('demo'));
+
+    leave(null);
+
+    await Alpine.nextTick();
+
+    expect(menuOpen()).toBe(true);
+
+    leave(card('demo/fix-export'));
+
+    await eventually(() => expect(menuOpen()).toBe(false));
+  });
+
   it('moves between the options with the arrow keys and picks with Enter and Space', async () => {
     await deliver();
 

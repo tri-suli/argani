@@ -6,6 +6,9 @@ const REVIEW_OUTCOME_PASS = 'PASS' as const satisfies ReviewOutcome;
 
 const REVIEW_OUTCOME_CHANGES = 'CHANGES' as const satisfies ReviewOutcome;
 
+/** The checklist name the human's request is filed under: `review-human.md`. It is no reviewer seat. */
+const HUMAN_REVIEWER = 'human';
+
 const REVIEW_STATE_INVALID = 'invalid' as const satisfies ReviewState;
 
 // Review chip classes: the state's own name, except these three.
@@ -30,6 +33,7 @@ export {
   REVIEW_OUTCOME_PASS,
   REVIEW_OUTCOME_CHANGES,
   REVIEW_STATE_PENDING,
+  HUMAN_REVIEWER,
   REVIEW_STATE_INVALID,
   CHIP_CLASS_WAITING,
   CHIP_CLASS_PENDING,

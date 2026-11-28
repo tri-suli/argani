@@ -339,8 +339,8 @@
                       </template>
                       <template x-if="block.kind === 'code'">
                         <div class="not-prose my-4 overflow-hidden rounded-[10px] border border-code-line" data-testid="code-block">
-                          <p class="flex items-center bg-code-head py-1.5 pr-2 pl-3.5 font-mono text-[11px] text-code-muted"><span data-testid="code-language" x-text="block.language"></span><button type="button" class="ml-auto min-h-7 cursor-pointer rounded-md border border-code-button-line bg-transparent px-2.5 font-sans text-[11px] font-medium text-code-ink hover:bg-code-line narrow:min-h-11" data-testid="code-copy" aria-label="Copy code" @click="copier.copy(taskPage.selectedPath + '#' + block.key, block.text)" x-text="copier.label(taskPage.selectedPath + '#' + block.key)"></button></p>
-                          <span class="sr-only" role="status" x-text="copier.key === taskPage.selectedPath + '#' + block.key ? copier.label(taskPage.selectedPath + '#' + block.key) : ''"></span>
+                          <p class="flex items-center bg-code-head py-1.5 pr-2 pl-3.5 font-mono text-[11px] text-code-muted"><span data-testid="code-language" x-text="block.language"></span><button type="button" class="ml-auto min-h-7 cursor-pointer rounded-md border border-code-button-line bg-transparent px-2.5 font-sans text-[11px] font-medium text-code-ink hover:bg-code-line narrow:min-h-11" data-testid="code-copy" aria-label="Copy code" @click="copier.copy(taskPage.copyKey(block), block.text)" x-text="copier.label(taskPage.copyKey(block))"></button></p>
+                          <span class="sr-only" role="status" x-text="copier.key === taskPage.copyKey(block) ? copier.label(taskPage.copyKey(block)) : ''"></span>
                           <pre class="overflow-x-auto bg-code-bg px-4 py-3.5 font-mono text-[13px] leading-[1.6] text-code-ink" tabindex="0"><code x-text="block.text"></code></pre>
                         </div>
                       </template>

@@ -4,7 +4,7 @@ import type HistorySteps from '@/board/history-steps';
 import type DiffRows from '@/board/diff-rows';
 import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { BoardSnapshot, BoardTask } from '@/types/board';
-import type { DiffView, OutlineTracker, ReaderEnvironment } from '@/types/document';
+import type { CodeBlock, DiffView, OutlineTracker, ReaderEnvironment } from '@/types/document';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
 import type { FileSection } from '@/types/file-tree';
@@ -153,6 +153,8 @@ interface TaskPage {
   readonly selectedFileName: string;
   /** The ids of the outline sections of the rendered document. */
   readonly sectionIds: string[];
+  /** What the Copy feedback of a code block is filed under: the file, the place and the text, so a changed document never shows it on another block. */
+  copyKey(block: CodeBlock): string;
   /** Has the outline observe the headings once the page has drawn them. */
   trackSections(): void;
 }

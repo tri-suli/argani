@@ -222,6 +222,10 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       return this.rendered === null ? [] : this.rendered.outline.map((entry) => entry.id);
     },
 
+    copyKey(block) {
+      return `${this.selectedPath}#${block.key}#${block.text}`;
+    },
+
     trackSections() {
       const ids = this.sectionIds;
 

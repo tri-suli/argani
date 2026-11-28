@@ -4,7 +4,7 @@ import type { RoundTally } from '@/types/round';
 
 const summary = new RoundSummary();
 
-const tally = (overrides: Partial<RoundTally> = {}): RoundTally => ({ seats: 3, passed: 0, changes: 0, pending: 0, invalid: 0, unreadable: 0, read: 0, hasHuman: false, important: 0, nits: 0, other: 0, ...overrides });
+const tally = (overrides: Partial<RoundTally> = {}): RoundTally => ({ notes: 0, seats: 3, passed: 0, changes: 0, pending: 0, invalid: 0, unreadable: 0, read: 0, hasHuman: false, important: 0, nits: 0, other: 0, ...overrides });
 
 describe('round summary', () => {
   it.each<[string, Partial<RoundTally>, string]>([
@@ -25,6 +25,10 @@ describe('round summary', () => {
     ['the human asked for a change, the reviewers have not reported', { pending: 3, read: 1, hasHuman: true, important: 2 }, 'The reviewers have not reported yet · 2 important findings · includes a request from the human'],
     ['the human with the reviewers passed', { passed: 3, read: 4, hasHuman: true, important: 1 }, 'All 3 reviewers passed · 1 important finding · includes a request from the human'],
     ['only the human, no reviewer files', { seats: 0, read: 1, hasHuman: true, important: 1 }, 'Only the human has written a request · 1 important finding'],
+    ['notes and no findings', { passed: 3, read: 3, notes: 2 }, 'All 3 reviewers passed · 2 notes'],
+    ['a note next to findings', { passed: 1, changes: 1, seats: 2, read: 2, notes: 1, important: 1 }, '1 of 2 reviewers asked for changes · 1 important finding · 1 note'],
+    ['no findings yet while a reviewer is pending', { passed: 2, pending: 1, read: 2 }, 'Of 3 reviewers: 2 passed, 1 not reported yet · no findings yet'],
+    ['no findings claimed while a file could not be read', { passed: 3, read: 2, unreadable: 1 }, 'All 3 reviewers passed · 1 file could not be read'],
     ['no files at all', { seats: 0 }, 'No review file in this round yet'],
   ])('says it for %s', (_name, overrides, expected) => {
     expect(summary.sentence(tally(overrides))).toBe(expected);

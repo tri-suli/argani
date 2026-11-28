@@ -47,7 +47,17 @@ const MESSAGE_UNREADABLE = 'This file could not be read.';
 
 const MESSAGE_NO_FINDINGS_YET = 'No findings yet. This page fills in as each reviewer finishes.';
 
-const MESSAGE_NO_FINDING = 'No finding was written in this round.';
+const MESSAGE_NO_FINDING = 'No finding cards in this round.';
+
+const MESSAGE_NOTES_BELOW = ' The notes of the reviewers are below.';
+
+const MESSAGE_NOTES_UNDER_ALL = ' The notes of the reviewers are under All.';
+
+const NOTES_TITLE_PREFIX = 'Notes from ';
+
+const NOTES_TITLE_HUMAN = 'Notes from the human';
+
+const NOTE_SENTENCE = 'Also holds text that is not a finding: shown below the findings.';
 
 const MESSAGE_SOME_PENDING = ' yet. Some reviewers have not reported.';
 
@@ -76,6 +86,11 @@ export {
   MESSAGE_UNREADABLE,
   MESSAGE_NO_FINDINGS_YET,
   MESSAGE_NO_FINDING,
+  MESSAGE_NOTES_BELOW,
+  MESSAGE_NOTES_UNDER_ALL,
+  NOTES_TITLE_PREFIX,
+  NOTES_TITLE_HUMAN,
+  NOTE_SENTENCE,
   MESSAGE_SOME_PENDING,
   SENTENCE_END,
   EMPTY_FILTER_MESSAGES,

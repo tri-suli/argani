@@ -29,6 +29,8 @@ const COMPLIANCE_ROUND_1 = [
   finding('Important', 'build.md:288', 'AC-7 is marked done but the log holds a summary, not the literal output and exit status.', 'the approver may accept an AC only with literal output.', 're-run the AC-7 command and paste its output under the AC-7 heading.'),
   '- [Nit] build.md:12 - What: AC-10 is not labelled. Why: the reader must infer the mapping. Fix: put "AC-10:" in front of that block.',
   'Notes: `src/AGENTS.md` and `src/CLAUDE.md` are not committed, each with its own reason.',
+  '',
+  'Checked against the spec: layout, the **pins** and the AC list.',
   CLOSING,
   '',
 ].join('\n');

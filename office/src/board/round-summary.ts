@@ -6,7 +6,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 /** The one sentence under the title of a round. It says only what the verdicts and the files read show. */
 class RoundSummary {
   sentence(tally: RoundTally): string {
-    return [this.reviewers(tally), this.findings(tally), this.unreadable(tally), this.human(tally)].filter((clause) => clause !== '').join(SUMMARY_SEPARATOR);
+    return [this.reviewers(tally), this.findings(tally), this.notes(tally), this.unreadable(tally), this.human(tally)].filter((clause) => clause !== '').join(SUMMARY_SEPARATOR);
   }
 
   private reviewers(tally: RoundTally): string {
@@ -48,7 +48,12 @@ class RoundSummary {
     const { important, nits, other } = tally;
 
     if (important + nits + other === 0) {
-      return tally.read > 0 && tally.unreadable === 0 ? 'no findings' : '';
+      // "no findings" only when every file was read and nothing was left unshown
+      if (tally.read === 0 || tally.unreadable > 0 || tally.notes > 0) {
+        return '';
+      }
+
+      return tally.pending > 0 ? 'no findings yet' : 'no findings';
     }
 
     return [
@@ -56,6 +61,10 @@ class RoundSummary {
       nits > 0 ? plural(nits, 'nit', 'nits') : '',
       other > 0 ? `${other} with another severity` : '',
     ].filter((part) => part !== '').join(', ');
+  }
+
+  private notes(tally: RoundTally): string {
+    return tally.notes > 0 ? plural(tally.notes, 'note', 'notes') : '';
   }
 
   private unreadable(tally: RoundTally): string {

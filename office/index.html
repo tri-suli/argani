@@ -421,6 +421,15 @@
                   </template>
                 </section>
                 <p class="text-[13px] text-muted" data-testid="findings-empty" x-show="taskPage.emptyFindingsMessage !== ''" x-text="taskPage.emptyFindingsMessage"></p>
+                <section class="flex flex-col gap-3" aria-label="Notes of the reviewers" data-testid="notes" x-show="taskPage.visibleNotes.length > 0">
+                  <template x-for="notes in taskPage.visibleNotes" :key="notes.key">
+                    <article class="min-w-0 rounded-xl border border-line bg-card px-4 py-3.5" data-testid="reviewer-notes" :data-reviewer="notes.reviewer">
+                      <h3 class="text-[13px] font-semibold data-[human=true]:text-human-strong" :data-human="notes.isHuman" x-text="notes.title"></h3>
+                      <!-- notes.html is rendered by MarkdownRenderer, which sanitizes it with DOMPurify -->
+                      <div class="mt-2 max-w-[72ch] text-[14px] leading-[1.6] [overflow-wrap:anywhere] [&_a]:text-active [&_a]:hover:underline [&_code]:rounded-[5px] [&_code]:bg-tag [&_code]:px-[5px] [&_code]:font-mono [&_code]:text-[0.88em] [&_li]:mt-1 [&_p]:m-0 [&_p+p]:mt-2 [&_ul]:mt-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-1.5 [&_ol]:list-decimal [&_ol]:pl-5" x-html="notes.html"></div>
+                    </article>
+                  </template>
+                </section>
               </div>
             </template>
           </div>

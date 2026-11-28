@@ -28,10 +28,18 @@ interface ParsedReview {
   /** The rest of line 1 after the verdict word; the whole line when it holds no verdict. */
   headline: string;
   findings: ParsedFinding[];
-  /** Non-blank lines that belong to no finding (sections, summary prose, notes): the file holds them, the overview does not. */
-  otherLines: number;
+  /** Markdown source of everything that is no verdict, finding or closing line (sections, summary prose, notes); empty when there is none. */
+  notes: string;
   /** Whether the last non-blank line is the closing line. */
   isClosed: boolean;
+}
+
+/** The code fence being read: the lines up to its closing fence stay together, wherever they are in the file. */
+interface OpenFence {
+  marker: string;
+  length: number;
+  /** Whether the fence is part of a finding (otherwise of the notes). */
+  inFinding: boolean;
 }
 
 /** A finding bullet before its text is split into parts. */
@@ -48,4 +56,4 @@ interface LabelHit {
   kind: FindingPartKind;
 }
 
-export type { FindingSeverity, FindingPartKind, FindingPart, ParsedFinding, ParsedReview, RawFinding, LabelHit };
+export type { FindingSeverity, FindingPartKind, FindingPart, ParsedFinding, ParsedReview, OpenFence, RawFinding, LabelHit };

@@ -15,7 +15,7 @@ describe('review parser: the verdict line', () => {
   });
 
   it('allows a verdict without a reason', () => {
-    expect(parser.parse(review('PASS'))).toMatchObject({ verdict: 'PASS', headline: '', findings: [], otherLines: 0 });
+    expect(parser.parse(review('PASS'))).toMatchObject({ verdict: 'PASS', headline: '', findings: [], notes: '' });
   });
 
   it('keeps a first line that is not a verdict as the headline, with no verdict', () => {
@@ -31,11 +31,11 @@ describe('review parser: the verdict line', () => {
   });
 
   it('reads an empty file as no verdict, not closed, nothing else', () => {
-    expect(parser.parse('')).toEqual({ verdict: null, headline: '', findings: [], otherLines: 0, isClosed: false });
+    expect(parser.parse('')).toEqual({ verdict: null, headline: '', findings: [], notes: '', isClosed: false });
   });
 
   it('reads a file that is only a verdict line as not closed', () => {
-    expect(parser.parse('CHANGES wip')).toEqual({ verdict: 'CHANGES', headline: 'wip', findings: [], otherLines: 0, isClosed: false });
+    expect(parser.parse('CHANGES wip')).toEqual({ verdict: 'CHANGES', headline: 'wip', findings: [], notes: '', isClosed: false });
   });
 
   it('survives a byte order mark and CRLF line endings', () => {
@@ -153,13 +153,13 @@ describe('review parser: findings that depart from the format', () => {
   });
 
   it('keeps indented continuation lines and nested bullets as part of the finding, de-indented', () => {
-    const { findings, otherLines } = parser.parse(review('CHANGES', '- [Important] Address the round-1 nits:', '    - `extract` exits 1', '    - Catch `json.JSONDecodeError`', '', '    A second paragraph.', '', '- [Nit] b.ts:1 - What: next.'));
+    const { findings, notes } = parser.parse(review('CHANGES', '- [Important] Address the round-1 nits:', '    - `extract` exits 1', '    - Catch `json.JSONDecodeError`', '', '    A second paragraph.', '', '- [Nit] b.ts:1 - What: next.'));
 
     expect(findings).toHaveLength(2);
 
     expect(findings[0].parts).toEqual([{ kind: 'text', text: 'Address the round-1 nits:\n- `extract` exits 1\n- Catch `json.JSONDecodeError`\n\nA second paragraph.' }]);
 
-    expect(otherLines).toBe(0);
+    expect(notes).toBe('');
   });
 
   it('finds labels that sit on continuation lines', () => {
@@ -172,12 +172,14 @@ describe('review parser: findings that depart from the format', () => {
     expect(parser.parse(review('CHANGES', '* [Nit] a.ts:1 - What: a.', '+ [Nit] b.ts:1 - What: b.')).findings).toHaveLength(2);
   });
 
-  it('counts every non-blank line that is not part of a finding, and keeps the findings around them', () => {
+  it('keeps every line that is part of no finding as notes, in order, around the findings', () => {
     const parsed = parser.parse(review('CHANGES x', '', '## Summary', '- plain bullet without a severity', '- [Nit] a.ts:1 - What: a.', 'Notes: unindented text after the findings', '', 'Another paragraph', '- [Important] b.ts:2 - What: b.'));
 
     expect(parsed.findings.map((finding) => finding.location)).toEqual(['a.ts:1', 'b.ts:2']);
 
-    expect(parsed.otherLines).toBe(4);
+    expect(parsed.notes).toBe('## Summary\n- plain bullet without a severity\n\nAnother paragraph');
+
+    expect(parsed.findings[0].parts[0].text).toBe('a.\nNotes: unindented text after the findings');
   });
 
   it('leaves markup as it is for the renderer to sanitize', () => {
@@ -191,7 +193,7 @@ describe('review parser: findings that depart from the format', () => {
   it('reads a review-human file: CHANGES, a note finding without location, the closing line', () => {
     const parsed = parser.parse('CHANGES Owner decision after APPROVE of round 2: remove the sets\n\n- [Important] Owner decision after APPROVE: (1) Remove the prepared sets. (2) Add a rule.\n\n=== END OF REVIEW ===\n');
 
-    expect(parsed).toMatchObject({ verdict: 'CHANGES', isClosed: true, otherLines: 0 });
+    expect(parsed).toMatchObject({ verdict: 'CHANGES', isClosed: true, notes: '' });
 
     expect(parsed.findings).toHaveLength(1);
 

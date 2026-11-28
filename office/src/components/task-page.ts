@@ -337,6 +337,10 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       return this.round === null ? '' : roundOverview.emptyMessage(this.round, this.findingFilter);
     },
 
+    get visibleNotes() {
+      return this.round === null ? [] : roundOverview.visibleNotes(this.round, this.findingFilter);
+    },
+
     get selectedFile() {
       return this.detail?.files.find((file) => file.path === this.selectedPath) ?? null;
     },

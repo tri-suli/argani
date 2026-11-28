@@ -1,8 +1,8 @@
 import {
-  BACKTICK, BYTE_ORDER_MARK, CLOSING_LINE, CODE_SPAN_WRAPPER, FINDING_START, FULL_PART_COUNT, INDENTED_LINE, LABEL_KINDS, LEADING_WHITESPACE, LINE_BREAK, LINE_ENDINGS, LOCATION_BEFORE_DASH, NOT_FOUND,
+  BACKTICK, BLOCK_START, BYTE_ORDER_MARK, CLOSING_LINE, CODE_SPAN_WRAPPER, FENCE_CLOSING, FENCE_OPENING, FINDING_START, FULL_PART_COUNT, INDENTED_LINE, LABEL_KINDS, LEADING_WHITESPACE, LINE_BREAK, LINE_ENDINGS, LOCATION_BEFORE_DASH, NOT_FOUND,
   PART_LABEL, SEVERITIES, SEVERITY_LABELS, VERDICT_LINE, VERDICT_WORDS, WHITESPACE,
 } from '@/constants/review-file';
-import type { FindingPart, LabelHit, ParsedFinding, ParsedReview, RawFinding } from '@/types/review-file';
+import type { FindingPart, LabelHit, OpenFence, ParsedFinding, ParsedReview, RawFinding } from '@/types/review-file';
 
 /**
  * Reads a review file the way plugins/argani/docs/review-protocol.md defines it: line 1 is the verdict (hooks and
@@ -25,9 +25,9 @@ class ReviewParser {
 
     const [first = '', ...body] = lines;
 
-    const { blocks, otherLines } = this.collect(body);
+    const { blocks, notes } = this.collect(body);
 
-    return { ...this.verdictOf(first), findings: blocks.map((block) => this.toFinding(block)), otherLines, isClosed };
+    return { ...this.verdictOf(first), findings: blocks.map((block) => this.toFinding(block)), notes, isClosed };
   }
 
   private verdictOf(line: string): Pick<ParsedReview, 'verdict' | 'headline'> {
@@ -36,17 +36,32 @@ class ReviewParser {
     return Object.hasOwn(VERDICT_WORDS, word) ? { verdict: VERDICT_WORDS[word], headline: rest.trim() } : { verdict: null, headline: line.trim() };
   }
 
-  /** The finding bullets with their indented continuation lines; every other non-blank line is counted. */
-  private collect(body: string[]): { blocks: RawFinding[]; otherLines: number } {
+  /**
+   * The finding bullets with the lines that continue them (indented lines, and, as in markdown, lines that follow
+   * directly without a blank line; a fenced block stays whole), and everything else as notes, in order.
+   */
+  private collect(body: string[]): { blocks: RawFinding[]; notes: string } {
     const blocks: RawFinding[] = [];
+
+    const notes: string[] = [];
 
     let current: RawFinding | null = null;
 
+    let fence: OpenFence | null = null;
+
     let blanks = 0;
 
-    let otherLines = 0;
+    let afterFinding = false;
 
     for (const line of body) {
+      if (fence !== null) {
+        (fence.inFinding ? (current as RawFinding).continuation : notes).push(line);
+
+        fence = this.closes(fence, line) ? null : fence;
+
+        continue;
+      }
+
       const start = FINDING_START.exec(line);
 
       if (start !== null) {
@@ -55,22 +70,46 @@ class ReviewParser {
         blocks.push(current);
 
         blanks = 0;
+
+        afterFinding = true;
       } else if (line.trim() === '') {
         blanks += 1;
-      } else if (current !== null && INDENTED_LINE.test(line)) {
+      } else if (current !== null && (INDENTED_LINE.test(line) || (blanks === 0 && !BLOCK_START.test(line)))) {
         current.continuation.push(...Array<string>(blanks).fill(''), line);
 
         blanks = 0;
+
+        fence = this.opening(line, true);
       } else {
         current = null;
 
+        if (notes.length > 0 && (blanks > 0 || afterFinding) && notes[notes.length - 1] !== '') {
+          notes.push('');
+        }
+
+        notes.push(line);
+
         blanks = 0;
 
-        otherLines += 1;
+        afterFinding = false;
+
+        fence = this.opening(line, false);
       }
     }
 
-    return { blocks, otherLines };
+    return { blocks, notes: notes.join(LINE_BREAK).trim() };
+  }
+
+  private opening(line: string, inFinding: boolean): OpenFence | null {
+    const match = FENCE_OPENING.exec(line);
+
+    return match === null ? null : { marker: match[1][0], length: match[1].length, inFinding };
+  }
+
+  private closes(fence: OpenFence, line: string): boolean {
+    const match = FENCE_CLOSING.exec(line);
+
+    return match !== null && match[1][0] === fence.marker && match[1].length >= fence.length;
   }
 
   private toFinding(raw: RawFinding): ParsedFinding {

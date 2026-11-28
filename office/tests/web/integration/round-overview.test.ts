@@ -432,7 +432,7 @@ describe('round overview: the round and its reviewers', () => {
       client.texts['review/round-1/review-security.md'] = `PASS ok\nNotes: checked the spec.\n${CLOSING}\n`;
     });
 
-    await eventually(() => expect(cards()[1].querySelector('[data-testid=reviewer-other]')?.textContent).toBe('1 more line that is not a finding.'));
+    await eventually(() => expect(cards()[1].querySelector('[data-testid=reviewer-other]')?.textContent).toBe('Also holds text that is not a finding: shown below the findings.'));
 
     await mount('#/task/demo/fix-export/round/1', (client) => {
       const fetchFile = client.fetchFile.bind(client);
@@ -534,7 +534,7 @@ describe('round overview: findings and filter', () => {
 
     await eventually(() => expect(text('[data-testid=round-summary]')).toBe('The reviewer passed · no findings'));
 
-    expect(text('[data-testid=findings-empty]')).toBe('No finding was written in this round.');
+    expect(text('[data-testid=findings-empty]')).toBe('No finding cards in this round.');
 
     chips()[1].click();
 
@@ -585,6 +585,50 @@ describe('round overview: markup in the text of a finding', () => {
     expect(document.querySelector('[data-testid=finding] [id], [data-testid=finding] [name]')).toBeNull();
 
     expect(text('[data-testid=finding] dd')).toContain('big');
+  });
+});
+
+describe('round overview: notes', () => {
+  it('shows what a file says besides its findings as a notes block of that reviewer, under All only', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.texts['review/round-1/review-security.md'] = `PASS ok\n- [Nit] a:1 - What: w. Why: y. Fix: f.\n\nChecked against the **spec**: layout and pins.\n${CLOSING}\n`;
+    });
+
+    await eventually(() => expect(all('[data-testid=reviewer-notes]')).toHaveLength(1));
+
+    const notes = all('[data-testid=reviewer-notes]')[0];
+
+    expect(notes.querySelector('h3')?.textContent).toBe('Notes from security');
+
+    expect(notes.querySelector('strong')?.textContent).toBe('spec');
+
+    expect(notes.textContent).toContain('layout and pins.');
+
+    expect(cards()[1].querySelector('[data-testid=reviewer-other]')?.textContent).toBe('Also holds text that is not a finding: shown below the findings.');
+
+    expect(text('[data-testid=round-summary]')).toContain('1 note');
+
+    chips()[1].click();
+
+    await eventually(() => expect(all('[data-testid=reviewer-notes]')).toHaveLength(0));
+
+    chips()[0].click();
+
+    await eventually(() => expect(all('[data-testid=reviewer-notes]')).toHaveLength(1));
+  });
+
+  it('says there are no finding cards, and points at the notes, when a file holds only text', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.detail = detailWithRounds({ column: 'Done', rounds: [{ n: 1, reviews: { code: 'PASS' } }], files: [reviewFile(1, 'code', 'PASS ok')] });
+
+      client.texts['review/round-1/review-code.md'] = `PASS ok\n\nFree text only.\n${CLOSING}\n`;
+    });
+
+    await eventually(() => expect(text('[data-testid=findings-empty]')).toBe('No finding cards in this round. The notes of the reviewers are below.'));
+
+    expect(text('[data-testid=reviewer-notes]')).toContain('Free text only.');
+
+    expect(text('[data-testid=round-summary]')).toBe('The reviewer passed · 1 note');
   });
 });
 
@@ -805,9 +849,9 @@ describe('round overview: data', () => {
 
     await eventually(() => expect(text('[data-testid=round-loading]')).toBe('Loading the round…'));
 
-    const page = (Alpine.$data(document.querySelector('[x-data]') as HTMLElement) as { taskPage: { roundChips: unknown[]; visibleFindings: unknown[]; emptyFindingsMessage: string } }).taskPage;
+    const page = (Alpine.$data(document.querySelector('[x-data]') as HTMLElement) as { taskPage: { roundChips: unknown[]; visibleFindings: unknown[]; visibleNotes: unknown[]; emptyFindingsMessage: string } }).taskPage;
 
-    expect([page.roundChips, page.visibleFindings, page.emptyFindingsMessage]).toEqual([[], [], '']);
+    expect([page.roundChips, page.visibleFindings, page.visibleNotes, page.emptyFindingsMessage]).toEqual([[], [], [], '']);
 
     overviewRow(2).click();
 

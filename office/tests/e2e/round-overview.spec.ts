@@ -35,7 +35,7 @@ test.describe('review round overview', () => {
 
     await expect(page.getByTestId('round-status')).toHaveText(/CHANGES/);
 
-    await expect(page.getByTestId('round-summary')).toHaveText('2 of 3 reviewers asked for changes · 3 important findings, 6 nits');
+    await expect(page.getByTestId('round-summary')).toHaveText('2 of 3 reviewers asked for changes · 3 important findings, 6 nits · 1 note');
 
     await expect(page.getByTestId('reviewer-card')).toHaveCount(3);
 
@@ -45,7 +45,15 @@ test.describe('review round overview', () => {
 
     await expect(page.getByTestId('reviewer-card').nth(2).getByTestId('reviewer-counts')).toHaveText('1 important · 1 nit');
 
-    await expect(page.getByTestId('reviewer-card').nth(2).getByTestId('reviewer-other')).toHaveText('1 more line that is not a finding.');
+    await expect(page.getByTestId('reviewer-card').nth(2).getByTestId('reviewer-other')).toHaveText('Also holds text that is not a finding: shown below the findings.');
+
+    await expect(page.getByTestId('reviewer-notes')).toHaveCount(1);
+
+    await expect(page.getByTestId('reviewer-notes').locator('h3')).toHaveText('Notes from compliance');
+
+    await expect(page.getByTestId('reviewer-notes').locator('strong')).toHaveText('pins');
+
+    await expect(page.getByTestId('finding').last()).toContainText('Notes: src/AGENTS.md');
 
     await expect(page.getByTestId('finding')).toHaveCount(9);
 

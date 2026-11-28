@@ -2,6 +2,13 @@ import type { ProjectOption } from '@/types/view';
 
 const CLOCK_INTERVAL_MILLISECONDS = 1000;
 
+/** The title of the page on the board, and the end of it while a task is open. */
+const APP_TITLE = 'Argani Office';
+
+const TITLE_SEPARATOR = ' · ';
+
+const BOARD_TITLE_SELECTOR = '[data-testid=board-title]';
+
 const ALL_PROJECTS = '';
 
 const ALL_PROJECTS_LABEL = 'All projects';
@@ -46,6 +53,9 @@ const TILE_MANUAL = 'manual';
 
 export {
   CLOCK_INTERVAL_MILLISECONDS,
+  APP_TITLE,
+  TITLE_SEPARATOR,
+  BOARD_TITLE_SELECTOR,
   ALL_PROJECTS,
   ALL_PROJECTS_LABEL,
   NO_PROJECT_OPTION,

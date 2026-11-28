@@ -87,6 +87,8 @@ interface Dashboard {
   /** The summary of the open task: the detail once it is loaded, the board's list until then. */
   readonly taskSummary: TaskSummary | null;
   readonly taskTitle: string;
+  /** The title of the browser tab: the task while one is open, the app otherwise. */
+  readonly documentTitle: string;
   /** The open task is not on the board (any more), once a board has been received. */
   readonly taskMissing: boolean;
   readonly taskHeader: TaskHeaderView | null;

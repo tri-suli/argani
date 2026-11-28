@@ -4,6 +4,7 @@ import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { TaskClient } from '@/types/client';
 import type { TaskPage } from '@/types/components';
 import type { TaskDetail } from '@/types/task';
+import { BOARD_TITLE_SELECTOR } from '@/constants/dashboard';
 
 function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree): TaskPage {
   return {
@@ -67,7 +68,10 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       requestAnimationFrame(() => {
         window.scrollTo(0, this.boardScrollY);
 
-        [...document.querySelectorAll<HTMLElement>('[data-task]')].find((element) => element.dataset.task === key)?.focus();
+        const opener = [...document.querySelectorAll<HTMLElement>('[data-task]')].find((element) => element.dataset.task === key);
+
+        // the opener may be gone after a poll: the heading of the board is the next best place for the focus
+        (opener ?? document.querySelector<HTMLElement>(BOARD_TITLE_SELECTOR))?.focus();
       });
     },
 

@@ -1,4 +1,4 @@
-import { IN_ZONE, NOT_REACHED, PASSED, PERCENT, READING_ZONE_MARGIN, READING_ZONE_PERCENT, REDUCED_MOTION_QUERY } from '@/constants/document';
+import { IN_ZONE, NOT_REACHED, PASSED, PERCENT, READING_ZONE_MARGIN, PAGE_END_TOLERANCE_PIXELS, READING_ZONE_PERCENT, REDUCED_MOTION_QUERY, SCROLL_SETTLE_MILLISECONDS } from '@/constants/document';
 import type { ReaderEnvironment, SectionPosition } from '@/types/document';
 
 /** The browser behind the outline: an IntersectionObserver over a reading zone at the top of the viewport. */
@@ -22,8 +22,10 @@ function createBrowserReaderEnvironment(win: Window & typeof globalThis): Reader
       return box.bottom < 0 ? PASSED : IN_ZONE;
     },
 
-    watchScroll({ onScroll }) {
+    watchScroll({ onScroll, onSettled }) {
       let frameRequested = false;
+
+      let settleTimer: ReturnType<typeof setTimeout> | undefined;
 
       const listener = () => {
         if (!frameRequested) {
@@ -35,12 +37,23 @@ function createBrowserReaderEnvironment(win: Window & typeof globalThis): Reader
             onScroll();
           });
         }
+
+        // no native scrollend everywhere: the scrolling has settled when no scroll event came for a moment
+        clearTimeout(settleTimer);
+
+        settleTimer = setTimeout(onSettled, SCROLL_SETTLE_MILLISECONDS);
       };
 
       win.addEventListener('scroll', listener, { passive: true });
 
-      return () => win.removeEventListener('scroll', listener);
+      return () => {
+        win.removeEventListener('scroll', listener);
+
+        clearTimeout(settleTimer);
+      };
     },
+
+    isAtPageEnd: () => win.scrollY + win.innerHeight >= win.document.documentElement.scrollHeight - PAGE_END_TOLERANCE_PIXELS,
 
     prefersReducedMotion: () => win.matchMedia(REDUCED_MOTION_QUERY).matches,
   };

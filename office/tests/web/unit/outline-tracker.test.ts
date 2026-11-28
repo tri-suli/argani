@@ -79,6 +79,16 @@ describe('outline tracker', () => {
     expect(tracker.activeId).toBe('doc-a');
   });
 
+  it('has nothing to release when the scrolling settles without a click', () => {
+    const tracker = trackerOver(['doc-a', 'doc-b']);
+
+    environment.positions = { 'doc-a': 'above', 'doc-b': 'zone' };
+
+    environment.settle();
+
+    expect(tracker.activeId).toBe('doc-b');
+  });
+
   it('stops listening to the scroll with the page, and listens again once tracked again', () => {
     const tracker = trackerOver(['doc-a']);
 
@@ -190,6 +200,50 @@ describe('outline tracker', () => {
       tracker.scrollTo('doc-b');
 
       move({ 'doc-b': 'above', 'doc-c': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+    });
+
+    it('keeps a clicked last section that is too short to reach the zone while the page is at its end, and lets go when the reader scrolls back up', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+      tracker.scrollTo('doc-c');
+
+      environment.atPageEnd = true;
+
+      environment.scroll({ 'doc-a': 'above', 'doc-b': 'zone', 'doc-c': 'below' });
+
+      expect(tracker.activeId).toBe('doc-c');
+
+      environment.atPageEnd = false;
+
+      environment.scroll({ 'doc-a': 'zone', 'doc-b': 'below', 'doc-c': 'below' });
+
+      expect(tracker.activeId).toBe('doc-a');
+    });
+
+    it('lets go of a click-scroll the reader interrupted once the scrolling has settled', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+      tracker.scrollTo('doc-c');
+
+      environment.scroll({ 'doc-a': 'above', 'doc-b': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+
+      environment.settle();
+
+      expect(tracker.activeId).toBe('doc-b');
+    });
+
+    it('keeps a clicked section that has arrived in the zone when the scrolling settles', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+      tracker.scrollTo('doc-c');
+
+      environment.scroll({ 'doc-b': 'zone', 'doc-c': 'zone' });
+
+      environment.settle();
 
       expect(tracker.activeId).toBe('doc-c');
     });

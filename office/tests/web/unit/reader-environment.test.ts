@@ -87,7 +87,9 @@ describe('browser reader environment', () => {
 
     const onScroll = vi.fn();
 
-    const stop = createBrowserReaderEnvironment(fakeWindow()).watchScroll({ onScroll });
+    const onSettled = vi.fn();
+
+    const stop = createBrowserReaderEnvironment(fakeWindow()).watchScroll({ onScroll, onSettled });
 
     window.dispatchEvent(new Event('scroll'));
 
@@ -99,21 +101,48 @@ describe('browser reader environment', () => {
 
     expect(onScroll).toHaveBeenCalledTimes(1);
 
+    expect(onSettled).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(150);
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+
     window.dispatchEvent(new Event('scroll'));
 
     vi.advanceTimersByTime(1);
 
     expect(onScroll).toHaveBeenCalledTimes(2);
+
+    window.dispatchEvent(new Event('scroll'));
 
     stop();
 
+    vi.advanceTimersByTime(500);
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
+
+    const scrolled = onScroll.mock.calls.length;
+
     window.dispatchEvent(new Event('scroll'));
 
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(500);
 
-    expect(onScroll).toHaveBeenCalledTimes(2);
+    expect(onScroll).toHaveBeenCalledTimes(scrolled);
+
+    expect(onSettled).toHaveBeenCalledTimes(1);
 
     vi.useRealTimers();
+  });
+
+  it('knows when the page is scrolled to its end, within a pixel or two', () => {
+    const at = (scrollY: number, scrollHeight: number) =>
+      createBrowserReaderEnvironment({ ...fakeWindow(), scrollY, innerHeight: 1000, document: { documentElement: { scrollHeight } } } as unknown as Window & typeof globalThis).isAtPageEnd();
+
+    expect(at(2000, 3000)).toBe(true);
+
+    expect(at(1999, 3000)).toBe(true);
+
+    expect(at(1990, 3000)).toBe(false);
   });
 
   it('finds elements by id and reads the reduced-motion preference when asked', () => {

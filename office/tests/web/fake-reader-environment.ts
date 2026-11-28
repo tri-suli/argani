@@ -24,7 +24,9 @@ class FakeReaderEnvironment implements ReaderEnvironment {
 
   reducedMotion = false;
 
-  scrollHandlers: { onScroll: () => void }[] = [];
+  scrollHandlers: { onScroll: () => void; onSettled: () => void }[] = [];
+
+  atPageEnd = false;
 
   stoppedScrollWatches = 0;
 
@@ -44,12 +46,16 @@ class FakeReaderEnvironment implements ReaderEnvironment {
     return this.positions[id] ?? 'below';
   }
 
-  watchScroll(handlers: { onScroll: () => void }) {
+  watchScroll(handlers: { onScroll: () => void; onSettled: () => void }) {
     this.scrollHandlers.push(handlers);
 
     return () => {
       this.stoppedScrollWatches += 1;
     };
+  }
+
+  isAtPageEnd() {
+    return this.atPageEnd;
   }
 
   prefersReducedMotion() {
@@ -68,6 +74,11 @@ class FakeReaderEnvironment implements ReaderEnvironment {
     Object.assign(this.positions, positions);
 
     this.scrollHandlers[this.scrollHandlers.length - 1].onScroll();
+  }
+
+  /** The scrolling stopped. */
+  settle() {
+    this.scrollHandlers[this.scrollHandlers.length - 1].onSettled();
   }
 
   get latest() {

@@ -61,6 +61,12 @@ const READING_ZONE_MARGIN = `0px 0px -${100 - READING_ZONE_PERCENT}% 0px`;
 
 const PERCENT = 100;
 
+// no scroll event for this long: the scrolling has settled
+const SCROLL_SETTLE_MILLISECONDS = 150;
+
+// a page scrolled to within this many pixels of its end counts as at its end (fractional scroll positions)
+const PAGE_END_TOLERANCE_PIXELS = 2;
+
 const SMOOTH_SCROLL = 'smooth';
 
 const INSTANT_SCROLL = 'auto';
@@ -141,6 +147,8 @@ export {
   READING_ZONE_PERCENT,
   READING_ZONE_MARGIN,
   PERCENT,
+  SCROLL_SETTLE_MILLISECONDS,
+  PAGE_END_TOLERANCE_PIXELS,
   SMOOTH_SCROLL,
   INSTANT_SCROLL,
   REDUCED_MOTION_QUERY,

@@ -5,6 +5,12 @@ const SANITIZE_OPTIONS = {
   FORBID_ATTR: ['style'],
 };
 
+// Text on the review overview sits among the headings and ids of the page: no heading of its own, no id, name or style.
+const SNIPPET_SANITIZE_OPTIONS = {
+  FORBID_TAGS: [...SANITIZE_OPTIONS.FORBID_TAGS, 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+  FORBID_ATTR: [...SANITIZE_OPTIONS.FORBID_ATTR, 'id', 'name'],
+};
+
 const SUMMARY_HEADING = '## Summary';
 
 const MARKDOWN_EXTENSION = '.md';
@@ -29,6 +35,7 @@ const NOT_FOUND_INDEX = -1;
 
 export {
   SANITIZE_OPTIONS,
+  SNIPPET_SANITIZE_OPTIONS,
   SUMMARY_HEADING,
   MARKDOWN_EXTENSION,
   PATH_SEPARATOR,

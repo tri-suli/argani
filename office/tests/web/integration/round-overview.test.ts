@@ -565,6 +565,29 @@ describe('round overview: findings and filter', () => {
   });
 });
 
+describe('round overview: markup in the text of a finding', () => {
+  it('adds no heading and no id of its own: one h1 stays, ids stay unique', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.texts['review/round-1/review-code.md'] = [
+        'CHANGES x',
+        '- [Important] a.ts:1 - What: <h1 id="round-listbox">big</h1> text. Why: <a id="round-picker" name="top">y</a>. Fix: ok.',
+        CLOSING,
+        '',
+      ].join('\n');
+    });
+
+    await eventually(() => expect(findings().length).toBeGreaterThan(0));
+
+    expect(all('[data-testid=task-page] h1')).toHaveLength(1);
+
+    expect(document.querySelectorAll('#round-listbox')).toHaveLength(1);
+
+    expect(document.querySelector('[data-testid=finding] [id], [data-testid=finding] [name]')).toBeNull();
+
+    expect(text('[data-testid=finding] dd')).toContain('big');
+  });
+});
+
 describe('round overview: the Round dropdown', () => {
   it('shows the round as the label of the button and lists every round with its outcome, the current one checked', async () => {
     await openOverview(1);

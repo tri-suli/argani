@@ -91,14 +91,56 @@ describe('board view', () => {
     expect(rows[3]).toMatchObject({ waiting: '', question: 'tasks.json is unreadable' });
   });
 
-  it('measures the wait from the last history entry and never below zero', () => {
-    const future = sampleTask({ project: 'p', slug: 'future', column: 'Needs human', history: [{ ts: '2026-11-24T10:05:00Z', stage: 's', column: 'Needs human', reason: null }] });
+  const entry = (ts: string, column: string, reason: string | null = null) => ({ ts, stage: 'whatever', column, reason });
+
+  it('measures the wait from the first entry of the run in Needs human, not from the last entry', () => {
+    const task = sampleTask({
+      project: 'p',
+      slug: 's',
+      column: 'Needs human',
+      history: [entry('2026-11-24T09:00:00Z', 'Review'), entry('2026-11-24T10:00:00Z', 'Needs human', 'mr-missing'), entry('2026-11-24T11:55:00Z', 'Needs human', 'merge-missing')],
+    });
+
+    expect(boardView.waitedMilliseconds(task, Date.parse('2026-11-24T12:00:00Z'))).toBe(7_200_000);
+
+    expect(boardView.needsHumanRows(snapshotOf(task), null, Date.parse('2026-11-24T12:00:00Z'))[0].waiting).toBe('2h00m');
+  });
+
+  it('starts a new wait when the task left Needs human and came back', () => {
+    const task = sampleTask({
+      project: 'p',
+      slug: 's',
+      column: 'Needs human',
+      history: [entry('2026-11-24T08:00:00Z', 'Needs human'), entry('2026-11-24T09:00:00Z', 'Build'), entry('2026-11-24T11:00:00Z', 'Needs human')],
+    });
+
+    expect(boardView.waitedMilliseconds(task, Date.parse('2026-11-24T12:00:00Z'))).toBe(3_600_000);
+  });
+
+  it('never measures below zero', () => {
+    const future = sampleTask({ project: 'p', slug: 'future', column: 'Needs human', history: [entry('2026-11-24T10:05:00Z', 'Needs human')] });
 
     expect(boardView.waitedMilliseconds(future, now)).toBe(0);
 
     expect(boardView.waitedMilliseconds(sampleSnapshot().projects[0].tasks[3], now)).toBe(2_410_000);
+  });
 
+  it('knows no wait without history, when the last entry is not in Needs human, or when its date is unreadable', () => {
     expect(boardView.waitedMilliseconds(sampleSnapshot().projects[0].tasks[0], now)).toBeNull();
+
+    const left = sampleTask({ project: 'p', slug: 'left', column: 'Unreadable', history: [entry('2026-11-24T09:00:00Z', 'Needs human'), entry('2026-11-24T09:30:00Z', 'Build')] });
+
+    expect(boardView.waitedMilliseconds(left, now)).toBeNull();
+
+    const garbled = sampleTask({ project: 'p', slug: 'garbled', column: 'Needs human', history: [entry('not a date', 'Needs human')] });
+
+    expect(boardView.waitedMilliseconds(garbled, now)).toBeNull();
+
+    const rows = boardView.needsHumanRows(snapshotOf(left, garbled), null, now);
+
+    expect(rows.map((row) => row.waiting)).toEqual(['', '']);
+
+    expect(boardView.totalTiles(snapshotOf(left, garbled), [], null, now)[1]).toMatchObject({ value: '—', detail: '2 tasks' });
   });
 
   it('lists the Done tasks newest first as merged or cancelled with the agent time when known', () => {

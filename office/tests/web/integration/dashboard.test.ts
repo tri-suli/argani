@@ -127,7 +127,7 @@ describe('dashboard board', () => {
     expect(all('[data-tile]')).toEqual([
       'Agents working 1 builder',
       'Waiting for you 40m 2 tasks',
-      'Tokens 1.2M across 5 open tasks',
+      'Tokens 48.2k across 5 open tasks',
       'Manual acceptance criteria 3 to check by hand before merge',
     ]);
 

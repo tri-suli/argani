@@ -109,16 +109,18 @@ class BoardView {
 
     const longestWait = Math.max(UNKNOWN_WAIT, ...waits.map((task) => this.waitedMilliseconds(task, nowMilliseconds) ?? UNKNOWN_WAIT));
 
-    const tokens = tasks.filter((summary) => project === null || summary.project === project).reduce((sum, summary) => sum + summary.tokens.total, NO_COUNT);
+    const open = shown.filter((task) => this.columnOf(task) !== DONE);
 
-    const openTasks = shown.filter((task) => this.columnOf(task) !== DONE).length;
+    const openKeys = new Set(open.map((task) => `${task.project}/${task.slug}`));
+
+    const tokens = tasks.filter((summary) => openKeys.has(`${summary.project}/${summary.slug}`)).reduce((sum, summary) => sum + summary.tokens.total, NO_COUNT);
 
     const manual = shown.reduce((sum, task) => sum + task.metrics.manualAcceptanceCriteria, NO_COUNT);
 
     return [
       { id: TILE_AGENTS, label: 'Agents working', value: String(agents.length), detail: agentNames.join(DETAIL_SEPARATOR) || NO_VALUE, tone: 'active' },
       { id: TILE_WAITING, label: 'Waiting for you', value: longestWait === UNKNOWN_WAIT ? NO_VALUE : formatDuration(longestWait), detail: pluralize(waits.length, 'task'), tone: 'human' },
-      { id: TILE_TOKENS, label: 'Tokens', value: formatCount(tokens), detail: `across ${pluralize(openTasks, 'open task')}`, tone: '' },
+      { id: TILE_TOKENS, label: 'Tokens', value: formatCount(tokens), detail: `across ${pluralize(open.length, 'open task')}`, tone: '' },
       { id: TILE_MANUAL, label: 'Manual acceptance criteria', value: String(manual), detail: 'to check by hand before merge', tone: '' },
     ];
   }

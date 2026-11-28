@@ -1,5 +1,5 @@
 import slugOf from '@/board/slug';
-import { ANCHOR_SELECTOR, IN_ZONE, NOT_FOUND_INDEX, PASSED, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
+import { ANCHOR_SELECTOR, PROGRAMMATIC_FOCUS_ONLY, TABINDEX_ATTRIBUTE, IN_ZONE, NOT_FOUND_INDEX, PASSED, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
 import type { OutlineTracker, ReaderEnvironment, SectionObserver } from '@/types/document';
 
 function decodedFragment(fragment: string): string {
@@ -85,6 +85,11 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       }
 
       element.scrollIntoView({ behavior: environment.prefersReducedMotion() ? INSTANT_SCROLL : SMOOTH_SCROLL, block: 'start' });
+
+      // keyboard reading continues at the heading; the scroll above is the only one
+      element.setAttribute(TABINDEX_ATTRIBUTE, PROGRAMMATIC_FOCUS_ONLY);
+
+      element.focus({ preventScroll: true });
     },
 
     followAnchor(event) {

@@ -72,6 +72,11 @@ const ANCHOR_ATTRIBUTE = 'data-document-anchor';
 
 const ANCHOR_SELECTOR = `a[${ANCHOR_ATTRIBUTE}]`;
 
+const TABINDEX_ATTRIBUTE = 'tabindex';
+
+// focusable by a script, not by the Tab key
+const PROGRAMMATIC_FOCUS_ONLY = '-1';
+
 const FRAGMENT_PREFIX = '#';
 
 // the band of the viewport, from its top, in which a heading counts as the one being read
@@ -171,6 +176,8 @@ export {
   MINIMUM_READ_MINUTES,
   ANCHOR_ATTRIBUTE,
   ANCHOR_SELECTOR,
+  TABINDEX_ATTRIBUTE,
+  PROGRAMMATIC_FOCUS_ONLY,
   FRAGMENT_PREFIX,
   READING_ZONE_PERCENT,
   READING_ZONE_MARGIN,

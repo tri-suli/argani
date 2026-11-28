@@ -239,9 +239,9 @@ class RoundOverview {
     };
   }
 
-  /** A text of several lines (a nested list, paragraphs) is a markdown block; a single line is inline. Both are sanitized by the renderer. */
+  /** The renderer sanitizes it, and strips headings, ids and styles that would disturb the page. */
   private html(text: string): string {
-    return text.includes('\n') ? this.renderer.renderMarkdown(text) : this.renderer.renderInline(text);
+    return this.renderer.renderSnippet(text);
   }
 
   private countOf(findings: FindingView[], severity: FindingView['severity']): number {

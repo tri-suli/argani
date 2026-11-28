@@ -6,8 +6,7 @@ type FindingFilter = 'all' | 'important' | 'nit';
 
 /** The sanitized markdown renderer the overview draws the texts of the findings with. */
 interface TextRenderer {
-  renderInline(markdown: string): string;
-  renderMarkdown(markdown: string): string;
+  renderSnippet(markdown: string): string;
 }
 
 /** What a verdict looks like: the word, the icon, the tone, and the same in words for screen readers. */

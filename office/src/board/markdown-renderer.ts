@@ -9,7 +9,7 @@ import {
   MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NO_LIST_START, NEWLINE_PATTERN, RAW_HEADING_TAG_PATTERN, TOKEN_CODE, TOKEN_HEADING, TOKEN_HTML, TOKEN_LIST, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
 } from '@/constants/document';
 import { FILE_TONE_ICONS } from '@/constants/file-tree';
-import { SANITIZE_OPTIONS } from '@/constants/markdown';
+import { SANITIZE_OPTIONS, SNIPPET_SANITIZE_OPTIONS } from '@/constants/markdown';
 import type { Assembly, CriterionView, DocumentStatus, MetaEntry, OutlineEntry } from '@/types/document';
 import type { MarkdownParser, MarkdownSanitizer } from '@/types/markdown';
 import type { FileTone } from '@/types/task';
@@ -26,6 +26,18 @@ class MarkdownRenderer {
 
   renderMarkdown(markdown: string): string {
     return this.sanitizer.sanitize(this.parser.parse(markdown, { async: false }), SANITIZE_OPTIONS);
+  }
+
+  /**
+   * Text of a finding or a note on the review overview: one line inline, several lines as blocks. It carries no heading
+   * (the page has its own), id, name or style, so it can neither add an h1 nor duplicate an id of the page.
+   */
+  renderSnippet(markdown: string): string {
+    if (!markdown.includes(LINE_BREAK)) {
+      return this.sanitizer.sanitize(this.parser.parseInline(markdown, { async: false }), SNIPPET_SANITIZE_OPTIONS);
+    }
+
+    return this.sanitizer.sanitize(this.parser.parser(this.parser.lexer(markdown).map((token) => this.withoutHeadings(token))), SNIPPET_SANITIZE_OPTIONS);
   }
 
   renderDocument(text: string, tone: FileTone | null): RenderedDocument {
@@ -58,8 +70,23 @@ class MarkdownRenderer {
     };
   }
 
-  renderInline(markdown: string): string {
+  private renderInline(markdown: string): string {
     return this.sanitizer.sanitize(this.parser.parseInline(markdown, { async: false }), SANITIZE_OPTIONS);
+  }
+
+  /** A heading, at any depth of lists and quotes, as a bold paragraph. */
+  private withoutHeadings(token: Token): Token {
+    if (token.type === TOKEN_HEADING) {
+      const { raw, tokens } = token as Tokens.Heading;
+
+      return { type: 'paragraph', raw, text: raw, tokens: [{ type: 'strong', raw, text: raw, tokens }] } as Token;
+    }
+
+    if ('items' in token) {
+      return { ...token, items: (token.items as Token[]).map((item) => this.withoutHeadings(item)) } as Token;
+    }
+
+    return 'tokens' in token && token.tokens ? ({ ...token, tokens: token.tokens.map((child) => this.withoutHeadings(child)) } as Token) : token;
   }
 
   private renderTokens(tokens: Token[]): string {

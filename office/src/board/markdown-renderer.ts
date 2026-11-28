@@ -58,7 +58,7 @@ class MarkdownRenderer {
     };
   }
 
-  private renderInline(markdown: string): string {
+  renderInline(markdown: string): string {
     return this.sanitizer.sanitize(this.parser.parseInline(markdown, { async: false }), SANITIZE_OPTIONS);
   }
 

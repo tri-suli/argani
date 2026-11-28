@@ -6,8 +6,9 @@ import readingStats from '@/board/reading-time';
 import tokenText from '@/board/token-text';
 import {
   ACCEPTANCE_CRITERIA_TITLE, APPROVED_STATUS_PREFIX, CRITERION_ID_PREFIX, HEADING_OPENING_PATTERN, INFO_STRING_SEPARATOR, LINE_BREAK, MAX_HEADING_DEPTH,
-  MAX_OUTLINE_DEPTH, NEWLINE_PATTERN, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
+  MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NEWLINE_PATTERN, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
 } from '@/constants/document';
+import { FILE_TONE_ICONS } from '@/constants/file-tree';
 import { SANITIZE_OPTIONS } from '@/constants/markdown';
 import type { CriterionView, DocumentBlock, DocumentStatus, MetaEntry, OutlineEntry } from '@/types/document';
 import type { MarkdownParser, MarkdownSanitizer } from '@/types/markdown';
@@ -84,10 +85,14 @@ class MarkdownRenderer {
     const status = meta.find((entry) => entry.key === STATUS_KEY);
 
     if (status !== undefined) {
-      return { label: status.value.replace(STATUS_DATE_SUFFIX_PATTERN, ''), tone: status.value.startsWith(APPROVED_STATUS_PREFIX) ? 'good' : null };
+      return this.statusPill(status.value.replace(STATUS_DATE_SUFFIX_PATTERN, ''), status.value.startsWith(APPROVED_STATUS_PREFIX) ? 'good' : null);
     }
 
-    return verdict === null ? null : { label: verdict, tone };
+    return verdict === null ? null : this.statusPill(verdict, tone);
+  }
+
+  private statusPill(label: string, tone: FileTone | null): DocumentStatus {
+    return { label, tone, icon: tone === null ? NEUTRAL_STATUS_ICON : FILE_TONE_ICONS[tone] };
   }
 
   private add(assembly: Assembly, token: Token): void {

@@ -1,3 +1,4 @@
+import { DIFF_EXTENSION } from '@/constants/document';
 import { MARKDOWN_EXTENSION, PATH_SEPARATOR } from '@/constants/markdown';
 import type { TaskFile } from '@/types/task';
 import type { FileGroup } from '@/types/view';
@@ -21,4 +22,8 @@ function isMarkdownFile(path: string): boolean {
   return path.toLowerCase().endsWith(MARKDOWN_EXTENSION);
 }
 
-export { groupFiles, fileName, isMarkdownFile };
+function isDiffFile(path: string): boolean {
+  return path.toLowerCase().endsWith(DIFF_EXTENSION);
+}
+
+export { groupFiles, fileName, isMarkdownFile, isDiffFile };

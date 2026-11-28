@@ -4,13 +4,14 @@ import { STEP_LEGEND } from '@/constants/history';
 import { BOARD_HASH } from '@/constants/route';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
 import { formatDuration } from '@/board/format';
+import createOutlineTracker from '@/components/outline-tracker';
 import createCommandCopier from '@/components/command-copier';
 import createProjectPicker from '@/components/project-picker';
 import createTaskPage from '@/components/task-page';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
-function createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, clipboard, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, diffRows, readerEnvironment, clipboard, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
@@ -20,7 +21,7 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
     lastSuccessAt: null,
     clockMilliseconds: 0,
     selectedProject: ALL_PROJECTS,
-    taskPage: createTaskPage(taskClient, markdownRenderer, fileTree),
+    taskPage: createTaskPage(taskClient, markdownRenderer, fileTree, diffRows, createOutlineTracker(readerEnvironment)),
     legend: STEP_LEGEND,
     picker: createProjectPicker(),
     copier: createCommandCopier(clipboard),

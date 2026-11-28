@@ -39,6 +39,10 @@ describe('diff rows', () => {
     expect(rows.parse(GIT_DIFF).rows.map((row) => row.text).slice(4, 8)).toEqual(['@@ -1,2 +1,2 @@ heading', ' same', '-old', '+new']);
   });
 
+  it('marks the line that starts each file, for the page to separate the files', () => {
+    expect(rows.parse(GIT_DIFF).rows.filter((row) => row.fileStart).map((row) => row.text)).toEqual(['diff --git a/a.txt b/a.txt', 'diff --git a/b.bin b/b.bin', 'diff --git a/c.txt b/c.txt']);
+  });
+
   it('numbers the rows for the page to key them by', () => {
     expect(rows.parse('+a\n-b').rows.map((row) => row.key)).toEqual([0, 1]);
   });

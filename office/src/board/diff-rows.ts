@@ -28,7 +28,7 @@ class DiffRows {
 
       inHeader = this.isHeaderAfter(kind, inHeader);
 
-      return { key, kind, text };
+      return { key, kind, text, fileStart: text.startsWith(DIFF_FILE_START) };
     });
 
     return { rows, total: lines.length, truncated: lines.length > this.limit };

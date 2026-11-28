@@ -19,6 +19,7 @@ interface DocumentHeadParts {
 interface DocumentStatus {
   label: string;
   tone: FileTone | null;
+  icon: string;
 }
 
 interface OutlineEntry {
@@ -73,6 +74,8 @@ interface DiffRow {
   key: number;
   kind: DiffRowKind;
   text: string;
+  /** The `diff ` line that begins a file of the diff. */
+  fileStart: boolean;
 }
 
 interface DiffView {
@@ -109,6 +112,8 @@ interface OutlineTracker {
   scrollTo(id: string): void;
   /** A click on an in-document link of the markdown scrolls to its heading instead of changing the route. */
   followAnchor(event: Event): void;
+  /** Receives the headings that entered or left the reading zone. */
+  change(entries: SectionVisibility[]): void;
 }
 
 export type { MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionVisibility, SectionObserver, ReaderEnvironment, OutlineTracker };

@@ -4,11 +4,13 @@ import { marked } from 'marked';
 import FetchBoardClient from '@/board/board-client';
 import BoardPoller from '@/board/board-poller';
 import BoardView from '@/board/board-view';
+import DiffRows from '@/board/diff-rows';
 import FileTree from '@/board/file-tree';
 import HashNavigation from '@/board/hash-navigation';
 import HistorySteps from '@/board/history-steps';
 import addLinkHook from '@/board/link-hook';
 import MarkdownRenderer from '@/board/markdown-renderer';
+import createBrowserReaderEnvironment from '@/board/reader-environment';
 import FetchTaskClient from '@/board/task-client';
 import createDashboard from '@/components/dashboard';
 import '@fontsource/ibm-plex-mono/latin-400.css';
@@ -46,6 +48,6 @@ addLinkHook(purify);
 
 const markdownRenderer = new MarkdownRenderer(purify, marked);
 
-Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, clipboard, now: () => new Date() }));
+Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, diffRows: new DiffRows(), readerEnvironment: createBrowserReaderEnvironment(window), clipboard, now: () => new Date() }));
 
 Alpine.start();

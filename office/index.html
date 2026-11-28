@@ -306,12 +306,89 @@
           <!-- the seam for the document reader and the review-round view: everything the selected file shows lives in here -->
           <section class="min-w-0 flex-[999_1_640px]" data-testid="task-content" aria-label="Selected file">
             <p class="mb-3 text-[13px] text-human" data-testid="task-error" x-show="taskPage.errorMessage !== null" x-text="taskPage.errorMessage"></p>
-          <div class="prose prose-argani max-w-[680px] text-[14px] leading-[1.65] prose-headings:mt-[1.6em] prose-headings:mb-[0.5em] prose-headings:leading-[1.3] prose-headings:font-bold prose-h1:text-[20px] prose-h1:font-semibold prose-h2:text-[15px] prose-h3:text-[14px] prose-h3:text-muted prose-h4:text-[14px] prose-p:mt-0 prose-p:mb-[0.9em] prose-p:before:content-none prose-p:after:content-none prose-ul:mt-0 prose-ul:mb-[0.9em] prose-ul:pl-[1.3em] prose-ol:mt-0 prose-ol:mb-[0.9em] prose-ol:pl-[1.3em] prose-li:my-0 prose-li:pl-0 prose-a:font-normal prose-code:rounded-sm prose-code:bg-hover prose-code:px-[5px] prose-code:py-px prose-code:font-mono prose-code:text-[12px] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-pre:mt-0 prose-pre:mb-[0.9em] prose-pre:rounded-lg prose-pre:leading-[1.65] [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 prose-pre:border prose-pre:border-line prose-pre:px-3.5 prose-pre:py-3 prose-pre:text-[14px] [&_ul_ul]:list-[circle] prose-blockquote:mt-0 prose-blockquote:mb-[0.9em] prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-blockquote:font-normal prose-blockquote:not-italic prose-table:mt-0 prose-table:mb-[0.9em] prose-table:block prose-table:leading-[1.65] prose-thead:border-b-0 prose-tr:border-b-0 prose-table:overflow-x-auto prose-table:text-[13px] prose-th:border prose-th:border-line prose-th:px-[9px] prose-th:py-[5px] prose-td:border prose-td:border-line prose-td:px-[9px] prose-td:py-[5px]" data-testid="task-markdown" x-show="taskPage.rendered !== null">
-            <p class="not-prose mb-3.5 inline-block rounded-md px-2.5 py-1 font-mono text-[12px] leading-[normal] font-semibold data-[tone=good]:bg-pass/14 data-[tone=good]:text-pass data-[tone=stop]:bg-human/16 data-[tone=stop]:text-human data-[tone=warn]:bg-changes/16 data-[tone=warn]:text-changes" :data-tone="taskPage.rendered ? taskPage.rendered.tone : ''" data-testid="task-verdict" x-show="taskPage.rendered && taskPage.rendered.verdict !== null" x-text="taskPage.rendered ? taskPage.rendered.verdict : ''"></p>
-            <div class="mb-[22px] rounded-lg border border-line bg-hover px-4 pt-3 pb-1 [&>:first-child]:mt-0" data-testid="task-summary" x-show="taskPage.rendered && taskPage.rendered.summaryHtml !== null" x-html="taskPage.rendered ? taskPage.rendered.summaryHtml : ''"></div>
-            <div class="[&>:first-child]:mt-0" data-testid="task-body" x-html="taskPage.rendered ? taskPage.rendered.bodyHtml : ''"></div>
+          <div class="flex flex-wrap items-start gap-5" data-testid="task-markdown" x-show="taskPage.rendered !== null" x-effect="taskPage.trackSections()">
+            <article class="min-w-0 flex-[999_1_520px] rounded-[14px] border border-line bg-card px-11 pt-9 pb-14 narrow:px-4 narrow:pt-5 narrow:pb-8" aria-label="Document" @click="taskPage.outline.followAnchor($event)">
+              <div class="max-w-[70ch]">
+                <p class="mb-2.5 flex flex-wrap items-center gap-2 font-mono text-[12px] text-faint">
+                  <span class="[overflow-wrap:anywhere]" data-testid="reader-file" x-text="taskPage.selectedFileName"></span>
+                  <span class="inline-flex items-center gap-1 rounded-full bg-badge px-[9px] py-[3px] font-semibold text-badge-ink data-[tone=good]:bg-pass-tint data-[tone=good]:text-pass-ink data-[tone=stop]:bg-human-chip data-[tone=stop]:text-human-strong data-[tone=warn]:bg-changes-tint data-[tone=warn]:text-changes-ink" data-testid="task-status" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null"><span class="icon text-[15px]" aria-hidden="true" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.icon : ''"></span><span data-testid="task-verdict" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.label : ''"></span></span>
+                </p>
+                <h2 class="text-[28px] leading-[1.2] font-bold tracking-[-0.02em] [overflow-wrap:anywhere] narrow:text-[22px] [&_code]:rounded-md [&_code]:bg-tag [&_code]:px-1.5 [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.88em] [&_code]:font-medium" data-testid="reader-title" x-show="taskPage.rendered && taskPage.rendered.titleHtml !== null" x-html="taskPage.rendered && taskPage.rendered.titleHtml !== null ? taskPage.rendered.titleHtml : ''"></h2>
+
+                <dl class="mt-5 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-px overflow-hidden rounded-[10px] border border-line bg-line text-[13px]" data-testid="task-meta" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
+                  <template x-for="(entry, index) in taskPage.rendered ? taskPage.rendered.meta : []" :key="index">
+                    <div class="min-w-0 bg-card px-3.5 py-2.5" data-testid="meta-entry">
+                      <dt class="text-[11px] font-semibold tracking-[0.06em] text-faint uppercase" x-text="entry.key"></dt>
+                      <dd class="mt-0.5 [overflow-wrap:anywhere]" x-text="entry.value"></dd>
+                    </div>
+                  </template>
+                </dl>
+
+                <section class="mt-6 scroll-mt-5 rounded-xl border border-callout-line bg-selected px-5 py-4 [&_code]:rounded-[5px] [&_code]:bg-halo [&_code]:px-[5px] [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.88em] [&_p]:mb-0 [&_p+p]:mt-3 [&_p]:text-[16px] [&_p]:leading-[1.65] [&_ul]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-[16px]" data-testid="task-summary" :id="taskPage.rendered ? taskPage.rendered.summaryId : null" aria-labelledby="task-summary-heading" x-show="taskPage.rendered && taskPage.rendered.summaryHtml !== null">
+                  <h3 class="mb-1.5 text-[12px] font-semibold tracking-[0.07em] text-active-ink uppercase" id="task-summary-heading">Summary</h3>
+                  <div data-testid="task-summary-body" x-html="taskPage.rendered && taskPage.rendered.summaryHtml !== null ? taskPage.rendered.summaryHtml : ''"></div>
+                </section>
+
+                <div class="document-body prose prose-argani" data-testid="task-body">
+                  <template x-for="block in taskPage.rendered ? taskPage.rendered.blocks : []" :key="block.key">
+                    <div>
+                      <template x-if="block.kind === 'html'">
+                        <div x-html="block.html"></div>
+                      </template>
+                      <template x-if="block.kind === 'code'">
+                        <div class="not-prose my-4 overflow-hidden rounded-[10px] border border-code-line" data-testid="code-block">
+                          <p class="flex items-center bg-code-head py-1.5 pr-2 pl-3.5 font-mono text-[11px] text-code-muted"><span data-testid="code-language" x-text="block.language"></span><button type="button" class="ml-auto min-h-7 cursor-pointer rounded-md border border-code-button-line bg-transparent px-2.5 font-sans text-[11px] font-medium text-code-ink hover:bg-code-line narrow:min-h-11" data-testid="code-copy" aria-label="Copy code" @click="copier.copy(taskPage.selectedPath + '#' + block.key, block.text)" x-text="copier.label(taskPage.selectedPath + '#' + block.key)"></button></p>
+                          <span class="sr-only" role="status" x-text="copier.key === taskPage.selectedPath + '#' + block.key ? copier.label(taskPage.selectedPath + '#' + block.key) : ''"></span>
+                          <pre class="overflow-x-auto bg-code-bg px-4 py-3.5 font-mono text-[13px] leading-[1.6] text-code-ink" tabindex="0"><code x-text="block.text"></code></pre>
+                        </div>
+                      </template>
+                      <template x-if="block.kind === 'criteria'">
+                        <ul class="not-prose my-3 flex list-none flex-col gap-2 p-0" data-testid="criteria">
+                          <template x-for="(criterion, index) in block.criteria" :key="index">
+                            <li class="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5 rounded-[10px] border border-line px-3.5 py-3 data-[manual=true]:border-human-line data-[manual=true]:bg-human-tint" data-testid="criterion" :data-manual="criterion.manual">
+                              <span class="font-mono text-[12px] font-semibold text-active-ink" data-testid="criterion-id" x-text="criterion.id"></span>
+                              <span class="min-w-0 flex-[1_1_300px] text-[15px] leading-[1.55] [overflow-wrap:anywhere] [&_code]:rounded-[5px] [&_code]:bg-tag [&_code]:px-[5px] [&_code]:font-mono [&_code]:text-[0.88em]" data-testid="criterion-claim" x-html="criterion.claimHtml"></span>
+                              <template x-if="!criterion.manual">
+                                <p class="flex min-w-0 flex-[1_1_100%] items-baseline gap-1.5 rounded-md bg-bg px-2.5 py-1.5 font-mono text-[12px] [overflow-wrap:anywhere] [&_code]:bg-transparent [&_code]:p-0" data-testid="criterion-verify"><span class="icon text-[15px] text-faint" aria-hidden="true">terminal</span><span class="sr-only">Verify with: </span><span class="min-w-0" x-html="criterion.verifyHtml"></span></p>
+                              </template>
+                              <template x-if="criterion.manual">
+                                <p class="flex min-w-0 flex-[1_1_100%] flex-wrap items-baseline gap-x-2.5 gap-y-1 text-[13px]" data-testid="criterion-manual"><span class="inline-flex items-center gap-1 rounded-full bg-human-chip px-[9px] py-[3px] text-[12px] font-semibold text-human-strong"><span class="icon text-[15px]" aria-hidden="true">person</span>manual · you check this</span><span class="min-w-0 text-human-body [overflow-wrap:anywhere]" x-html="criterion.verifyHtml"></span></p>
+                              </template>
+                            </li>
+                          </template>
+                        </ul>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </article>
+
+            <aside class="min-w-0 flex-[1_1_190px] px-1 py-1.5 lg:sticky lg:top-5" aria-label="On this page" data-testid="reader-outline">
+              <p class="mb-2 text-[11px] font-semibold tracking-[0.07em] text-faint uppercase">On this page</p>
+              <ul class="border-l-2 border-line text-[13px]">
+                <template x-for="entry in taskPage.rendered ? taskPage.rendered.outline : []" :key="entry.id">
+                  <li>
+                    <button type="button" class="-ml-0.5 flex min-h-8 w-full cursor-pointer items-baseline gap-1.5 border-l-2 border-transparent px-3 py-1.5 text-left text-badge-ink hover:text-active-ink aria-[current=location]:border-active aria-[current=location]:font-semibold aria-[current=location]:text-active-ink data-[level=2]:pl-6 data-[level=2]:text-muted narrow:min-h-11" data-testid="outline-entry" :data-level="entry.level" :aria-current="taskPage.outline.activeId === entry.id ? 'location' : false" @click="taskPage.outline.scrollTo(entry.id)"><span class="[overflow-wrap:anywhere]" x-text="entry.label"></span><span class="font-mono text-[11px] font-normal text-faint" data-testid="outline-count" x-show="entry.count !== null" x-text="entry.count"></span></button>
+                  </li>
+                </template>
+              </ul>
+              <p class="mt-4 font-mono text-[11px] text-faint" data-testid="reader-stats" x-text="taskPage.rendered ? taskPage.rendered.wordCount.toLocaleString('en-US') + ' words · ' + taskPage.rendered.readMinutes + ' min read' : ''"></p>
+            </aside>
           </div>
-          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null" x-text="taskPage.fileText"></pre>
+
+          <div class="overflow-hidden rounded-[14px] border border-line bg-card" data-testid="task-diff" x-show="taskPage.diff !== null">
+            <p class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2.5 font-mono text-[12px] text-faint"><span class="[overflow-wrap:anywhere]" x-text="taskPage.selectedFileName"></span><span x-text="taskPage.diff ? taskPage.diff.total.toLocaleString('en-US') + ' lines' : ''"></span></p>
+            <p class="border-b border-line bg-changes-tint px-4 py-2 text-[13px] text-changes-ink" data-testid="diff-note" x-show="taskPage.diff && taskPage.diff.truncated" x-text="taskPage.diff ? 'Showing the first ' + taskPage.diff.rows.length.toLocaleString('en-US') + ' lines of ' + taskPage.diff.total.toLocaleString('en-US') + '.' : ''"></p>
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Diff">
+              <div class="min-w-max py-1 font-mono text-[12px] leading-[1.55]">
+                <template x-for="row in taskPage.diff ? taskPage.diff.rows : []" :key="row.key">
+                  <div class="min-h-[1.55em] px-4 whitespace-pre data-[kind=add]:bg-pass-tint data-[kind=add]:text-pass-ink data-[kind=binary]:italic data-[kind=file]:font-semibold data-[kind=hunk]:bg-active-tint data-[kind=hunk]:text-active-ink data-[kind=note]:text-faint data-[kind=remove]:bg-remove-tint data-[kind=remove]:text-remove-ink data-[start=true]:mt-2 data-[start=true]:border-t data-[start=true]:border-line-strong data-[start=true]:bg-hover data-[start=true]:pt-1" data-testid="diff-row" :data-kind="row.kind" :data-start="row.fileStart" x-text="row.text"></div>
+                </template>
+              </div>
+            </div>
+          </div>
+          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null &amp;&amp; taskPage.diff === null" x-text="taskPage.fileText"></pre>
           </section>
         </div>
       </main>

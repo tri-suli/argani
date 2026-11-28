@@ -1,8 +1,10 @@
 import type BoardView from '@/board/board-view';
 import type FileTree from '@/board/file-tree';
 import type HistorySteps from '@/board/history-steps';
+import type DiffRows from '@/board/diff-rows';
 import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { BoardSnapshot, BoardTask } from '@/types/board';
+import type { DiffView, OutlineTracker, ReaderEnvironment } from '@/types/document';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
 import type { FileSection } from '@/types/file-tree';
@@ -19,6 +21,8 @@ interface DashboardDependencies {
   fileTree: FileTree;
   navigation: Navigation;
   markdownRenderer: MarkdownRenderer;
+  diffRows: DiffRows;
+  readerEnvironment: ReaderEnvironment;
   clipboard: ClipboardWriter;
   now: () => Date;
 }
@@ -107,6 +111,10 @@ interface TaskPage {
   loadedStamp: string | null;
   /** Rendered markdown of the selected file; null when it is shown as plain text. */
   rendered: RenderedDocument | null;
+  /** Rows of the selected file when it is a diff; null for every other file. */
+  diff: DiffView | null;
+  /** The reader's outline: which section is in view, and scrolling to one. */
+  outline: OutlineTracker;
   errorMessage: string | null;
   /** Bumped by every request so a slow answer for an old selection is dropped. */
   generation: number;
@@ -141,6 +149,12 @@ interface TaskPage {
   loadFile(generation: number): Promise<void>;
   readonly sections: FileSection[];
   readonly selectedFile: TaskFile | null;
+  /** The name of the selected file without its folders. */
+  readonly selectedFileName: string;
+  /** The ids of the outline sections of the rendered document. */
+  readonly sectionIds: string[];
+  /** Has the outline observe the headings once the page has drawn them. */
+  trackSections(): void;
 }
 
 export type { DashboardDependencies, Dashboard, TaskPage, ClipboardWriter, CommandCopier, ProjectPicker };

@@ -80,19 +80,19 @@ describe('renderDocument', () => {
 
     expect(document.meta.map((entry) => entry.key)).toEqual(['Intent', 'Status', 'Date']);
 
-    expect(document.status).toEqual({ label: 'approved by argani', tone: 'good' });
+    expect(document.status).toEqual({ label: 'approved by argani', tone: 'good', icon: 'check_circle' });
   });
 
   it('shows the verdict line as the status when the file has no Status line', () => {
-    expect(renderer.renderDocument('PASS ok\n\nbody', 'good').status).toEqual({ label: 'PASS ok', tone: 'good' });
+    expect(renderer.renderDocument('PASS ok\n\nbody', 'good').status).toEqual({ label: 'PASS ok', tone: 'good', icon: 'check_circle' });
 
-    expect(renderer.renderDocument('CHANGES x\n\nbody', 'warn').status).toEqual({ label: 'CHANGES x', tone: 'warn' });
+    expect(renderer.renderDocument('CHANGES x\n\nbody', 'warn').status).toEqual({ label: 'CHANGES x', tone: 'warn', icon: 'error' });
 
-    expect(renderer.renderDocument('PASS ok\nStatus: draft\n\nbody', 'good').status).toEqual({ label: 'draft', tone: null });
+    expect(renderer.renderDocument('PASS ok\nStatus: draft\n\nbody', 'good').status).toEqual({ label: 'draft', tone: null, icon: 'edit_note' });
 
     expect(renderer.renderDocument('# Plain\n\nbody', null).status).toBeNull();
 
-    expect(renderer.renderDocument('', 'warn').status).toEqual({ label: '', tone: 'warn' });
+    expect(renderer.renderDocument('', 'warn').status).toEqual({ label: '', tone: 'warn', icon: 'error' });
   });
 
   it('leaves the verdict out of the body and keeps the first line when there is no tone', () => {

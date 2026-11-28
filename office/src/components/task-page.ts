@@ -1,12 +1,14 @@
-import { isMarkdownFile } from '@/board/file-view';
+import type DiffRows from '@/board/diff-rows';
+import { fileName, isDiffFile, isMarkdownFile } from '@/board/file-view';
 import type FileTree from '@/board/file-tree';
 import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { TaskClient } from '@/types/client';
+import type { OutlineTracker } from '@/types/document';
 import type { TaskPage } from '@/types/components';
 import type { TaskDetail } from '@/types/task';
 import { BOARD_TITLE_SELECTOR } from '@/constants/dashboard';
 
-function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree): TaskPage {
+function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree, diffRows: DiffRows, outline: OutlineTracker): TaskPage {
   return {
     isOpen: false,
     project: '',
@@ -17,6 +19,8 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     loadedPath: null,
     loadedStamp: null,
     rendered: null,
+    diff: null,
+    outline,
     errorMessage: null,
     generation: 0,
     openRounds: null,
@@ -26,7 +30,7 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     closeCount: 0,
 
     async open({ project, slug, path }) {
-      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null, knownRounds: [] });
+      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, diff: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null, knownRounds: [] });
 
       this.openCount += 1;
 
@@ -51,6 +55,8 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       }
 
       this.isOpen = false;
+
+      this.outline.stop();
 
       this.generation += 1;
 
@@ -136,7 +142,7 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
       if (file === null) {
         this.fileText = '';
 
-        this.rendered = null;
+        Object.assign(this, { rendered: null, diff: null });
 
         return;
       }
@@ -153,6 +159,8 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
           this.fileText = text;
 
           this.rendered = isMarkdownFile(file.path) ? markdownRenderer.renderDocument(text, file.tone) : null;
+
+          this.diff = isDiffFile(file.path) ? diffRows.parse(text) : null;
         }
 
         this.loadedPath = file.path;
@@ -185,7 +193,7 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     },
 
     clearFile() {
-      Object.assign(this, { fileText: '', rendered: null, loadedPath: null, loadedStamp: null });
+      Object.assign(this, { fileText: '', rendered: null, diff: null, loadedPath: null, loadedStamp: null });
     },
 
     fileStamp(detail) {
@@ -204,6 +212,21 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
 
     get selectedFile() {
       return this.detail?.files.find((file) => file.path === this.selectedPath) ?? null;
+    },
+
+    get selectedFileName() {
+      return this.selectedPath === null ? '' : fileName(this.selectedPath);
+    },
+
+    get sectionIds() {
+      return this.rendered === null ? [] : this.rendered.outline.map((entry) => entry.id);
+    },
+
+    trackSections() {
+      const ids = this.sectionIds;
+
+      // the document is drawn in this tick: observe its headings on the next frame
+      requestAnimationFrame(() => this.outline.track(ids));
     },
   };
 }

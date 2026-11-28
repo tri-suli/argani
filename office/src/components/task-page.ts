@@ -65,11 +65,14 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     },
 
     restoreBoard() {
-      window.scrollTo(0, this.boardScrollY);
-
       const key = `${this.project}/${this.slug}`;
 
-      [...document.querySelectorAll<HTMLElement>('[data-task]')].find((element) => element.dataset.task === key)?.focus();
+      // Alpine shows the board after this runs in the same tick: scrolling and focusing need it laid out, so wait for the next frame
+      requestAnimationFrame(() => {
+        window.scrollTo(0, this.boardScrollY);
+
+        [...document.querySelectorAll<HTMLElement>('[data-task]')].find((element) => element.dataset.task === key)?.focus();
+      });
     },
 
     focusTitle(title) {

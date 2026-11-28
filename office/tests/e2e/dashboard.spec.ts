@@ -236,32 +236,84 @@ test.describe('with a live backend', () => {
     await expect(taskCard(page, 'demo/add-login').getByTestId('card-working')).toHaveCount(0);
   });
 
-  test('lists the column history and metrics of a task in the drawer', async ({ page }) => {
+  test('shows the history strip of a task: numbered steps, the time each stayed, the reason of a wait, the last one still counting', async ({ page }) => {
     await taskCard(page, 'demo/pick-database').click();
 
-    const rows = page.getByTestId('history-row');
+    const steps = page.getByTestId('history-step');
 
-    await expect(rows).toHaveCount(4);
+    await expect(steps).toHaveCount(4);
 
-    await expect(rows.nth(0)).toHaveText('Intake30m');
+    await expect(steps.nth(0)).toHaveText('1 Intake 30m');
 
-    await expect(rows.nth(1)).toHaveText('Needs human1h00m');
+    await expect(steps.nth(1)).toHaveText('2 Needs human 1h00m · intake question');
 
-    await expect(rows.nth(2)).toHaveText('Intake15m');
+    await expect(steps.nth(2)).toHaveText('3 Intake 15m');
 
-    await expect(rows.nth(3)).toContainText('Needs human');
+    await expect(steps.nth(3)).toContainText('4 Needs human');
 
-    await expect(page.getByTestId('drawer-metrics')).toContainText('1 manual ACs');
+    await expect(steps.nth(3)).toContainText('· intake question');
 
-    await expect(page.getByTestId('drawer-metrics')).toContainText('2× in Needs human');
+    await expect(page.getByTestId('task-manual')).toHaveText('1 manual AC');
+
+    await expect(page.getByTestId('task-visits')).toContainText('2× needed you');
+
+    await expect(page.getByRole('heading', { level: 2, name: 'History' })).toBeVisible();
+
+    await expect(page.getByLabel('Colour legend').getByRole('listitem')).toHaveText(['agent worked', 'waited for you', 'changes asked', 'passed', 'now']);
   });
 
-  test('shows a dash for a task without history in the drawer', async ({ page }) => {
+  test('shows a dash for a task without history', async ({ page }) => {
     await taskCard(page, 'demo/add-login').click();
 
     await expect(page.getByTestId('history-empty')).toHaveText('—');
 
-    await expect(page.getByTestId('history-row')).toHaveCount(0);
+    await expect(page.getByTestId('history-step')).toHaveCount(0);
+  });
+
+  test('maps the visits to Review onto the review rounds, and wraps more steps than fit onto further rows at a fixed width', async ({ page }) => {
+    await changeBoard(page, (board) => {
+      const minutes = [['Intake', 4], ['Needs human', 4], ['Spec', 3], ['Build', 41], ['Review', 3], ['Build', 22], ['Review', 2], ['Approve', 2], ['Build', 5], ['Review', 6]] as const;
+
+      let start = Date.UTC(2026, 10, 20, 8, 0);
+
+      const history = minutes.map(([column, length]) => {
+        const entry = { ts: new Date(start).toISOString().replace('.000Z', 'Z'), stage: 'stage', column, reason: column === 'Needs human' ? 'intake-question' : null };
+
+        start += length * 60_000;
+
+        return entry;
+      });
+
+      Object.assign(findTask(board, 'ship-report'), { column: 'Review', stage: 'needs-review', history, durations: minutes.map(([column, length]) => ({ column, milliseconds: length * 60_000 })) });
+    });
+
+    await page.setViewportSize({ width: 600, height: 900 });
+
+    await taskCard(page, 'demo/ship-report').click();
+
+    const steps = page.getByTestId('history-step');
+
+    await expect(steps).toHaveCount(10);
+
+    await expect(steps.nth(4)).toHaveText('5 Review R1 3m · changes asked');
+
+    await expect(steps.nth(6)).toHaveText('7 Review R2 2m · passed');
+
+    await expect(steps.nth(1)).toContainText('· intake question');
+
+    await expect(steps.nth(9)).toContainText('Review');
+
+    await expect(steps.nth(9)).toContainText('running ·');
+
+    await expect(steps.nth(9)).toHaveAttribute('data-kind', 'now');
+
+    const boxes = await steps.evaluateAll((items) => items.map((item) => item.getBoundingClientRect()));
+
+    boxes.forEach((box) => expect(box.width).toBe(150));
+
+    expect(new Set(boxes.map((box) => Math.round(box.y))).size).toBeGreaterThan(1);
+
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
   test('lays the five columns out left to right in one row with the Done rail to their right', async ({ page }) => {
@@ -306,48 +358,268 @@ test.describe('with a live backend', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 
-  test('opens the drawer from a card, lists its files, renders one and closes with Escape', async ({ page }) => {
-    const card = taskCard(page, 'demo/ship-report');
+  test('opens the task page from a card: the hash, the title, the header, the files, and renders one', async ({ page }) => {
+    await taskCard(page, 'demo/ship-report').click();
 
-    await card.click();
+    await expect(page).toHaveURL(/#\/task\/demo\/ship-report$/);
 
-    const drawer = page.getByTestId('drawer');
+    await expect(page.getByTestId('task-page')).toBeVisible();
 
-    await expect(drawer).toBeVisible();
+    await expect(page.getByTestId('board')).toBeHidden();
 
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
 
-    await expect(page.getByTestId('drawer-headline')).toContainText('demo · ship-report');
+    await expect(page.getByTestId('task-title')).toHaveText('Ship report');
 
-    await expect(page.getByTestId('drawer-headline')).toContainText('6.0k tok');
+    await expect(page.getByTestId('task-title')).toBeFocused();
 
-    await expect(drawer.locator('[data-testid=file-group]')).toHaveText(['Job', 'Round 1', 'Round 2']);
+    await expect(page.getByTestId('task-project')).toHaveText('demo');
 
-    await expect(drawer.locator('.file').first()).toHaveText('intent.md');
+    await expect(page.getByTestId('task-column')).toHaveText('Done');
 
-    await expect(page.getByTestId('drawer-body').locator('h1')).toHaveText('Intent: Ship report');
+    await expect(page.getByTestId('task-risk')).toContainText('medium risk');
 
-    await drawer.locator('.file', { hasText: 'review-code.md' }).first().click();
+    await expect(page.getByTestId('task-time')).toHaveText('2m');
 
-    await expect(page.getByTestId('drawer-verdict')).toHaveText('CHANGES missing a test');
+    await expect(page.getByTestId('task-tokens')).toHaveText('6.0k tokens');
 
-    await drawer.locator('.file', { hasText: 'change.diff' }).first().click();
+    await expect(page.getByTestId('task-mr')).toHaveAttribute('href', 'https://example.com/demo/merge_requests/1');
 
-    await expect(page.getByTestId('drawer-plain')).toContainText('diff --git');
+    await expect(page.getByTestId('file-group')).toHaveText(['Job', 'Review']);
 
-    await page.keyboard.press('Escape');
+    await expect(page.locator('.file').first().getByTestId('file-label')).toHaveText('intent.md');
 
-    await expect(drawer).toBeHidden();
+    await expect(page.locator('.file').first()).toHaveAttribute('aria-current', 'true');
 
-    await expect(card).toBeFocused();
+    await expect(page.getByTestId('task-body').locator('h1')).toHaveText('Intent: Ship report');
   });
 
-  test('opens the drawer from a pipeline card with the keyboard', async ({ page }) => {
+  test('opens the task page from a Needs human row and from the Done rail', async ({ page }) => {
+    await page.locator('[data-row="demo/pick-database"]').getByTestId('row-title').click();
+
+    await expect(page).toHaveURL(/#\/task\/demo\/pick-database$/);
+
+    await expect(page.getByTestId('task-page')).toBeVisible();
+
+    await page.getByTestId('task-back').click();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+
+    await expect(page.locator('[data-row="demo/pick-database"]').getByTestId('row-title')).toBeFocused();
+
+    await page.getByTestId('done-title').click();
+
+    await expect(page).toHaveURL(/#\/task\/demo\/ship-report$/);
+
+    await page.goBack();
+
+    await expect(page.getByTestId('done-title')).toBeFocused();
+  });
+
+  test('opens the task page from a card with the keyboard', async ({ page }) => {
     await taskCard(page, 'demo/fix-export').focus();
 
     await page.keyboard.press('Enter');
 
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByTestId('task-page')).toBeVisible();
+  });
+
+  test('returns to the board with the Back button and with "← Board", restoring the scroll position and the focus', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 500 });
+
+    const card = taskCard(page, 'demo/fix-export');
+
+    await card.scrollIntoViewIfNeeded();
+
+    await page.evaluate(() => window.scrollBy(0, 120));
+
+    const scrolled = await page.evaluate(() => window.scrollY);
+
+    expect(scrolled).toBeGreaterThan(0);
+
+    await card.click();
+
+    await expect(page.getByTestId('task-page')).toBeVisible();
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+    await page.goBack();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+
+    await expect(card).toBeFocused();
+
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+
+    await page.goForward();
+
+    await expect(page.getByTestId('task-page')).toBeVisible();
+
+    await page.getByTestId('task-back').click();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+
+    await expect(page).not.toHaveURL(/#/);
+
+    await expect(card).toBeFocused();
+  });
+
+  test('opens a task and a file from a link, and leaves for the board from there', async ({ page }) => {
+    await page.goto(`${liveUrl}/#/task/demo/ship-report/review%2Fround-1%2Freview-code.md`);
+
+    await expect(page.getByTestId('task-page')).toBeVisible();
+
+    await expect(page.getByTestId('task-verdict')).toHaveText('CHANGES missing a test');
+
+    await expect(page.getByTestId('task-title')).toHaveText('Ship report');
+
+    await expect(page.getByTestId('round-toggle').nth(0)).toHaveAttribute('aria-expanded', 'true');
+
+    await expect(page.getByTestId('round-toggle').nth(1)).toHaveAttribute('aria-expanded', 'true');
+
+    await page.getByTestId('task-back').click();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+
+    await expect(page).not.toHaveURL(/#/);
+  });
+
+  test('says so, with a link back, for a task that is not on the board', async ({ page }) => {
+    await page.goto(`${liveUrl}/#/task/demo/nope`);
+
+    await expect(page.getByText('This task is not on the board')).toBeVisible();
+
+    await expect(page.getByTestId('task-history')).toBeHidden();
+
+    await page.getByTestId('task-missing-back').click();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+  });
+
+  test('puts the selected file in the address, and keeps one history entry for the task', async ({ page }) => {
+    await taskCard(page, 'demo/ship-report').click();
+
+    await page.getByTestId('round-toggle').first().click();
+
+    await page.locator('.file', { hasText: 'change.diff' }).first().click();
+
+    await expect(page.getByTestId('task-plain')).toContainText('diff --git');
+
+    await expect(page).toHaveURL(/#\/task\/demo\/ship-report\/review%2Fround-1%2Fchange\.diff$/);
+
+    await page.goBack();
+
+    await expect(page.getByTestId('board')).toBeVisible();
+  });
+
+  test('collapses and expands the review rounds, several at once, and keeps them while the board refreshes', async ({ page }) => {
+    await taskCard(page, 'demo/ship-report').click();
+
+    const toggles = page.getByTestId('round-toggle');
+
+    await expect(toggles).toHaveCount(2);
+
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'false');
+
+    await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'true');
+
+    await expect(toggles.nth(0).getByTestId('file-tag')).toHaveText('CHANGES');
+
+    await expect(toggles.nth(1).getByTestId('file-tag')).toHaveText('PASS');
+
+    await expect(page.locator('.file', { hasText: 'review-code.md' })).toHaveCount(1);
+
+    await toggles.nth(0).click();
+
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
+
+    await expect(page.locator('.file', { hasText: 'review-code.md' })).toHaveCount(2);
+
+    await page.waitForResponse((response) => response.url().endsWith('/api/board'), { timeout: 15_000 });
+
+    await page.waitForResponse((response) => response.url().includes('/api/tasks/demo/ship-report') && !response.url().includes('/file'), { timeout: 15_000 });
+
+    await expect(toggles.nth(0)).toHaveAttribute('aria-expanded', 'true');
+
+    await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'true');
+
+    await toggles.nth(1).click();
+
+    await expect(toggles.nth(1)).toHaveAttribute('aria-expanded', 'false');
+
+    await expect(page.locator('.file', { hasText: 'review-code.md' })).toHaveCount(1);
+  });
+
+  test('turns the icon of the running round, and not under reduced motion', async ({ page }) => {
+    await changeBoard(page, (board) => {
+      Object.assign(findTask(board, 'ship-report'), { column: 'Review', stage: 'needs-review' });
+    });
+
+    await page.route('**/api/tasks/demo/ship-report', async (route) => {
+      const detail = await (await route.fetch()).json();
+
+      detail.column = 'Review';
+
+      detail.rounds[1].reviews = { code: 'pending', docs: 'pending' };
+
+      await route.fulfill({ json: detail });
+    });
+
+    await page.reload();
+
+    await taskCard(page, 'demo/ship-report').click();
+
+    const spinner = page.getByTestId('round-toggle').nth(1).locator('[data-spinning=true]');
+
+    await expect(page.getByTestId('round-toggle').nth(1).getByTestId('file-tag')).toHaveText('running');
+
+    await expect(spinner).toHaveText('progress_activity');
+
+    await expect(spinner).toHaveCSS('animation-name', 'spin');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+
+    await expect(spinner).toHaveCSS('animation-name', 'none');
+  });
+
+  test('puts the files in a block above the content on a phone, without sideways scrolling, in light and dark', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+
+      await taskCard(page, 'demo/ship-report').click();
+
+      const files = (await page.getByRole('navigation', { name: 'Task files' }).boundingBox())!;
+
+      const content = (await page.getByTestId('task-content').boundingBox())!;
+
+      expect(content.y).toBeGreaterThanOrEqual(files.y + files.height);
+
+      expect(files.width).toBeGreaterThan(300);
+
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+      const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+      expect(background).toBe(colorScheme === 'light' ? 'rgb(243, 244, 247)' : 'rgb(20, 21, 27)');
+
+      await page.getByTestId('task-back').click();
+    }
+  });
+
+  test('puts the files left of the content on a wide screen', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    await taskCard(page, 'demo/ship-report').click();
+
+    const files = (await page.getByRole('navigation', { name: 'Task files' }).boundingBox())!;
+
+    const content = (await page.getByTestId('task-content').boundingBox())!;
+
+    expect(content.x).toBeGreaterThanOrEqual(files.x + files.width);
+
+    expect(content.y).toBeCloseTo(files.y, -1);
   });
 });
 

@@ -286,7 +286,7 @@
                     <template x-if="row.kind === 'round'">
                       <button type="button" class="round-toggle flex min-h-[34px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-[13px] text-ink hover:bg-hover narrow:min-h-11" data-testid="round-toggle" :aria-expanded="row.expanded" :data-round="row.round" @click="taskPage.toggleRound(row.round)">
                         <span class="icon -mx-1 text-[18px] text-faint" aria-hidden="true" x-text="row.expanded ? 'expand_more' : 'chevron_right'"></span>
-                        <span class="icon text-[17px] text-faint data-[spinning=true]:animate-spin data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes motion-reduce:animate-none" aria-hidden="true" :data-tone="row.tone" :data-spinning="row.spinning" x-text="row.icon"></span>
+                        <span class="icon text-[17px] text-faint motion-safe:data-[spinning=true]:animate-spin data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes" aria-hidden="true" :data-tone="row.tone" :data-spinning="row.spinning" x-text="row.icon"></span>
                         <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" data-testid="file-label" x-text="row.label"></span><span class="sr-only" x-text="row.toneLabel ? ': ' + row.toneLabel : ''"></span>
                         <span class="ml-auto font-mono text-[10px] font-semibold text-faint data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes" data-testid="file-tag" :data-tone="row.tone" x-text="row.tag"></span>
                       </button>

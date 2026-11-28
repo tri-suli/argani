@@ -286,7 +286,7 @@ describe('round overview: addresses that name a round', () => {
     expect(text('[data-testid=round-title]')).toBe('Round 1');
   });
 
-  it('waits for the task before it can show a round of it', async () => {
+  it('applies a round named while the task is still loading once the task has arrived, and keeps the address', async () => {
     taskClient.holdDetail();
 
     await mount('#/task/demo/fix-export');
@@ -297,9 +297,45 @@ describe('round overview: addresses that name a round', () => {
 
     taskClient.openDetail();
 
-    await eventually(() => expect(text('[data-testid=task-body]')).toContain('Hello'));
+    await eventually(() => expect(text('[data-testid=round-title]')).toBe('Round 1'));
+
+    await eventually(() => expect(cards()).toHaveLength(2));
+
+    expect(isShown('[data-testid=round-overview]')).toBe(true);
+
+    expect(navigation.hash()).toBe('#/task/demo/fix-export/round/1');
+  });
+
+  it('applies a file named while the task is still loading the same way', async () => {
+    taskClient.holdDetail();
+
+    await mount('#/task/demo/fix-export/round/1');
+
+    navigation.edit('#/task/demo/fix-export/spec.md');
+
+    await flush();
+
+    taskClient.openDetail();
+
+    await eventually(() => expect(text('[data-testid=reader-file]')).toBe('spec.md'));
 
     expect(isShown('[data-testid=round-overview]')).toBe(false);
+
+    expect(navigation.hash()).toBe('#/task/demo/fix-export/spec.md');
+  });
+
+  it('leaves the selection alone when the address names only the task while it is loading', async () => {
+    taskClient.holdDetail();
+
+    await mount('#/task/demo/fix-export/round/1');
+
+    navigation.edit('#/task/demo/fix-export');
+
+    await flush();
+
+    taskClient.openDetail();
+
+    await eventually(() => expect(text('[data-testid=round-title]')).toBe('Round 1'));
   });
 
   it('lists a round the dropdown opens, though the list had it closed', async () => {

@@ -83,15 +83,23 @@ describe('history steps', () => {
     ]);
   });
 
-  it('shows a Review visit without a matching round, or without any summary, as plain Review without outcome', () => {
-    const task = taskThrough([['Review', 0], ['Build', 5], ['Review', 8], ['Approve', 9]]);
+  it('gives no Review step an outcome when the visits to Review outnumber the rounds (an interrupted review keeps its round)', () => {
+    const task = taskThrough([['Review', 0], ['Needs human', 5, 'stuck'], ['Review', 8], ['Approve', 12]]);
 
     const steps = historySteps.derive(task, summaryWith([round(1, { code: 'CHANGES' })]), now);
 
     expect(steps.filter((step) => step.name.startsWith('Review')).map((step) => [step.name, step.kind, step.note])).toEqual([
-      ['Review R1', 'changes', '5m · changes asked'],
-      ['Review', 'agent', '1m'],
+      ['Review', 'agent', '5m'],
+      ['Review', 'agent', '4m'],
     ]);
+  });
+
+  it('gives no Review step an outcome when there are more rounds than visits, or no summary at all', () => {
+    const task = taskThrough([['Review', 0], ['Approve', 5]]);
+
+    const rounds = summaryWith([round(1, { code: 'CHANGES' }), round(2, { code: 'PASS' })]);
+
+    expect(historySteps.derive(task, rounds, now)[0]).toMatchObject({ name: 'Review', kind: 'agent', note: '5m' });
 
     expect(historySteps.derive(task, null, now)[0]).toMatchObject({ name: 'Review', kind: 'agent', note: '5m' });
   });

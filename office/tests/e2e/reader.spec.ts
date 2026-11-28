@@ -117,11 +117,12 @@ test.describe('document reader', () => {
 
     await expect(page.locator('#doc-out-of-scope')).toBeFocused();
 
+    // the click scrolls smoothly: scrolling back before it arrived would be undone by the rest of that scroll
+    await expect.poll(() => page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2)).toBe(true);
+
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 
     await expect(entries.first()).toHaveAttribute('aria-current', 'location');
-
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 
     await page.keyboard.press('End');
 

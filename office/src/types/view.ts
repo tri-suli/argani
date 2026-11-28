@@ -59,6 +59,7 @@ interface NeedsHumanRow {
   /** "14m"; empty when the task has no history to measure from. */
   waiting: string;
   question: string | null;
+  agents: AgentView[];
   /** "2× you" once the task has waited for the human before; empty otherwise. */
   visits: string;
   command: string;

@@ -93,6 +93,18 @@ describe('board view', () => {
 
   const entry = (ts: string, column: string, reason: string | null = null) => ({ ts, stage: 'whatever', column, reason });
 
+  it('shows the agents running on a task in Needs human on its row', () => {
+    const asked = sampleTask({ project: 'p', slug: 'asked', column: 'Needs human' });
+
+    const other = sampleTask({ project: 'p', slug: 'other', column: 'Needs human' });
+
+    const agents = [{ ...sampleAgent, project: 'p', slug: 'asked', ts: '2026-11-24T09:58:05Z' }];
+
+    const rows = boardView.needsHumanRows(sampleSnapshot({ projects: [{ name: 'p', tasks: [asked, other] }], agents }), null, now);
+
+    expect(rows.map((row) => row.agents)).toEqual([[{ id: 'toolu_1', name: 'builder', elapsed: '2m 05s' }], []]);
+  });
+
   it('measures the wait from the first entry of the run in Needs human, not from the last entry', () => {
     const task = sampleTask({
       project: 'p',

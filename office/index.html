@@ -123,6 +123,11 @@
                     <button type="button" class="cursor-pointer text-left font-semibold text-ink hover:underline" data-testid="row-title" :data-task="row.key" aria-haspopup="dialog" @click="drawer.open(row.task)" x-text="row.task.title"></button>
                   </h3>
                   <p class="max-w-[760px] text-[14px] text-human-body" data-testid="row-question" x-show="row.question !== null" x-text="row.question"></p>
+                  <template x-for="agent in row.agents" :key="agent.id">
+                    <p class="mt-2 flex w-fit items-center gap-[7px] rounded-[7px] bg-active-tint px-2 py-1.5 font-mono text-[11px] text-active-ink" data-testid="row-working">
+                      <span class="size-[7px] flex-none animate-agent rounded-full bg-active motion-reduce:animate-none" aria-hidden="true"></span><span class="sr-only">Agent working: </span><span x-text="agent.name + ' · ' + agent.elapsed"></span>
+                    </p>
+                  </template>
                 </div>
                 <div class="flex min-w-0 flex-[1_1_380px] items-stretch overflow-hidden rounded-[10px] border border-human-line bg-card">
                   <code class="min-w-0 flex-1 px-3.5 py-3 font-mono text-[12px] [overflow-wrap:anywhere]" data-testid="row-command" x-text="row.command"></code>

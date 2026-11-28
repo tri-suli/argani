@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import type { PollHandlers, Poller } from '@/types/poller';
 import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
-import { FakeTaskClient, sampleSnapshot, sampleTasks } from '../sample-snapshot';
+import { FakeTaskClient, sampleAgent, sampleSnapshot, sampleTasks } from '../sample-snapshot';
 import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
 import eventually from './eventually';
@@ -160,6 +160,16 @@ describe('dashboard board', () => {
     expect(showing(blocked.querySelector('[data-testid=row-waiting]'))).toBe(false);
 
     expect(showing(blocked.querySelector('[data-testid=row-visits]'))).toBe(false);
+  });
+
+  it('shows the agent working on a task in Needs human on its row', async () => {
+    const agent = { ...sampleAgent, project: 'demo', slug: 'stuck' };
+
+    await deliver(sampleSnapshot({ agents: [agent] }));
+
+    await eventually(() => expect(all('[data-row="demo/stuck"] [data-testid=row-working]')).toEqual(['Agent working: builder · 10s']));
+
+    expect(document.querySelectorAll('[data-row="other/blocked"] [data-testid=row-working]')).toHaveLength(0);
   });
 
   it('removes the Needs human panel when no task waits for you', async () => {

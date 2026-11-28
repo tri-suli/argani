@@ -234,7 +234,7 @@
             <button type="button" class="inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-lg border border-line-strong bg-card px-2.5 font-sans text-[13px] font-medium text-ink hover:bg-hover narrow:min-h-11" data-testid="task-back" @click="leaveTask()"><span class="icon text-[16px]" aria-hidden="true">arrow_back</span>Board</button>
             <span>Argani Office</span><span aria-hidden="true">/</span><span data-testid="task-project" x-text="taskPage.project"></span><span aria-hidden="true">/</span><span class="[overflow-wrap:anywhere]" data-testid="task-slug" x-text="taskPage.slug"></span>
           </p>
-          <h1 class="max-w-[900px] text-[24px] leading-[1.25] font-bold tracking-[-0.015em] [overflow-wrap:anywhere] narrow:text-[20px]" tabindex="-1" x-ref="taskTitle" data-testid="task-title" x-text="taskTitle"></h1>
+          <h1 class="max-w-[900px] outline-none text-[24px] leading-[1.25] font-bold tracking-[-0.015em] [overflow-wrap:anywhere] narrow:text-[20px]" tabindex="-1" x-ref="taskTitle" data-testid="task-title" x-text="taskTitle"></h1>
           <template x-if="taskHeader !== null &amp;&amp; !taskMissing">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[12px] text-muted" data-testid="task-header">
               <span class="inline-flex items-center gap-[5px] rounded-full bg-ink px-2.5 py-1 font-medium text-bg"><span class="icon text-[15px]" aria-hidden="true">view_column</span><span data-testid="task-column" x-text="taskHeader.column"></span><span data-testid="task-round" x-show="taskHeader.round !== ''" x-text="'· ' + taskHeader.round"></span></span>
@@ -260,7 +260,7 @@
             <p class="text-[13px] text-muted">Every stage this task has been through, oldest first, and how long it stayed there.</p>
             <ul class="ml-auto flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-muted narrow:ml-0" aria-label="Colour legend">
               <template x-for="entry in legend" :key="entry.kind">
-                <li><span class="mr-[5px] inline-block size-2.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-changes data-[kind=human]:bg-human data-[kind=now]:bg-active data-[kind=pass]:bg-pass" :data-kind="entry.kind" aria-hidden="true"></span><span x-text="entry.label"></span></li>
+                <li><span class="mr-[5px] inline-block size-2.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-step-changes data-[kind=human]:bg-step-human data-[kind=now]:bg-active data-[kind=pass]:bg-step-pass" :data-kind="entry.kind" aria-hidden="true"></span><span x-text="entry.label"></span></li>
               </template>
             </ul>
           </div>
@@ -268,7 +268,7 @@
           <ol class="flex flex-wrap gap-x-1.5 gap-y-3.5" x-show="taskHistory.length > 0">
             <template x-for="step in taskHistory" :key="step.number">
               <li class="flex w-[150px] flex-none flex-col gap-1.5" data-testid="history-step" :data-kind="step.kind">
-                <span class="h-1.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-changes data-[kind=human]:bg-human data-[kind=now]:bg-active data-[kind=pass]:bg-pass" :data-kind="step.kind" aria-hidden="true"></span>
+                <span class="h-1.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-step-changes data-[kind=human]:bg-step-human data-[kind=now]:bg-active data-[kind=pass]:bg-step-pass" :data-kind="step.kind" aria-hidden="true"></span>
                 <span class="text-[13px] font-semibold text-ink [overflow-wrap:anywhere] data-[kind=changes]:text-changes-ink data-[kind=human]:text-human-strong data-[kind=now]:text-active-ink data-[kind=pass]:text-pass-ink" :data-kind="step.kind"><span class="mr-0.5 font-mono font-normal text-faint" x-text="step.number"></span> <span data-testid="history-name" x-text="step.name"></span></span>
                 <span class="font-mono text-[12px] text-muted" data-testid="history-note" x-text="step.note"></span>
               </li>

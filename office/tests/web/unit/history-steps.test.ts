@@ -128,7 +128,7 @@ describe('history steps', () => {
 
     const cancelled = taskThrough([['Intake', 0], ['Done', 5]], 60, { column: 'Done', stage: 'cancelled', merged: false });
 
-    expect(historySteps.derive(cancelled, null, now).at(-1)).toEqual({ number: '2', name: 'Done', kind: 'agent', note: 'cancelled' });
+    expect(historySteps.derive(cancelled, null, now).at(-1)).toEqual({ number: '2', name: 'Done', kind: 'cancelled', note: 'cancelled' });
   });
 
   it('keeps an unknown column under its own name as an agent step', () => {

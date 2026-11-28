@@ -1,7 +1,7 @@
 import { formatDuration, formatElapsed } from '@/board/format';
 import roundOutcome from '@/board/review-outcome';
 import { NO_COUNT, REASON_WORD_SEPARATOR } from '@/constants/dashboard';
-import { NOTE_SEPARATOR, OUTCOME_CHANGES_NOTE, OUTCOME_PASS_NOTE, REVIEW_ROUND_PREFIX, RUNNING_NOTE, STEP_AGENT, STEP_CHANGES, STEP_HUMAN, STEP_NOW, STEP_PASS } from '@/constants/history';
+import { NOTE_SEPARATOR, OUTCOME_CHANGES_NOTE, OUTCOME_PASS_NOTE, REVIEW_ROUND_PREFIX, RUNNING_NOTE, STEP_AGENT, STEP_CANCELLED, STEP_CHANGES, STEP_HUMAN, STEP_NOW, STEP_PASS } from '@/constants/history';
 import { COLUMN_REVIEW, DONE, NEEDS_HUMAN, OUTCOME_CANCELLED, OUTCOME_MERGED, STAGE_CANCELLED } from '@/constants/pipeline';
 import { REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS } from '@/constants/review';
 import type { BoardTask } from '@/types/board';
@@ -82,7 +82,7 @@ class HistorySteps {
     if (run.column === DONE) {
       const merged = task.stage !== STAGE_CANCELLED;
 
-      return { name: run.column, kind: merged ? STEP_PASS : STEP_AGENT, note: merged ? OUTCOME_MERGED : OUTCOME_CANCELLED };
+      return { name: run.column, kind: merged ? STEP_PASS : STEP_CANCELLED, note: merged ? OUTCOME_MERGED : OUTCOME_CANCELLED };
     }
 
     return { name: run.column, kind: STEP_AGENT, note: formatDuration(run.milliseconds) };

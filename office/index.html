@@ -100,6 +100,8 @@
         </template>
       </section>
 
+      <!-- a static wrapper: the drawer makes the page inert by its direct children, and x-if inserts later -->
+      <div class="contents" data-testid="needs-human-slot">
       <template x-if="needsHumanRows.length > 0">
         <section class="rounded-2xl border border-human-line bg-human-tint px-5 pt-4 pb-[18px] narrow:px-4" data-testid="needs-human" aria-label="Needs human">
           <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2 pb-3.5">
@@ -131,6 +133,7 @@
           </ul>
         </section>
       </template>
+      </div>
 
       <div class="flex flex-wrap items-start gap-5">
         <main class="min-w-0 flex-[999_1_720px] overflow-x-auto" aria-label="Pipeline">

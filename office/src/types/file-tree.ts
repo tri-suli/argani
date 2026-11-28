@@ -3,7 +3,8 @@ type RowTone = 'good' | 'warn' | 'stop' | 'none' | 'now';
 
 interface FileRow {
   key: string;
-  kind: 'file' | 'round';
+  /** A review round (a button that opens and closes its files) rather than a file. */
+  isRound: boolean;
   label: string;
   /** Icon-font ligature. */
   icon: string;

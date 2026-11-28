@@ -133,4 +133,7 @@ const DIFF_DOCUMENT = [
   ' COPY --from=composer:2.11 /usr/bin/composer /usr/bin/composer',
 ].join('\n');
 
-export { SPEC_DOCUMENT, INTENT_DOCUMENT, REVIEW_DOCUMENT, DECISION_DOCUMENT, DIFF_DOCUMENT };
+// a real description.md: one line that starts with a label and a colon, no title, no meta
+const DESCRIPTION_DOCUMENT = 'DOCKER STABLE STACK: setup Docker dengan tiga layanan saja, yaitu app (PHP-FPM dan Composer), web (Nginx), dan db (PostgreSQL). Jangan install Laravel dulu. Utamakan versi stable meskipun bukan versi terbaru: pakai PHP 8.5, Nginx 1.30 stable, PostgreSQL 18 dan Composer 2.11, semuanya dengan tag yang menamai release line sehingga patch update datang saat rebuild.\n';
+
+export { DESCRIPTION_DOCUMENT, SPEC_DOCUMENT, INTENT_DOCUMENT, REVIEW_DOCUMENT, DECISION_DOCUMENT, DIFF_DOCUMENT };

@@ -131,7 +131,7 @@
                 </div>
                 <div class="flex min-w-0 flex-[1_1_380px] items-stretch overflow-hidden rounded-[10px] border border-human-line bg-card">
                   <code class="min-w-0 flex-1 px-3.5 py-3 font-mono text-[12px] [overflow-wrap:anywhere]" data-testid="row-command" x-text="row.command"></code>
-                  <button type="button" class="min-h-11 min-w-16 cursor-pointer border-l border-human-line bg-human px-3 text-[13px] font-semibold whitespace-nowrap text-on-human" data-testid="row-copy" :aria-label="copier.label(row.key) + ': answer command for ' + row.task.title" @click="copier.copy(row.key, row.command)" x-text="copier.label(row.key)"></button>
+                  <button type="button" class="min-h-11 min-w-16 cursor-pointer border-l border-human-line bg-human px-3 text-[13px] font-semibold whitespace-nowrap text-on-human" data-testid="row-copy" :aria-label="'Copy answer command for ' + row.task.title" @click="copier.copy(row.key, row.command)" x-text="copier.label(row.key)"></button>
                   <span class="sr-only" role="status" x-text="copier.key === row.key ? copier.label(row.key) : ''"></span>
                 </div>
               </li>

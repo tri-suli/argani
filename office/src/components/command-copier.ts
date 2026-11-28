@@ -5,18 +5,29 @@ import type { ClipboardWriter, CommandCopier } from '@/types/components';
 function createCommandCopier(clipboard: ClipboardWriter): CommandCopier {
   let resetTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let latestAttempt = 0;
+
   return {
     key: null,
     failed: false,
 
     async copy(key, command) {
+      const attempt = ++latestAttempt;
+
+      let failed = false;
+
       try {
         await clipboard.writeText(command);
-
-        this.failed = false;
       } catch {
-        this.failed = true;
+        failed = true;
       }
+
+      // a later click owns the feedback, whichever write finishes last
+      if (attempt !== latestAttempt) {
+        return;
+      }
+
+      this.failed = failed;
 
       this.key = key;
 
@@ -27,10 +38,6 @@ function createCommandCopier(clipboard: ClipboardWriter): CommandCopier {
       resetTimer = setTimeout(() => {
         this.key = null;
       }, COPY_FEEDBACK_MILLISECONDS);
-    },
-
-    isCopied(key) {
-      return this.key === key && !this.failed;
     },
 
     label(key) {

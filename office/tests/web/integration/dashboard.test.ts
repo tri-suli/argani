@@ -215,6 +215,10 @@ describe('dashboard board', () => {
 
     await eventually(() => expect(text(copy)).toBe('Copied'));
 
+    expect(document.querySelector(copy)?.getAttribute('aria-label')).toBe('Copy answer command for Stuck task');
+
+    expect(text('[data-row="demo/stuck"] [role=status]')).toBe('Copied');
+
     expect(clipboard.writeText).toHaveBeenCalledWith('/argani:factory answer stuck <answer>');
 
     expect(text('[data-row="other/blocked"] [data-testid=row-copy]')).toBe('Copy');

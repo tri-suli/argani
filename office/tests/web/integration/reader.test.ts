@@ -245,6 +245,26 @@ describe('document reader', () => {
     expect(written[1]).toBe('second block');
   });
 
+  it('does not move the Copied feedback to another block when a poll changes the document', async () => {
+    await mountedSpec();
+
+    const [first] = all('[data-testid=code-copy]');
+
+    first.click();
+
+    await eventually(() => expect(first.textContent).toBe('Copied'));
+
+    taskClient.texts['spec.md'] = SPEC.replace('## Approach', '## Approach\n\n```sh\necho inserted\n```');
+
+    taskClient.detail = sampleDetail({ files, updatedAt: '2026-11-24T11:00:00Z' });
+
+    pollAgain();
+
+    await eventually(() => expect(all('[data-testid=code-copy]')).toHaveLength(3));
+
+    expect(all('[data-testid=code-copy]').map((button) => button.textContent)).toEqual(['Copy', 'Copy', 'Copy']);
+  });
+
   it('scrolls to a section from the outline, highlights it and leaves the route alone', async () => {
     await mountedSpec();
 

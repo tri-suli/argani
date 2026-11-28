@@ -811,6 +811,52 @@ describe('round overview: the Round dropdown', () => {
   });
 });
 
+describe('round overview: a file that was read while it was being written', () => {
+  const halfWritten = (state: 'pending' | 'PASS') => detailWithRounds({ rounds: [{ n: 1, reviews: { code: 'CHANGES', security: state } }] });
+
+  it('reads the file again when the seat state changed, though the task changed within the same second', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.detail = halfWritten('pending');
+
+      client.texts['review/round-1/review-security.md'] = 'PASS half';
+    });
+
+    await eventually(() => expect(cards()[1].querySelector('[data-testid=reviewer-headline]')?.textContent).toBe('Has not reported yet.'));
+
+    taskClient.texts['review/round-1/review-security.md'] = `PASS all done\n- [Nit] z:1 - What: w. Why: y. Fix: f.\n${CLOSING}\n`;
+
+    taskClient.detail = halfWritten('PASS');
+
+    pollAgain();
+
+    await eventually(() => expect(cards()[1].querySelector('[data-testid=reviewer-headline]')?.textContent).toBe('all done'));
+
+    expect(cards()[1].querySelector('[data-testid=reviewer-counts]')?.textContent).toContain('0 important · 1 nit');
+  });
+
+  it('does not keep a file without its closing line, so the next poll reads it again', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.detail = halfWritten('pending');
+
+      client.texts['review/round-1/review-security.md'] = 'PASS half';
+    });
+
+    await eventually(() => expect(cards()).toHaveLength(2));
+
+    const reads = () => taskClient.fileCalls.filter((path) => path === 'review/round-1/review-security.md').length;
+
+    const before = reads();
+
+    pollAgain();
+
+    await eventually(() => expect(reads()).toBe(before + 1));
+
+    pollAgain();
+
+    await eventually(() => expect(reads()).toBe(before + 2));
+  });
+});
+
 describe('round overview: data', () => {
   it('fetches the review files of the round once, in parallel, and again only when one changed', async () => {
     taskClient.fileCalls.length = 0;

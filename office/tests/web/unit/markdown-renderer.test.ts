@@ -164,7 +164,7 @@ describe('renderDocument', () => {
       { id: 'doc-summary', label: 'Summary', level: 1, count: null },
       { id: 'doc-approach', label: 'Approach', level: 1, count: null },
       { id: 'doc-commit-order', label: 'Commit order', level: 2, count: null },
-      { id: 'doc-acceptance-criteria', label: 'Acceptance criteria', level: 1, count: 4 },
+      { id: 'doc-acceptance-criteria', label: 'Acceptance criteria', level: 1, count: 2 },
       { id: 'doc-out-of-scope', label: 'Out of scope', level: 1, count: null },
     ]);
 
@@ -186,8 +186,8 @@ describe('renderDocument', () => {
   it('turns the criteria of the Acceptance criteria section into cards, and keeps the others as list items', () => {
     const cards = blocksOf(document, 'criteria') as { criteria: unknown[] }[];
 
-    expect(cards.map((block) => block.criteria)).toEqual([[{ id: 'AC-1', claimHtml: 'The stack starts', verifyHtml: '<code>docker compose ps</code>', manual: false }], [
-      { id: 'AC-3', claimHtml: 'The page renders', verifyHtml: 'open it in a browser', manual: true }]]);
+    expect(cards.map((block) => block.criteria)).toEqual([[{ id: 'AC-1', claimHtml: 'The stack starts', verifyHtml: '<code>docker compose ps</code>', manual: false, checked: false }], [
+      { id: 'AC-3', claimHtml: 'The page renders', verifyHtml: 'open it in a browser', manual: true, checked: false }]]);
 
     const lists = htmlOf(document).filter((html) => html.includes('<ol'));
 
@@ -210,12 +210,12 @@ describe('renderDocument', () => {
     expect(other.outline.map((entry) => entry.count)).toEqual([null, null]);
   });
 
-  it('counts the items of every list in the criteria section, subsections included', () => {
-    const counted = renderer.renderDocument('## Acceptance criteria\n\n- plain\n\n### More\n\n1. [ ] a — verify: b\n\n## Next', null);
+  it('counts the criteria cards of the section, not its other list items, subsections included', () => {
+    const counted = renderer.renderDocument('## Acceptance criteria\n\n- plain\n\n### More\n\n1. [ ] a — verify: b\n2. [x] c — verify: d\n3. nothing\n\n## Next', null);
 
     expect(counted.outline[0].count).toBe(2);
 
-    expect(blocksOf(counted, 'criteria')).toHaveLength(1);
+    expect(blocksOf(counted, 'criteria')).toMatchObject([{ criteria: [{ checked: false }, { checked: true }] }]);
 
     expect(htmlOf(counted).join('')).toContain('<ul>');
   });

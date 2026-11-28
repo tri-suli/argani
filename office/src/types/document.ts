@@ -38,6 +38,8 @@ interface ParsedCriterion {
   verify: string;
   /** The verification is `manual: <step>`: only a human can check it. */
   manual: boolean;
+  /** The box is ticked: `[x]`. */
+  checked: boolean;
 }
 
 interface CriterionView {
@@ -45,6 +47,7 @@ interface CriterionView {
   claimHtml: string;
   verifyHtml: string;
   manual: boolean;
+  checked: boolean;
 }
 
 interface HtmlBlock {

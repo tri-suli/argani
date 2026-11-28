@@ -37,7 +37,9 @@ const SUMMARY_TITLE = 'Summary';
 const ACCEPTANCE_CRITERIA_TITLE = 'Acceptance criteria';
 
 // plugins/argani/scripts/artifact_check.py AC_ITEM_PATTERN: `n. [ ] <claim> — verify: <how>`
-const CRITERION_PATTERN = /^(\d+)\. \[[ xX]\] (.+) — verify: (\S.*)$/;
+const CRITERION_PATTERN = /^(\d+)\. \[([ xX])\] (.+) — verify: (\S.*)$/;
+
+const CHECKED_BOX = 'x';
 
 // artifact_check.py MANUAL_PREFIX: `verify: manual: <step>` marks a criterion only a human can check
 const MANUAL_PREFIX_PATTERN = /^`?manual:\s*/i;
@@ -140,6 +142,7 @@ export {
   SUMMARY_TITLE,
   ACCEPTANCE_CRITERIA_TITLE,
   CRITERION_PATTERN,
+  CHECKED_BOX,
   MANUAL_PREFIX_PATTERN,
   CRITERION_ID_PREFIX,
   COMMENT_PATTERN,

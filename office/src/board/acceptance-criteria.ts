@@ -1,4 +1,4 @@
-import { CRITERION_PATTERN, MANUAL_PREFIX_PATTERN } from '@/constants/document';
+import { CHECKED_BOX, CRITERION_PATTERN, MANUAL_PREFIX_PATTERN } from '@/constants/document';
 import type { ParsedCriterion } from '@/types/document';
 
 /** Reads one acceptance criterion in the format plugins/argani/scripts/artifact_check.py enforces; anything else is null. */
@@ -10,13 +10,14 @@ class AcceptanceCriteria {
       return null;
     }
 
-    const verify = match[3].trim();
+    const verify = match[4].trim();
 
     const manual = MANUAL_PREFIX_PATTERN.test(verify);
 
     return {
       number: Number(match[1]),
-      claim: match[2].trim(),
+      claim: match[3].trim(),
+      checked: match[2].toLowerCase() === CHECKED_BOX,
       verify: manual ? this.stepOf(verify) : verify,
       manual,
     };

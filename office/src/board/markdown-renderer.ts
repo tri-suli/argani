@@ -170,11 +170,11 @@ class MarkdownRenderer {
 
   /** Items in the artifact format become cards; the others stay list items, in place. */
   private addCriteria(assembly: Assembly, list: Tokens.List, entry: OutlineEntry): void {
-    entry.count = (entry.count as number) + list.items.length;
-
     this.flush(assembly);
 
     const views = list.items.map((item) => this.parsedCriterion(item));
+
+    entry.count = (entry.count as number) + views.filter((view) => view !== null).length;
 
     for (let start = 0; start < views.length;) {
       let end = start;
@@ -205,6 +205,7 @@ class MarkdownRenderer {
           claimHtml: this.renderInline(parsed.claim),
           verifyHtml: this.renderInline(parsed.verify),
           manual: parsed.manual,
+          checked: parsed.checked,
         };
   }
 

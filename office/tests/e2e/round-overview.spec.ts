@@ -356,6 +356,9 @@ test.describe('review round overview', () => {
 
       await page.getByTestId('round-picker').click();
 
+      // Alpine shows an x-show element a task later, so the menu is not laid out the moment the click returns
+      await expect(page.getByTestId('round-menu')).toBeVisible();
+
       const menu = (await page.getByTestId('round-menu').boundingBox())!;
 
       expect(menu.x).toBeGreaterThanOrEqual(0);
@@ -392,6 +395,8 @@ test.describe('review round overview', () => {
     await expect(page.getByTestId('round-option')).toHaveCount(12);
 
     const list = page.locator('#round-listbox');
+
+    await expect(list).toBeVisible();
 
     expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   });

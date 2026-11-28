@@ -287,6 +287,15 @@ test.describe('with a live backend', () => {
       Object.assign(findTask(board, 'ship-report'), { column: 'Review', stage: 'needs-review', history, durations: minutes.map(([column, length]) => ({ column, milliseconds: length * 60_000 })) });
     });
 
+    // one round per visit to Review: outcomes are only shown when the counts match
+    await page.route('**/api/tasks/demo/ship-report', async (route) => {
+      const detail = await (await route.fetch()).json();
+
+      detail.rounds = [{ n: 1, reviews: { code: 'CHANGES', docs: 'PASS' } }, { n: 2, reviews: { code: 'PASS', docs: 'PASS' } }, { n: 3, reviews: { code: 'pending', docs: 'pending' } }];
+
+      await route.fulfill({ json: detail });
+    });
+
     await page.setViewportSize({ width: 600, height: 900 });
 
     await taskCard(page, 'demo/ship-report').click();

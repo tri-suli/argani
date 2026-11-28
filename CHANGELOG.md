@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Review rounds above 2 need a recorded human answer; the approver writes `Round: N` in `decision.md`.
 - `scripts/check.sh` accepts unreleased plugin changes when `[Unreleased]` has an entry.
 - The office reads the column, question, history and metrics from `board.json`.
+- The office board is redesigned: IBM Plex and Material Symbols bundled for offline use, a searchable project picker, four totals tiles (agents working, longest wait for you, tokens, manual acceptance criteria), a Needs human panel with the question and a copyable `/argani:factory answer` command per task, five numbered pipeline columns with count badges, richer cards (running agent with elapsed time, review chips with state icons) and a Done rail. The footer command list is gone.
 
 ### Fixed
 

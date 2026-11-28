@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ICON_NAMES } from '../../src/constants/icons';
 
 const columnNames = ['Intake', 'Spec', 'Build', 'Review', 'Approve'];
 
@@ -60,6 +61,27 @@ test.describe('with a live backend', () => {
     expect(widths.length).toBeGreaterThan(0);
 
     expect(Math.max(...widths)).toBeLessThan(30);
+  });
+
+  test('draws every icon name of the list as one glyph, so the committed font subset holds them all', async ({ page }) => {
+    await page.evaluate(async (names) => {
+      for (const name of names) {
+        const element = document.createElement('span');
+
+        element.className = 'icon icon-probe';
+
+        element.textContent = name;
+
+        document.body.append(element);
+      }
+
+      await document.fonts.ready;
+    }, ICON_NAMES);
+
+    // every glyph of the font is one em wide (18px here); a name the subset lacks is drawn as a word, wider than that
+    const widths = await page.locator('.icon-probe').evaluateAll((probes) => probes.map((probe) => Math.round(probe.getBoundingClientRect().width)));
+
+    expect(widths).toEqual(ICON_NAMES.map(() => 18));
   });
 
   test('shows the five pipeline columns, numbered, with a count badge and the agent names on the badge', async ({ page }) => {

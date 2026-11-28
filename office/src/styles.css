@@ -156,6 +156,15 @@
   :focus-visible { outline: 2px solid var(--color-active); outline-offset: 2px; }
 }
 
+/* The committed subset of Material Symbols Outlined (static: weight 400, no fill, grade 0, optical size 24), see office/README.md. */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('@/assets/fonts/material-symbols-outlined-subset.woff2') format('woff2');
+}
+
 /* The icon font glyph: a layer below the utilities, so a size class on the element wins. */
 @layer components {
   .icon {

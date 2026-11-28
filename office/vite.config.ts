@@ -22,6 +22,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**'],
+      exclude: ['src/assets/**'],
       reporter: [['text', { skipFull: false }]],
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
     },

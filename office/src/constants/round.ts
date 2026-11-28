@@ -4,6 +4,9 @@ import type { FindingPartKind, FindingSeverity } from '@/types/review-file';
 
 const SUMMARY_SEPARATOR = ' · ';
 
+/** A link inside the text of a finding that points at a fragment: the address hash is the route, so it must not follow it. */
+const FRAGMENT_LINK_SELECTOR = 'a[href^="#"]';
+
 /** The checklist name the human's request is filed under: `review-human.md`. */
 const HUMAN_REVIEWER = 'human';
 
@@ -67,6 +70,7 @@ const EMPTY_FILTER_MESSAGES: Record<Exclude<FindingFilter, 'all'>, string> = { i
 
 export {
   SUMMARY_SEPARATOR,
+  FRAGMENT_LINK_SELECTOR,
   HUMAN_REVIEWER,
   MODEL_INHERIT,
   REVIEW_FILE_NAME,

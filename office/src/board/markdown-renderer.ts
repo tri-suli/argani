@@ -6,29 +6,14 @@ import readingStats from '@/board/reading-time';
 import tokenText from '@/board/token-text';
 import {
   ACCEPTANCE_CRITERIA_TITLE, APPROVED_STATUS_PREFIX, BYTE_ORDER_MARK_PATTERN, CRITERION_ID_PREFIX, HEADING_OPENING_PATTERN, INFO_STRING_SEPARATOR, LINE_BREAK, MAX_HEADING_DEPTH,
-  MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NEWLINE_PATTERN, RAW_HEADING_TAG_PATTERN, TOKEN_CODE, TOKEN_HEADING, TOKEN_HTML, TOKEN_LIST, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
+  MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NO_LIST_START, NEWLINE_PATTERN, RAW_HEADING_TAG_PATTERN, TOKEN_CODE, TOKEN_HEADING, TOKEN_HTML, TOKEN_LIST, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
 } from '@/constants/document';
 import { FILE_TONE_ICONS } from '@/constants/file-tree';
 import { SANITIZE_OPTIONS } from '@/constants/markdown';
-import type { CriterionView, DocumentBlock, DocumentStatus, MetaEntry, OutlineEntry } from '@/types/document';
+import type { Assembly, CriterionView, DocumentStatus, MetaEntry, OutlineEntry } from '@/types/document';
 import type { MarkdownParser, MarkdownSanitizer } from '@/types/markdown';
 import type { FileTone } from '@/types/task';
 import type { RenderedDocument } from '@/types/view';
-
-/** What one document has gathered while its tokens are walked. */
-interface Assembly {
-  ids: HeadingIds;
-  blocks: DocumentBlock[];
-  outline: OutlineEntry[];
-  /** Tokens waiting to become one html block. */
-  pending: Token[];
-  /** The tokens of the Summary section while it is being read; null before and after it. */
-  summary: Token[] | null;
-  summaryHtml: string | null;
-  summaryId: string | null;
-  /** The outline entry of the Acceptance criteria section while it is being read. */
-  criteria: OutlineEntry | null;
-}
 
 /** Artifacts are untrusted text: every rendered string goes through the sanitizer before it reaches x-html. */
 class MarkdownRenderer {
@@ -192,7 +177,7 @@ class MarkdownRenderer {
   private addCode(assembly: Assembly, code: Tokens.Code): void {
     this.flush(assembly);
 
-    assembly.blocks.push({ kind: 'code', key: String(assembly.blocks.length), language: (code.lang ?? '').split(INFO_STRING_SEPARATOR)[0], text: code.text.replace(TRAILING_NEWLINES_PATTERN, '') });
+    assembly.blocks.push({ kind: 'code', isHtml: false, isCode: true, isCriteria: false, key: String(assembly.blocks.length), language: (code.lang ?? '').split(INFO_STRING_SEPARATOR)[0], text: code.text.replace(TRAILING_NEWLINES_PATTERN, '') });
   }
 
   /** Items in the artifact format become cards; the others stay list items, in place. */
@@ -213,7 +198,7 @@ class MarkdownRenderer {
       if (views[start] === null) {
         this.addPlainItems(assembly, list, start, end);
       } else {
-        assembly.blocks.push({ kind: 'criteria', key: String(assembly.blocks.length), criteria: views.slice(start, end) as CriterionView[] });
+        assembly.blocks.push({ kind: 'criteria', isHtml: false, isCode: false, isCriteria: true, key: String(assembly.blocks.length), criteria: views.slice(start, end) as CriterionView[] });
       }
 
       start = end;
@@ -238,7 +223,7 @@ class MarkdownRenderer {
 
   /** A run of items that are not cards, as the list they were in; an ordered list keeps the numbers of its items. */
   private addPlainItems(assembly: Assembly, list: Tokens.List, start: number, end: number): void {
-    const first = list.start === '' ? 1 : list.start;
+    const first = list.start === NO_LIST_START ? 1 : list.start;
 
     assembly.pending.push({ ...list, items: list.items.slice(start, end), start: list.ordered ? first + start : list.start });
 
@@ -251,7 +236,7 @@ class MarkdownRenderer {
     assembly.pending = [];
 
     if (html.trim() !== '') {
-      assembly.blocks.push({ kind: 'html', key: String(assembly.blocks.length), html });
+      assembly.blocks.push({ kind: 'html', isHtml: true, isCode: false, isCriteria: false, key: String(assembly.blocks.length), html });
     }
   }
 }

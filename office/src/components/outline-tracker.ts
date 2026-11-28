@@ -1,4 +1,5 @@
 import slugOf from '@/board/slug';
+import { HREF_ATTRIBUTE } from '@/constants/markdown';
 import { ANCHOR_SELECTOR, PROGRAMMATIC_FOCUS_ONLY, TABINDEX_ATTRIBUTE, IN_ZONE, NOT_FOUND_INDEX, PASSED, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
 import type { OutlineTracker, ReaderEnvironment, SectionObserver } from '@/types/document';
 
@@ -102,7 +103,7 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       // the address hash is the route: the browser must not follow the link
       event.preventDefault();
 
-      this.scrollTo(DOCUMENT_ID_PREFIX + slugOf(decodedFragment((anchor.getAttribute('href') as string).slice(FRAGMENT_PREFIX.length))));
+      this.scrollTo(DOCUMENT_ID_PREFIX + slugOf(decodedFragment((anchor.getAttribute(HREF_ATTRIBUTE) as string).slice(FRAGMENT_PREFIX.length))));
     },
 
     settle() {

@@ -128,6 +128,11 @@ const DIFF_BINARY_STARTS = ['Binary files ', 'GIT binary patch'];
 
 const DIFF_EXTENSION = '.diff';
 
+const DIFF_KINDS = { file: 'file', hunk: 'hunk', add: 'add', remove: 'remove', context: 'context', note: 'note', binary: 'binary' } as const;
+
+// what marked reports as the start of an unordered list, which has no number
+const NO_LIST_START = '';
+
 const TRAILING_CARRIAGE_RETURN = /\r$/;
 
 // `Status: approved by <name> on <date>`: the pill names who approved, the Date line carries the day
@@ -201,6 +206,8 @@ export {
   DIFF_NOTE_MARKER,
   DIFF_BINARY_STARTS,
   DIFF_EXTENSION,
+  DIFF_KINDS,
+  NO_LIST_START,
   TRAILING_CARRIAGE_RETURN,
   STATUS_DATE_SUFFIX_PATTERN,
   TRAILING_NEWLINES_PATTERN,

@@ -1,4 +1,5 @@
 import type { PipelineColumn } from '@/types/view';
+import { ICON } from '@/constants/icons';
 
 const COLUMN_INTAKE = 'Intake';
 
@@ -32,7 +33,7 @@ const OUTCOME_MERGED = 'merged';
 
 const OUTCOME_CANCELLED = 'cancelled';
 
-const OUTCOME_ICONS: Record<string, string> = { [OUTCOME_MERGED]: 'merge', [OUTCOME_CANCELLED]: 'block' };
+const OUTCOME_ICONS: Record<string, string> = { [OUTCOME_MERGED]: ICON.merge, [OUTCOME_CANCELLED]: ICON.block };
 
 const ANSWER_COMMAND_PREFIX = '/argani:factory answer';
 

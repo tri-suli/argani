@@ -1,3 +1,5 @@
+import { ICON } from '@/constants/icons';
+
 const META_LINE_PATTERN = /^([A-Za-z][A-Za-z ]{0,30}): (\S.*)$/;
 
 // The keys of the `Key: value` block: Author, Status, Risk and Date (templates/intent.md), Intent (templates/spec.md),
@@ -141,7 +143,7 @@ const STATUS_DATE_SUFFIX_PATTERN = / on \d{4}-\d{2}-\d{2}$/;
 const TRAILING_NEWLINES_PATTERN = /\n+$/;
 
 // a status without a tone yet: a draft
-const NEUTRAL_STATUS_ICON = 'edit_note';
+const NEUTRAL_STATUS_ICON = ICON.editNote;
 
 const INFO_STRING_SEPARATOR = /\s+/;
 

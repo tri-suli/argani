@@ -1,4 +1,5 @@
 import type { ReviewOutcome, ReviewState, Risk } from '@/types/task';
+import { ICON } from '@/constants/icons';
 
 const REVIEW_STATE_PENDING = 'pending' as const satisfies ReviewState;
 
@@ -20,14 +21,14 @@ const CHIP_CLASS_INVALID = 'bad';
 
 // Icon-font ligatures: the chip state and the risk are never carried by colour alone.
 const CHIP_ICONS: Record<string, string> = {
-  PASS: 'check',
-  CHANGES: 'priority_high',
-  pending: 'more_horiz',
-  [CHIP_CLASS_WAITING]: 'hourglass_top',
-  [CHIP_CLASS_INVALID]: 'error',
+  PASS: ICON.check,
+  CHANGES: ICON.priorityHigh,
+  pending: ICON.moreHoriz,
+  [CHIP_CLASS_WAITING]: ICON.hourglassTop,
+  [CHIP_CLASS_INVALID]: ICON.error,
 };
 
-const RISK_ICONS: Record<Risk, string> = { low: 'shield', medium: 'warning', high: 'warning' };
+const RISK_ICONS: Record<Risk, string> = { low: ICON.shield, medium: ICON.warning, high: ICON.warning };
 
 export {
   REVIEW_OUTCOME_PASS,

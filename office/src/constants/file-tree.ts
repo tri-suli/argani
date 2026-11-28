@@ -1,20 +1,21 @@
 import { REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS } from '@/constants/review';
 import type { RowTone } from '@/types/file-tree';
 import type { FileTone, ReviewOutcome } from '@/types/task';
+import { ICON } from '@/constants/icons';
 
 const TONE_NONE = 'none' as const satisfies RowTone;
 
 const TONE_NOW = 'now' as const satisfies RowTone;
 
-const FILE_TONE_ICONS: Record<FileTone, string> = { good: 'check_circle', warn: 'error', stop: 'cancel' };
+const FILE_TONE_ICONS: Record<FileTone, string> = { good: ICON.checkCircle, warn: ICON.error, stop: ICON.cancel };
 
-const NO_TONE_ICON = 'description';
+const NO_TONE_ICON = ICON.description;
 
-const DIFF_ICON = 'difference';
+const DIFF_ICON = ICON.difference;
 
 const DIFF_FILE_NAME = 'change.diff';
 
-const RUNNING_ICON = 'progress_activity';
+const RUNNING_ICON = ICON.progressActivity;
 
 const ROUND_OUTCOME_TONES: Record<ReviewOutcome, FileTone> = { [REVIEW_OUTCOME_CHANGES]: 'warn', [REVIEW_OUTCOME_PASS]: 'good' };
 

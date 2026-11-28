@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Changed
 
+- `office/`: a task opens as a full page in place of the board, linkable by the URL hash (`#/task/<project>/<slug>[/<file>]`), with a Back button that returns to the board, a header with the column, risk, time, tokens, manual acceptance criteria, visits and the merge request, a History strip of numbered fixed-width steps (wait reasons, review round outcomes, the running step), and a file list whose review rounds open and close. It replaces the side drawer.
 - `mr-body.md` no longer has an `## argani` section: the merge request body is about the project only (summary, acceptance criteria, human verification checklist).
 - A job with `mr.md` is reopened only by `revise`, `rework` after APPROVE or a drift round: its work continues and, after a new APPROVE, it goes to the merge instead of a second merge request. Any other job with `mr.md` goes straight to the merge as before.
 - A `revision` answer does not move a task to the Approve column.

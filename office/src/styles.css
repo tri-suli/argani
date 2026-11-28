@@ -52,6 +52,9 @@
 
   --color-merged: #6d3fc4;
   --color-step-agent: #9aa7e8;
+  --color-step-human: #e8853f;
+  --color-step-changes: #d9a441;
+  --color-step-pass: #4fae6a;
 
   --shadow-card: 0 1px 2px rgb(21 24 36 / 0.05);
   --shadow-menu: 0 18px 40px -12px rgb(21 24 36 / 0.28), 0 2px 6px rgb(21 24 36 / 0.08);
@@ -118,6 +121,9 @@
 
     --color-merged: #bd93f9;
     --color-step-agent: #5f6fc4;
+    --color-step-human: #ff9a62;
+    --color-step-changes: #ffb86c;
+    --color-step-pass: #50fa7b;
   }
 }
 

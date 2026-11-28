@@ -9,6 +9,7 @@
   </head>
   <body class="bg-bg font-sans text-[14px] leading-[1.45] text-ink antialiased">
     <div x-data="dashboard" class="page mx-auto flex max-w-[1600px] flex-col gap-[22px] px-8 pt-7 pb-10 narrow:gap-4 narrow:px-4 narrow:pt-5 narrow:pb-6">
+      <div class="contents" data-testid="board" x-show="!taskPage.isOpen" x-effect="taskPage.closeCount > 0 &amp;&amp; $nextTick(() => taskPage.restoreBoard())">
       <header class="flex flex-wrap items-center gap-x-7 gap-y-4">
         <div class="flex items-center gap-3">
           <svg class="flex-none" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" class="fill-ink" /><path d="M9 23V11h5v12zM16 23v-7h5v7zM23 23v-4h2.5v4z" class="fill-bg" /></svg>
@@ -101,7 +102,6 @@
         </template>
       </section>
 
-      <!-- a static wrapper: the drawer makes the page inert by its direct children, and x-if inserts later -->
       <div class="contents" data-testid="needs-human-slot">
       <template x-if="needsHumanRows.length > 0">
         <section class="rounded-2xl border border-human-line bg-human-tint px-5 pt-4 pb-[18px] narrow:px-4" data-testid="needs-human" aria-label="Needs human">
@@ -120,7 +120,7 @@
                     · <span data-testid="row-reason" x-text="row.reason"></span><span data-testid="row-waiting" x-show="row.waiting !== ''"> · waiting <span x-text="row.waiting"></span></span><span class="font-semibold" data-testid="row-visits" x-show="row.visits !== ''"> · <span x-text="row.visits"></span></span>
                   </p>
                   <h3 class="mt-1.5 mb-1 text-[16px] leading-[1.35] font-semibold">
-                    <button type="button" class="cursor-pointer text-left font-semibold text-ink hover:underline" data-testid="row-title" :data-task="row.key" aria-haspopup="dialog" @click="drawer.open(row.task)" x-text="row.task.title"></button>
+                    <button type="button" class="cursor-pointer text-left font-semibold text-ink hover:underline" data-testid="row-title" :data-task="row.key" @click="openTask(row.task)" x-text="row.task.title"></button>
                   </h3>
                   <p class="max-w-[760px] text-[14px] text-human-body" data-testid="row-question" x-show="row.question !== null" x-text="row.question"></p>
                   <template x-for="agent in row.agents" :key="agent.id">
@@ -160,10 +160,9 @@
                     tabindex="0"
                     role="button"
                     :aria-label="card.task.title + ', ' + card.task.project + ' ' + card.task.slug"
-                    aria-haspopup="dialog"
-                    @click="drawer.open(card.task)"
-                    @keydown.enter.self.prevent="drawer.open(card.task)"
-                    @keydown.space.self.prevent="drawer.open(card.task)"
+                    @click="openTask(card.task)"
+                    @keydown.enter.self.prevent="openTask(card.task)"
+                    @keydown.space.self.prevent="openTask(card.task)"
                   >
                     <div class="flex items-center gap-2 font-mono text-[11px]">
                       <span class="flex-none rounded-[5px] bg-tag px-[7px] py-0.5 text-muted" data-testid="card-project" x-text="card.task.project"></span>
@@ -214,7 +213,7 @@
             <template x-for="row in doneRows" :key="row.key">
               <li class="done-row border-t border-tag py-3" data-testid="done-row">
                 <p class="text-[13px] leading-[1.4]">
-                  <button type="button" class="cursor-pointer text-left font-medium hover:underline data-[cancelled=true]:text-muted data-[cancelled=true]:line-through" data-testid="done-title" :data-cancelled="row.cancelled" :data-task="row.key" aria-haspopup="dialog" @click="drawer.open(row.task)" x-text="row.task.title"></button>
+                  <button type="button" class="cursor-pointer text-left font-medium hover:underline data-[cancelled=true]:text-muted data-[cancelled=true]:line-through" data-testid="done-title" :data-cancelled="row.cancelled" :data-task="row.key" @click="openTask(row.task)" x-text="row.task.title"></button>
                 </p>
                 <p class="mt-1 font-mono text-[11px] text-faint">
                   <span class="font-semibold text-merged data-[cancelled=true]:text-muted" data-testid="done-outcome" :data-cancelled="row.cancelled"><span class="icon text-[14px] align-[-3px]" aria-hidden="true" x-text="row.icon"></span> <span x-text="row.outcome"></span></span>
@@ -225,59 +224,97 @@
           </ul>
         </aside>
       </div>
-
-      <div class="drawer-root fixed inset-0 z-10" data-testid="drawer" x-show="drawer.isOpen" x-cloak
-           @keydown.escape.window="drawer.close()"
-           x-effect="drawer.isOpen && $nextTick(() => drawer.isOpen && $refs.close?.focus())">
-        <div class="absolute inset-0 bg-scrim" data-testid="scrim" @click="drawer.close()"></div>
-        <section class="absolute inset-y-0 right-0 grid w-[min(920px,100vw)] animate-slide-in grid-rows-[auto_1fr] border-l border-line bg-panel motion-reduce:animate-none" role="dialog" aria-modal="true" aria-labelledby="drawer-title" @keydown.tab="drawer.trapFocus($event, $el)">
-          <header class="d-head relative border-b border-line px-6 pt-5 pb-4 narrow:p-4">
-            <p class="num font-mono text-[12px] text-muted" data-testid="drawer-headline" x-text="drawer.headline"></p>
-            <h2 id="drawer-title" class="mt-1 mr-10 mb-1.5 text-[16px] leading-[1.35] font-semibold" data-testid="drawer-title" x-text="drawer.title"></h2>
-            <p class="links flex gap-2.5 font-mono text-[11px]" x-show="drawer.detail && drawer.detail.mrUrl">
-              <a class="text-active hover:underline" :href="drawer.detail ? drawer.detail.mrUrl : null" target="_blank" rel="noopener noreferrer">MR</a>
-            </p>
-            <button type="button" class="close absolute top-4 right-4 size-8 cursor-pointer rounded-lg border border-line text-[18px] leading-none text-muted hover:border-muted hover:text-ink" x-ref="close" aria-label="Close" @click="drawer.close()">×</button>
-          </header>
-          <div class="grid min-h-0 grid-cols-[200px_1fr] narrow:grid-cols-1 narrow:grid-rows-[auto_1fr]">
-            <nav class="files overflow-y-auto border-r border-line px-2.5 py-3.5 narrow:flex narrow:gap-1 narrow:overflow-x-auto narrow:border-r-0 narrow:border-b narrow:p-2" aria-label="Task files">
-              <template x-for="group in drawer.groups" :key="group.name">
-                <div class="narrow:flex narrow:gap-1" role="group" :aria-label="group.name">
-                  <p data-testid="file-group" class="mx-2 mt-3 mb-1 text-[10px] tracking-[0.08em] text-faint uppercase narrow:hidden" x-text="group.name"></p>
-                  <template x-for="file in group.files" :key="file.path">
-                    <button type="button" class="file flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] text-left font-mono text-[12px] text-muted hover:bg-hover hover:text-ink aria-[current=true]:bg-hover aria-[current=true]:text-ink narrow:w-auto narrow:whitespace-nowrap" :title="file.path" :aria-current="file.path === drawer.selectedPath" @click="drawer.select(file.path)">
-                      <span class="size-1.5 flex-none rounded-full bg-faint data-[tone=good]:bg-pass data-[tone=stop]:bg-human data-[tone=warn]:bg-changes" data-testid="file-tone" :data-tone="file.tone"></span><span x-text="drawer.fileLabel(file)"></span><span class="sr-only" x-text="file.tone ? ': ' + drawer.toneLabel(file.tone) : ''"></span>
-                    </button>
-                  </template>
-                </div>
-              </template>
-            </nav>
-            <div class="min-w-0 overflow-y-auto px-7 pt-[22px] pb-[60px] narrow:px-4 narrow:pt-[18px] narrow:pb-12">
-              <section class="mb-5 max-w-[680px] text-[13px]" data-testid="drawer-history" aria-label="History">
-                <h3 class="mb-1.5 text-[12px] font-semibold tracking-[0.08em] text-faint uppercase">History</h3>
-                <p class="font-mono text-[12px] text-muted" data-testid="history-empty" x-show="!drawerHasHistory">—</p>
-                <ol class="grid gap-0.5 font-mono text-[12px]" x-show="drawerHasHistory">
-                  <template x-for="(row, index) in drawerHistory" :key="index">
-                    <li class="flex gap-3" data-testid="history-row"><span class="min-w-24" x-text="row.column"></span><span class="text-muted" x-text="row.duration"></span></li>
-                  </template>
-                </ol>
-                <p class="mt-2 flex flex-wrap gap-x-4 font-mono text-[12px] text-muted" data-testid="drawer-metrics" x-show="drawerTask !== null">
-                  <span><span x-text="drawerTask ? String(drawerTask.metrics.manualAcceptanceCriteria) : ''"></span> manual ACs</span>
-                  <span><span x-text="drawerTask ? String(drawerTask.metrics.needsHumanCount) : ''"></span>× in Needs human</span>
-                  <span><span x-text="drawerWaiting"></span> waiting for you</span>
-                </p>
-              </section>
-              <p class="mb-3 text-[13px] text-human" data-testid="drawer-error" x-show="drawer.errorMessage !== null" x-text="drawer.errorMessage"></p>
-              <div class="prose prose-argani max-w-[680px] text-[14px] leading-[1.65] prose-headings:mt-[1.6em] prose-headings:mb-[0.5em] prose-headings:leading-[1.3] prose-headings:font-bold prose-h1:text-[20px] prose-h1:font-semibold prose-h2:text-[15px] prose-h3:text-[14px] prose-h3:text-muted prose-h4:text-[14px] prose-p:mt-0 prose-p:mb-[0.9em] prose-p:before:content-none prose-p:after:content-none prose-ul:mt-0 prose-ul:mb-[0.9em] prose-ul:pl-[1.3em] prose-ol:mt-0 prose-ol:mb-[0.9em] prose-ol:pl-[1.3em] prose-li:my-0 prose-li:pl-0 prose-a:font-normal prose-code:rounded-sm prose-code:bg-hover prose-code:px-[5px] prose-code:py-px prose-code:font-mono prose-code:text-[12px] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-pre:mt-0 prose-pre:mb-[0.9em] prose-pre:rounded-lg prose-pre:leading-[1.65] [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 prose-pre:border prose-pre:border-line prose-pre:px-3.5 prose-pre:py-3 prose-pre:text-[14px] [&_ul_ul]:list-[circle] prose-blockquote:mt-0 prose-blockquote:mb-[0.9em] prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-blockquote:font-normal prose-blockquote:not-italic prose-table:mt-0 prose-table:mb-[0.9em] prose-table:block prose-table:leading-[1.65] prose-thead:border-b-0 prose-tr:border-b-0 prose-table:overflow-x-auto prose-table:text-[13px] prose-th:border prose-th:border-line prose-th:px-[9px] prose-th:py-[5px] prose-td:border prose-td:border-line prose-td:px-[9px] prose-td:py-[5px]" data-testid="drawer-markdown" x-show="drawer.rendered !== null">
-                <p class="not-prose mb-3.5 inline-block rounded-md px-2.5 py-1 font-mono text-[12px] leading-[normal] font-semibold data-[tone=good]:bg-pass/14 data-[tone=good]:text-pass data-[tone=stop]:bg-human/16 data-[tone=stop]:text-human data-[tone=warn]:bg-changes/16 data-[tone=warn]:text-changes" :data-tone="drawer.rendered ? drawer.rendered.tone : ''" data-testid="drawer-verdict" x-show="drawer.rendered && drawer.rendered.verdict !== null" x-text="drawer.rendered ? drawer.rendered.verdict : ''"></p>
-                <div class="mb-[22px] rounded-lg border border-line bg-hover px-4 pt-3 pb-1 [&>:first-child]:mt-0" data-testid="drawer-summary" x-show="drawer.rendered && drawer.rendered.summaryHtml !== null" x-html="drawer.rendered ? drawer.rendered.summaryHtml : ''"></div>
-                <div class="[&>:first-child]:mt-0" data-testid="drawer-body" x-html="drawer.rendered ? drawer.rendered.bodyHtml : ''"></div>
-              </div>
-              <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="drawer-plain" x-show="drawer.rendered === null" x-text="drawer.fileText"></pre>
-            </div>
-          </div>
-        </section>
       </div>
+
+      <section class="flex flex-col gap-5" data-testid="task-page" aria-label="Task" x-show="taskPage.isOpen" x-cloak x-effect="taskPage.openCount > 0 &amp;&amp; $nextTick(() => $refs.taskTitle &amp;&amp; taskPage.focusTitle($refs.taskTitle))">
+        <p class="rounded-lg border border-human px-3.5 py-2.5 font-mono text-[12px] text-human" role="alert" data-testid="task-banner" x-show="errorMessage !== null" x-cloak>Last refresh failed: <span x-text="errorMessage"></span>. Showing the last data received.</p>
+
+        <header class="flex flex-col gap-2.5">
+          <p class="flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[12px] text-faint">
+            <button type="button" class="inline-flex min-h-9 cursor-pointer items-center gap-1 rounded-lg border border-line-strong bg-card px-2.5 font-sans text-[13px] font-medium text-ink hover:bg-hover narrow:min-h-11" data-testid="task-back" @click="leaveTask()"><span class="icon text-[16px]" aria-hidden="true">arrow_back</span>Board</button>
+            <span>Argani Office</span><span aria-hidden="true">/</span><span data-testid="task-project" x-text="taskPage.project"></span><span aria-hidden="true">/</span><span class="[overflow-wrap:anywhere]" data-testid="task-slug" x-text="taskPage.slug"></span>
+          </p>
+          <h1 class="max-w-[900px] text-[24px] leading-[1.25] font-bold tracking-[-0.015em] [overflow-wrap:anywhere] narrow:text-[20px]" tabindex="-1" x-ref="taskTitle" data-testid="task-title" x-text="taskTitle"></h1>
+          <template x-if="taskHeader !== null &amp;&amp; !taskMissing">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1.5 font-mono text-[12px] text-muted" data-testid="task-header">
+              <span class="inline-flex items-center gap-[5px] rounded-full bg-ink px-2.5 py-1 font-medium text-bg"><span class="icon text-[15px]" aria-hidden="true">view_column</span><span data-testid="task-column" x-text="taskHeader.column"></span><span data-testid="task-round" x-show="taskHeader.round !== ''" x-text="'· ' + taskHeader.round"></span></span>
+              <span class="inline-flex items-center gap-[5px] rounded-full px-2.5 py-1 font-semibold data-[risk=high]:bg-human-chip data-[risk=high]:text-human-strong data-[risk=low]:bg-pass-tint data-[risk=low]:text-pass-ink data-[risk=medium]:bg-changes-tint data-[risk=medium]:text-changes-ink" data-testid="task-risk" :data-risk="taskHeader.risk" x-show="taskHeader.risk !== null"><span class="icon text-[15px]" aria-hidden="true" x-text="taskHeader.riskIcon"></span><span x-text="taskHeader.risk + ' risk'"></span></span>
+              <span class="px-1" data-testid="task-stage" x-text="'stage ' + taskHeader.stage"></span>
+              <span class="px-1" data-testid="task-time" x-show="taskHeader.time !== ''" x-text="taskHeader.time"></span>
+              <span class="px-1" data-testid="task-tokens" x-show="taskHeader.tokens !== ''" x-text="taskHeader.tokens"></span>
+              <span class="px-1" data-testid="task-manual" x-text="taskHeader.manual"></span>
+              <span class="px-1" data-testid="task-visits" x-show="taskHeader.visits !== ''" x-text="taskHeader.visits"></span>
+              <a class="ml-auto inline-flex items-center gap-[5px] font-sans text-[13px] font-medium text-active hover:underline" data-testid="task-mr" :href="taskHeader.mrUrl" target="_blank" rel="noopener noreferrer" x-show="taskHeader.mrUrl !== null">Merge request<span class="icon text-[15px]" aria-hidden="true">open_in_new</span><span class="sr-only"> (opens in a new tab)</span></a>
+            </div>
+          </template>
+        </header>
+
+        <div class="rounded-xl border border-dashed border-line-dashed px-5 py-6" data-testid="task-missing" x-show="taskMissing" x-cloak>
+          <h2 class="text-[15px] font-semibold">This task is not on the board</h2>
+          <p class="mt-1 text-[13px] text-muted">It may have been removed, or the link is wrong. <a href="#" class="text-active hover:underline" data-testid="task-missing-back" @click.prevent="leaveTask()">Back to the board</a></p>
+        </div>
+
+        <section class="rounded-[14px] border border-line bg-card px-4 py-3.5" data-testid="task-history" aria-labelledby="task-history-heading" x-show="!taskMissing">
+          <div class="mb-3.5 flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
+            <h2 id="task-history-heading" class="text-[14px] font-semibold">History</h2>
+            <p class="text-[13px] text-muted">Every stage this task has been through, oldest first, and how long it stayed there.</p>
+            <ul class="ml-auto flex flex-wrap gap-x-3.5 gap-y-1 text-[12px] text-muted narrow:ml-0" aria-label="Colour legend">
+              <template x-for="entry in legend" :key="entry.kind">
+                <li><span class="mr-[5px] inline-block size-2.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-changes data-[kind=human]:bg-human data-[kind=now]:bg-active data-[kind=pass]:bg-pass" :data-kind="entry.kind" aria-hidden="true"></span><span x-text="entry.label"></span></li>
+              </template>
+            </ul>
+          </div>
+          <p class="font-mono text-[12px] text-muted" data-testid="history-empty" x-show="taskHistory.length === 0">—</p>
+          <ol class="flex flex-wrap gap-x-1.5 gap-y-3.5" x-show="taskHistory.length > 0">
+            <template x-for="step in taskHistory" :key="step.number">
+              <li class="flex w-[150px] flex-none flex-col gap-1.5" data-testid="history-step" :data-kind="step.kind">
+                <span class="h-1.5 rounded-[3px] data-[kind=agent]:bg-step-agent data-[kind=changes]:bg-changes data-[kind=human]:bg-human data-[kind=now]:bg-active data-[kind=pass]:bg-pass" :data-kind="step.kind" aria-hidden="true"></span>
+                <span class="text-[13px] font-semibold text-ink [overflow-wrap:anywhere] data-[kind=changes]:text-changes-ink data-[kind=human]:text-human-strong data-[kind=now]:text-active-ink data-[kind=pass]:text-pass-ink" :data-kind="step.kind"><span class="mr-0.5 font-mono font-normal text-faint" x-text="step.number"></span> <span data-testid="history-name" x-text="step.name"></span></span>
+                <span class="font-mono text-[12px] text-muted" data-testid="history-note" x-text="step.note"></span>
+              </li>
+            </template>
+          </ol>
+        </section>
+
+        <div class="flex flex-wrap items-start gap-5" x-show="!taskMissing">
+          <nav class="max-w-full flex-[1_1_230px] rounded-[14px] border border-line bg-card p-2.5" aria-label="Task files">
+            <template x-for="section in taskPage.sections" :key="section.name">
+              <div role="group" :aria-label="section.name">
+                <p data-testid="file-group" class="mx-2 mt-2.5 mb-1 text-[11px] font-semibold tracking-[0.07em] text-faint uppercase" x-text="section.name"></p>
+                <template x-for="row in section.rows" :key="row.key">
+                  <div>
+                    <template x-if="row.kind === 'round'">
+                      <button type="button" class="round-toggle flex min-h-[34px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-[13px] text-ink hover:bg-hover narrow:min-h-11" data-testid="round-toggle" :aria-expanded="row.expanded" :data-round="row.round" @click="taskPage.toggleRound(row.round)">
+                        <span class="icon -mx-1 text-[18px] text-faint" aria-hidden="true" x-text="row.expanded ? 'expand_more' : 'chevron_right'"></span>
+                        <span class="icon text-[17px] text-faint data-[spinning=true]:animate-spin data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes motion-reduce:animate-none" aria-hidden="true" :data-tone="row.tone" :data-spinning="row.spinning" x-text="row.icon"></span>
+                        <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" data-testid="file-label" x-text="row.label"></span><span class="sr-only" x-text="row.toneLabel ? ': ' + row.toneLabel : ''"></span>
+                        <span class="ml-auto font-mono text-[10px] font-semibold text-faint data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes" data-testid="file-tag" :data-tone="row.tone" x-text="row.tag"></span>
+                      </button>
+                    </template>
+                    <template x-if="row.kind === 'file'">
+                      <button type="button" class="file flex min-h-[34px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-[13px] text-muted hover:bg-hover hover:text-ink aria-[current=true]:bg-active-tint aria-[current=true]:font-semibold aria-[current=true]:text-active-ink data-[nested=true]:pl-[26px] narrow:min-h-11" data-testid="file-row" :data-nested="row.nested" :title="row.path" :aria-current="row.path === taskPage.selectedPath" @click="selectFile(row.path)">
+                        <span class="icon text-[17px] text-faint data-[tone=good]:text-pass data-[tone=stop]:text-human data-[tone=warn]:text-changes" aria-hidden="true" data-testid="file-tone" :data-tone="row.tone" x-text="row.icon"></span>
+                        <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" data-testid="file-label" x-text="row.label"></span><span class="sr-only" x-text="row.toneLabel ? ': ' + row.toneLabel : ''"></span>
+                        <span class="ml-auto font-mono text-[10px] font-semibold text-faint data-[tone=good]:text-pass data-[tone=stop]:text-human data-[tone=warn]:text-changes" data-testid="file-tag" :data-tone="row.tone" :title="row.tagTitle" x-text="row.tag"></span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </nav>
+          <!-- the seam for the document reader and the review-round view: everything the selected file shows lives in here -->
+          <main class="min-w-0 flex-[999_1_640px]" data-testid="task-content" aria-label="Selected file">
+            <p class="mb-3 text-[13px] text-human" data-testid="task-error" x-show="taskPage.errorMessage !== null" x-text="taskPage.errorMessage"></p>
+          <div class="prose prose-argani max-w-[680px] text-[14px] leading-[1.65] prose-headings:mt-[1.6em] prose-headings:mb-[0.5em] prose-headings:leading-[1.3] prose-headings:font-bold prose-h1:text-[20px] prose-h1:font-semibold prose-h2:text-[15px] prose-h3:text-[14px] prose-h3:text-muted prose-h4:text-[14px] prose-p:mt-0 prose-p:mb-[0.9em] prose-p:before:content-none prose-p:after:content-none prose-ul:mt-0 prose-ul:mb-[0.9em] prose-ul:pl-[1.3em] prose-ol:mt-0 prose-ol:mb-[0.9em] prose-ol:pl-[1.3em] prose-li:my-0 prose-li:pl-0 prose-a:font-normal prose-code:rounded-sm prose-code:bg-hover prose-code:px-[5px] prose-code:py-px prose-code:font-mono prose-code:text-[12px] prose-code:font-normal prose-code:before:content-none prose-code:after:content-none prose-pre:mt-0 prose-pre:mb-[0.9em] prose-pre:rounded-lg prose-pre:leading-[1.65] [&_pre_code]:rounded-none [&_pre_code]:bg-transparent [&_pre_code]:p-0 prose-pre:border prose-pre:border-line prose-pre:px-3.5 prose-pre:py-3 prose-pre:text-[14px] [&_ul_ul]:list-[circle] prose-blockquote:mt-0 prose-blockquote:mb-[0.9em] prose-blockquote:border-l-2 prose-blockquote:pl-3 prose-blockquote:font-normal prose-blockquote:not-italic prose-table:mt-0 prose-table:mb-[0.9em] prose-table:block prose-table:leading-[1.65] prose-thead:border-b-0 prose-tr:border-b-0 prose-table:overflow-x-auto prose-table:text-[13px] prose-th:border prose-th:border-line prose-th:px-[9px] prose-th:py-[5px] prose-td:border prose-td:border-line prose-td:px-[9px] prose-td:py-[5px]" data-testid="task-markdown" x-show="taskPage.rendered !== null">
+            <p class="not-prose mb-3.5 inline-block rounded-md px-2.5 py-1 font-mono text-[12px] leading-[normal] font-semibold data-[tone=good]:bg-pass/14 data-[tone=good]:text-pass data-[tone=stop]:bg-human/16 data-[tone=stop]:text-human data-[tone=warn]:bg-changes/16 data-[tone=warn]:text-changes" :data-tone="taskPage.rendered ? taskPage.rendered.tone : ''" data-testid="task-verdict" x-show="taskPage.rendered && taskPage.rendered.verdict !== null" x-text="taskPage.rendered ? taskPage.rendered.verdict : ''"></p>
+            <div class="mb-[22px] rounded-lg border border-line bg-hover px-4 pt-3 pb-1 [&>:first-child]:mt-0" data-testid="task-summary" x-show="taskPage.rendered && taskPage.rendered.summaryHtml !== null" x-html="taskPage.rendered ? taskPage.rendered.summaryHtml : ''"></div>
+            <div class="[&>:first-child]:mt-0" data-testid="task-body" x-html="taskPage.rendered ? taskPage.rendered.bodyHtml : ''"></div>
+          </div>
+          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null" x-text="taskPage.fileText"></pre>
+          </main>
+        </div>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

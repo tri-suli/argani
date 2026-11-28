@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
-/* Narrow layout: the single breakpoint the board and the drawer collapse at. */
+/* Narrow layout: the single breakpoint the board and the task page collapse at. */
 @custom-variant narrow (@media (max-width: 640px));
 
 @theme {
@@ -51,14 +51,13 @@
   --color-on-human: #ffffff;
 
   --color-merged: #6d3fc4;
-  --color-scrim: rgb(20 22 32 / 0.45);
+  --color-step-agent: #9aa7e8;
 
   --shadow-card: 0 1px 2px rgb(21 24 36 / 0.05);
   --shadow-menu: 0 18px 40px -12px rgb(21 24 36 / 0.28), 0 2px 6px rgb(21 24 36 / 0.08);
 
   --animate-agent: agent-pulse 1.6s ease-in-out infinite;
   --animate-breathe: breathe 1.6s ease-in-out infinite;
-  --animate-slide-in: slide-in 0.25s ease;
 
   @keyframes agent-pulse {
     0%, 100% { opacity: 1; }
@@ -67,10 +66,6 @@
   @keyframes breathe {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.45; }
-  }
-  @keyframes slide-in {
-    from { transform: translateX(40px); opacity: 0; }
-    to { transform: none; opacity: 1; }
   }
 }
 
@@ -122,7 +117,7 @@
     --color-on-human: #1a0f08;
 
     --color-merged: #bd93f9;
-    --color-scrim: rgb(5 6 10 / 0.55);
+    --color-step-agent: #5f6fc4;
   }
 }
 

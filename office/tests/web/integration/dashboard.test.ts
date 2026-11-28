@@ -2,9 +2,9 @@
 import Alpine from 'alpinejs';
 import { beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { PollHandlers, Poller } from '@/types/poller';
-import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
-import { FakeTaskClient, sampleAgent, sampleSnapshot, sampleTasks } from '../sample-snapshot';
+import FakeNavigation from '../fake-navigation';
+import { sampleDetail, FakeTaskClient, sampleAgent, sampleSnapshot, sampleTasks, sampleViews } from '../sample-snapshot';
 import sampleMarkdownRenderer from '../sample-markdown-renderer';
 import pageMarkup from './page-markup';
 import eventually from './eventually';
@@ -40,12 +40,14 @@ let poller: FakePoller;
 
 let taskClient: FakeTaskClient;
 
+let navigation: FakeNavigation;
+
 let clipboard: { writeText: Mock<(text: string) => Promise<void>> };
 
 const now = () => new Date('2026-11-24T10:00:10Z');
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, ...sampleViews(), navigation, markdownRenderer, clipboard, now }));
 
   Alpine.start();
 });
@@ -54,6 +56,8 @@ beforeEach(async () => {
   poller = new FakePoller();
 
   taskClient = new FakeTaskClient();
+
+  navigation = new FakeNavigation();
 
   clipboard = { writeText: vi.fn(async (_text: string) => {}) };
 
@@ -180,7 +184,7 @@ describe('dashboard board', () => {
     await eventually(() => expect(document.querySelector('[data-testid=needs-human]')).toBeNull());
   });
 
-  it('keeps the page inert while the drawer is open, including a Needs human panel that appears meanwhile', async () => {
+  it('keeps the board out of sight while a task is open and shows a Needs human panel that appeared meanwhile when it is back', async () => {
     const withoutAsk = sampleSnapshot({ projects: [{ name: 'demo', tasks: sampleSnapshot().projects[0].tasks.slice(0, 2) }] });
 
     await deliver(withoutAsk, 2);
@@ -189,19 +193,23 @@ describe('dashboard board', () => {
 
     card('demo/add-login').click();
 
-    await eventually(() => expect(visible('[data-testid=drawer]')).toBe(true));
+    await eventually(() => expect(visible('[data-testid=task-page]')).toBe(true));
+
+    expect(visible('[data-testid=board]')).toBe(false);
+
+    expect(document.querySelector('[inert]')).toBeNull();
 
     poller.handlers.onSnapshot(sampleSnapshot(), sampleTasks());
 
     await eventually(() => expect(document.querySelector('[data-testid=needs-human]')).not.toBeNull());
 
-    expect(document.querySelector('[data-testid=needs-human]')?.closest('[inert]')).not.toBeNull();
+    expect(visible('[data-testid=board]')).toBe(false);
 
-    expect(document.querySelector('[data-testid=done-rail]')?.closest('[inert]')).not.toBeNull();
+    click('[data-testid=task-back]');
 
-    pressOn(document.body, 'Escape');
+    await eventually(() => expect(visible('[data-testid=board]')).toBe(true));
 
-    await eventually(() => expect(document.querySelector('[data-testid=needs-human]')?.closest('[inert]')).toBeNull());
+    expect(visible('[data-testid=task-page]')).toBe(false);
   });
 
   it('copies the answer command and says Copied, then Copy failed when the clipboard refuses', async () => {
@@ -230,16 +238,18 @@ describe('dashboard board', () => {
     await eventually(() => expect(text(copy)).toBe('Copy failed'));
   });
 
-  it('opens the task drawer from the title of a Needs human row and returns the focus to it', async () => {
+  it('opens the task page from the title of a Needs human row and returns the focus to it', async () => {
     await deliver();
 
     click('[data-row="demo/stuck"] [data-testid=row-title]');
 
-    await eventually(() => expect(visible('[data-testid=drawer]')).toBe(true));
+    await eventually(() => expect(visible('[data-testid=task-page]')).toBe(true));
 
-    expect(text('[data-testid=drawer-title]')).toBe('Stuck task');
+    expect(text('[data-testid=task-title]')).toBe('Stuck task');
 
-    pressOn(document.body, 'Escape');
+    expect(navigation.hash()).toBe('#/task/demo/stuck');
+
+    click('[data-testid=task-back]');
 
     await eventually(() => expect(document.activeElement).toBe(document.querySelector('[data-row="demo/stuck"] [data-testid=row-title]')));
   });
@@ -265,7 +275,9 @@ describe('dashboard board', () => {
 
     (shipped.querySelector('[data-testid=done-title]') as HTMLElement).click();
 
-    await eventually(() => expect(text('[data-testid=drawer-title]')).toBe('Ship it'));
+    await eventually(() => expect(text('[data-testid=task-title]')).toBe('Ship it'));
+
+    expect(navigation.hash()).toBe('#/task/other/ship');
   });
 
   it('renders card details: working row, chips with icons, risk, time, tokens, MR link', async () => {
@@ -574,7 +586,7 @@ describe('dashboard board', () => {
 
       const handlers: PollHandlers[] = [];
 
-      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now: () => new Date(clock) });
+      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, ...sampleViews(), navigation, markdownRenderer, clipboard, now: () => new Date(clock) });
 
       ticking.init();
 
@@ -611,7 +623,7 @@ describe('dashboard board', () => {
   });
 
   it('stops polling when destroyed and has empty derived state before data', () => {
-    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now: vi.fn() });
+    const dashboard = createDashboard({ poller, taskClient, ...sampleViews(), navigation, markdownRenderer, clipboard, now: vi.fn() });
 
     expect(dashboard.projectOptions).toEqual([]);
 
@@ -626,39 +638,95 @@ describe('dashboard board', () => {
     dashboard.destroy();
 
     expect(poller.stopped).toBe(true);
+
+    expect(navigation.stopped).toBe(true);
   });
 });
 
-describe('drawer history and metrics', () => {
-  const openStuck = async () => {
+describe('task page header and history', () => {
+  const openTask = async (slug: string) => {
     await deliver();
 
-    await (card('demo/stuck') as HTMLElement).click();
+    card(`demo/${slug}`).click();
   };
 
-  it('lists the durations in order and the three metrics of the open task', async () => {
-    await openStuck();
+  it('shows the history strip of the open task: numbered, oldest first, with the time and the reason, and the last step now', async () => {
+    await openTask('stuck');
 
     await eventually(() => {
-      expect([...document.querySelectorAll('[data-testid=history-row]')].map((row) => [...row.children].map((cell) => cell.textContent))).toEqual([['Build', '1h00m'], ['Needs human', '10m'], ['Build', '10m'], ['Needs human', '15m']]);
+      expect(all('[data-testid=history-step]')).toEqual(['1 Build 1h00m', '2 Needs human 10m · manual verification', '3 Build 10m', '4 Needs human 40m 10s · manual verification']);
 
       expect(showing(document.querySelector('[data-testid=history-empty]'))).toBe(false);
 
-      expect(text('[data-testid=drawer-metrics]')).toBe('2 manual ACs 2× in Needs human 25m waiting for you');
+      expect(all('[data-testid=history-step]').length).toBe(4);
     });
+
+    expect([...document.querySelectorAll('[data-testid=history-step]')].map((step) => step.getAttribute('data-kind'))).toEqual(['agent', 'human', 'agent', 'human']);
+  });
+
+  it('explains the strip and lists the colour legend', async () => {
+    await openTask('stuck');
+
+    await eventually(() => expect(all('[aria-label="Colour legend"] li')).toEqual(['agent worked', 'waited for you', 'changes asked', 'passed', 'now']));
+
+    expect(text('[data-testid=task-history] h2')).toBe('History');
+
+    expect(text('[data-testid=task-history] p')).toContain('oldest first');
   });
 
   it('shows a dash for a task without history', async () => {
-    await deliver();
-
-    await (card('demo/fix-export') as HTMLElement).click();
+    await openTask('fix-export');
 
     await eventually(() => {
-      expect(document.querySelectorAll('[data-testid=history-row]')).toHaveLength(0);
+      expect(document.querySelectorAll('[data-testid=history-step]')).toHaveLength(0);
 
       expect(text('[data-testid=history-empty]')).toBe('—');
+    });
+  });
 
-      expect(text('[data-testid=drawer-metrics]')).toBe('0 manual ACs 0× in Needs human 0m waiting for you');
+  it('shows the header: breadcrumb, column, risk, manual ACs and visits, and no MR link without one', async () => {
+    taskClient.detail = sampleDetail({ slug: 'stuck', risk: 'high', mrUrl: null });
+
+    await openTask('stuck');
+
+    await eventually(() => expect(text('[data-testid=task-header]')).toContain('Needs human'));
+
+    expect(text('[data-testid=task-project]')).toBe('demo');
+
+    expect(text('[data-testid=task-slug]')).toBe('stuck');
+
+    expect(text('[data-testid=task-manual]')).toBe('2 manual ACs');
+
+    expect(text('[data-testid=task-visits]')).toBe('2× needed you · 25m');
+
+    await eventually(() => {
+      expect(text('[data-testid=task-risk]')).toContain('high risk');
+
+      expect(showing(document.querySelector('[data-testid=task-mr]'))).toBe(false);
+    });
+  });
+
+  it('shows the header of a task in Review with its round, agent time, tokens and MR link', async () => {
+    await deliver();
+
+    card('demo/older').click();
+
+    await eventually(() => expect(text('[data-testid=task-column]')).toBe('Review'));
+
+    taskClient.detail = sampleDetail({ project: 'demo', slug: 'older', column: 'Review', round: 2, risk: 'low', agentMilliseconds: 125_000, tokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 6000 } });
+
+    poller.handlers.onSnapshot(sampleSnapshot(), sampleTasks());
+
+    await eventually(() => {
+      expect(text('[data-testid=task-round]')).toBe('· round 2');
+
+      expect(text('[data-testid=task-time]')).toBe('2m');
+
+      expect(text('[data-testid=task-tokens]')).toBe('6.0k tokens');
+
+      expect(document.querySelector('[data-testid=task-mr]')?.getAttribute('href')).toBe('https://example.test/mr/7');
+
+      expect(document.querySelector('[data-testid=task-risk]')?.getAttribute('data-risk')).toBe('low');
     });
   });
 });

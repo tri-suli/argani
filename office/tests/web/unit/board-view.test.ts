@@ -243,12 +243,39 @@ describe('board view', () => {
     expect(boardView.findTask(null, 'demo', 'stuck')).toBeNull();
   });
 
-  it('lists the history rows in order with formatted durations', () => {
-    const task = sampleSnapshot().projects[0].tasks[3];
+  it('describes the header of a task: column, round in Review, risk, time, tokens, manual ACs, visits and MR', () => {
+    const task = sampleTask({ project: 'demo', slug: 'x', stage: 'needs-review', column: 'Review', metrics: { manualAcceptanceCriteria: 6, needsHumanCount: 1, needsHumanMilliseconds: 240_000 } });
 
-    expect(boardView.historyRows(task)).toEqual([{ column: 'Build', duration: '1h00m' }, { column: 'Needs human', duration: '10m' }, { column: 'Build', duration: '10m' }, { column: 'Needs human', duration: '15m' }]);
+    const summary = sampleSummary({ project: 'demo', slug: 'x', stage: 'review', risk: 'high', round: 3, mrUrl: 'https://example.test/mr/1', agentMilliseconds: 8_040_000, tokens: { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 3_100_000 } });
 
-    expect(boardView.historyRows(sampleSnapshot().projects[0].tasks[0])).toEqual([]);
+    expect(boardView.taskHeader(task, summary)).toEqual({
+      column: 'Review',
+      round: 'round 3',
+      stage: 'review',
+      risk: 'high',
+      riskIcon: 'warning',
+      time: '2h14m',
+      tokens: '3.1M tokens',
+      manual: '6 manual ACs',
+      visits: '1× needed you · 4m',
+      mrUrl: 'https://example.test/mr/1',
+    });
+  });
+
+  it('leaves out what the header does not know: no summary, no risk, no time, no tokens, no visits, no round outside Review', () => {
+    const task = sampleTask({ project: 'demo', slug: 'x', column: 'Build', metrics: { manualAcceptanceCriteria: 1, needsHumanCount: 0, needsHumanMilliseconds: 0 } });
+
+    expect(boardView.taskHeader(task, null)).toEqual({ column: 'Build', round: '', stage: 'needs-build', risk: null, riskIcon: '', time: '', tokens: '', manual: '1 manual AC', visits: '', mrUrl: null });
+
+    const known = sampleSummary({ project: 'demo', slug: 'x', stage: 'build', round: 2 });
+
+    expect(boardView.taskHeader(task, known)).toMatchObject({ round: '', stage: 'build' });
+
+    const unlisted = sampleTask({ project: 'demo', slug: 'x', column: 'Unreadable' });
+
+    expect(boardView.taskHeader(unlisted, null).column).toBe('Needs human');
+
+    expect(boardView.taskHeader(sampleTask({ project: 'demo', slug: 'x', column: 'Review' }), sampleSummary({ project: 'demo', slug: 'x', round: 0 })).round).toBe('');
   });
 
   it('builds card details from the task summary and the running agent', () => {

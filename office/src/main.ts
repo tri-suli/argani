@@ -4,6 +4,9 @@ import { marked } from 'marked';
 import FetchBoardClient from '@/board/board-client';
 import BoardPoller from '@/board/board-poller';
 import BoardView from '@/board/board-view';
+import FileTree from '@/board/file-tree';
+import HashNavigation from '@/board/hash-navigation';
+import HistorySteps from '@/board/history-steps';
 import addLinkHook from '@/board/link-hook';
 import MarkdownRenderer from '@/board/markdown-renderer';
 import FetchTaskClient from '@/board/task-client';
@@ -28,6 +31,12 @@ const poller = new BoardPoller(boardClient, taskClient);
 
 const boardView = new BoardView();
 
+const historySteps = new HistorySteps();
+
+const fileTree = new FileTree();
+
+const navigation = new HashNavigation(window);
+
 // navigator.clipboard is only read when Copy is pressed, so a page without a clipboard still loads
 const clipboard = { writeText: (text: string) => navigator.clipboard.writeText(text) };
 
@@ -37,6 +46,6 @@ addLinkHook(purify);
 
 const markdownRenderer = new MarkdownRenderer(purify, marked);
 
-Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, markdownRenderer, clipboard, now: () => new Date() }));
+Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, clipboard, now: () => new Date() }));
 
 Alpine.start();

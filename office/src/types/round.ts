@@ -1,5 +1,6 @@
 import type { RowTone } from '@/types/file-tree';
-import type { FindingPartKind, FindingSeverity } from '@/types/review-file';
+import type { FindingPartKind, FindingSeverity, ParsedReview } from '@/types/review-file';
+import type { ReviewState, TaskDetail, TaskFile } from '@/types/task';
 
 /** Which findings the chips of the overview show. */
 type FindingFilter = 'all' | 'important' | 'nit';
@@ -38,7 +39,7 @@ interface ReviewerCard {
   counts: string;
   /** The model the task detail names for this reviewer; null when it names none (or "inherit"). */
   model: string | null;
-  /** What the file holds that is not a finding, as a sentence; empty when it holds nothing else. */
+  /** Says that the file holds text that is not a finding (shown as notes); empty when it holds nothing else. */
   otherNote: string;
   /** The reviewer has not reported yet. */
   isPending: boolean;
@@ -74,7 +75,19 @@ interface FilterChip {
 }
 
 /** Everything the summary sentence of a round is made of. */
+/** What a reviewer wrote besides its findings and verdict, shown under the findings. */
+interface ReviewerNotes {
+  key: string;
+  reviewer: string;
+  isHuman: boolean;
+  title: string;
+  /** Sanitized html. */
+  html: string;
+}
+
 interface RoundTally {
+  /** Reviewers (the human included) whose file holds notes. */
+  notes: number;
   /** Reviewer files expected or present, the human's not counted. */
   seats: number;
   passed: number;
@@ -99,7 +112,24 @@ interface RoundView {
   cards: ReviewerCard[];
   /** Important first, then nits, then the rest; stable within a severity. */
   findings: FindingView[];
+  notes: ReviewerNotes[];
   counts: FindingCounts;
 }
 
-export type { FindingFilter, TextRenderer, RoundStatus, RoundOption, ReviewerCard, FindingPartView, FindingView, FindingCounts, FilterChip, RoundTally, RoundView };
+/** The input of `RoundOverview.build`. */
+interface BuildInput {
+  detail: TaskDetail;
+  round: number;
+  /** The text of each review file of the round by path; null for a file that could not be read. */
+  texts: Record<string, string | null>;
+}
+
+/** What is known of one reviewer of a round before it becomes a card. */
+interface Seat {
+  name: string;
+  file: TaskFile | undefined;
+  parsed: ParsedReview | null;
+  state: ReviewState;
+}
+
+export type { FindingFilter, TextRenderer, RoundStatus, RoundOption, ReviewerCard, ReviewerNotes, FindingPartView, FindingView, FindingCounts, FilterChip, RoundTally, RoundView, BuildInput, Seat };

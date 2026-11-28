@@ -15,8 +15,16 @@ const VERDICT_WORDS: Record<string, ReviewOutcome> = { PASS: 'PASS', CHANGES: 'C
 
 const VERDICT_LINE = /^(\S+)\s*(.*)$/;
 
-/** A finding bullet: "- [Severity] rest". */
-const FINDING_START = /^[-*+][ \t]+\[([^\]\n]*)\][ \t]*(.*)$/;
+/** A finding bullet: "- [Severity] rest", also as an ordered list item ("1. [Severity] rest"). */
+const FINDING_START = /^(?:[-*+]|\d+[.)])[ \t]+\[([^\]\n]*)\][ \t]*(.*)$/;
+
+/** A line that ends the finding above it even without a blank line: a heading, a list item, a quote, a rule. */
+const BLOCK_START = /^(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|(?:-{3,}|\*{3,}|_{3,})\s*$)/;
+
+/** The opening line of a fenced code block, indented or not. */
+const FENCE_OPENING = /^\s*(`{3,}|~{3,})/;
+
+const FENCE_CLOSING = /^\s*(`{3,}|~{3,})\s*$/;
 
 /** A line that continues the bullet above it. */
 const INDENTED_LINE = /^[ \t]+\S/;
@@ -53,6 +61,9 @@ export {
   VERDICT_WORDS,
   VERDICT_LINE,
   FINDING_START,
+  BLOCK_START,
+  FENCE_OPENING,
+  FENCE_CLOSING,
   INDENTED_LINE,
   LEADING_WHITESPACE,
   SEVERITIES,

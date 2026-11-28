@@ -11,7 +11,7 @@ import type { Poller } from '@/types/poller';
 import type { FileSection } from '@/types/file-tree';
 import type { HistoryStep, LegendEntry } from '@/types/history';
 import type { Navigation, TaskRoute } from '@/types/route';
-import type { FilterChip, FindingFilter, FindingView, RoundOption, RoundView } from '@/types/round';
+import type { FilterChip, FindingFilter, FindingView, ReviewerNotes, RoundOption, RoundView } from '@/types/round';
 import type { TaskDetail, TaskFile, TaskSummary } from '@/types/task';
 import type { ColumnView, DoneRow, NeedsHumanRow, ProjectOption, RenderedDocument, TaskHeaderView, TotalsTile } from '@/types/view';
 
@@ -182,6 +182,8 @@ interface TaskPage {
   /** The findings the filter lets through, and the line to show when it leaves none. */
   readonly visibleFindings: FindingView[];
   readonly emptyFindingsMessage: string;
+  /** The notes of the reviewers: shown under the findings of All. */
+  readonly visibleNotes: ReviewerNotes[];
   readonly selectedFile: TaskFile | null;
   /** The name of the selected file without its folders. */
   readonly selectedFileName: string;

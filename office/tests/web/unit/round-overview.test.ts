@@ -245,16 +245,42 @@ describe('round overview: hostile and odd files', () => {
     expect(view.cards[0].counts).toBe('0 important · 1 nit · 1 other');
   });
 
-  it('says what else a file holds, and keeps a finding that has no text', () => {
-    const text = textOf('PASS x', '## Notes', 'Checked against the spec.', '- [Nit]');
+  it('shows what else a file holds as the notes of that reviewer, rendered, under the findings', () => {
+    const text = textOf('PASS x', '## Notes', 'Checked **against** the spec.', '- [Nit]');
 
     const view = overview.build({ detail: detailWith({ files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: text } });
 
-    expect(view.cards[0].otherNote).toBe('2 more lines that are not findings.');
+    expect(view.cards[0].otherNote).toBe('Also holds text that is not a finding: shown below the findings.');
 
     expect(view.findings[0].parts).toEqual([]);
 
-    expect(overview.build({ detail: detailWith({ files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x', 'one line') } }).cards[0].otherNote).toBe('1 more line that is not a finding.');
+    expect(view.notes).toHaveLength(1);
+
+    expect(view.notes[0]).toMatchObject({ key: 'code', reviewer: 'code', isHuman: false, title: 'Notes from code' });
+
+    expect(view.notes[0].html).toContain('<strong>Notes</strong>');
+
+    expect(view.notes[0].html).toContain('<strong>against</strong>');
+
+    expect(overview.build({ detail: detailWith({ files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x', 'one line') } }).notes[0].html).toBe('one line');
+  });
+
+  it('shows no notes block for a reviewer that has not reported, or a file without notes, and the notes of the human as the human own', () => {
+    const detail = detailWith({ rounds: [{ n: 1, reviews: { code: 'pending', security: 'PASS', human: 'CHANGES' } }], files: [reviewFile(1, 'code', 'PASS'), reviewFile(1, 'security', 'PASS'), reviewFile(1, 'human', 'CHANGES')] });
+
+    const view = overview.build({ detail, round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x', 'half a note'), [pathOf(1, 'security')]: textOf('PASS ok'), [pathOf(1, 'human')]: textOf('CHANGES why', 'Some words from the owner.') } });
+
+    expect(view.notes.map((notes) => [notes.reviewer, notes.isHuman, notes.title])).toEqual([['human', true, 'Notes from the human']]);
+  });
+
+  it('shows the notes only under All', () => {
+    const view = overview.build({ detail: detailWith({ files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x', 'a note') } });
+
+    expect(overview.visibleNotes(view, 'all')).toHaveLength(1);
+
+    expect(overview.visibleNotes(view, 'important')).toEqual([]);
+
+    expect(overview.visibleNotes(view, 'nit')).toEqual([]);
   });
 
   it('builds a round that has no entry in the task rounds from its files alone', () => {
@@ -290,13 +316,19 @@ describe('round overview: filter and chips', () => {
 
     const passing = overview.build({ detail: detailWith({ rounds: [{ n: 1, reviews: { code: 'PASS' } }], files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x') } });
 
-    expect(overview.emptyMessage(passing, 'all')).toBe('No finding was written in this round.');
+    expect(overview.emptyMessage(passing, 'all')).toBe('No finding cards in this round.');
 
     expect(overview.emptyMessage(passing, 'important')).toBe('No important finding in this round.');
 
     expect(overview.emptyMessage(passing, 'nit')).toBe('No nits in this round.');
 
     const waiting = overview.build({ detail: detailWith({ rounds: [{ n: 1, reviews: { code: 'pending' } }], files: [] }), round: 1, texts: {} });
+
+    const withNotes = overview.build({ detail: detailWith({ rounds: [{ n: 1, reviews: { code: 'PASS' } }], files: [reviewFile(1, 'code')] }), round: 1, texts: { [pathOf(1, 'code')]: textOf('PASS x', 'a note') } });
+
+    expect(overview.emptyMessage(withNotes, 'all')).toBe('No finding cards in this round. The notes of the reviewers are below.');
+
+    expect(overview.emptyMessage(withNotes, 'nit')).toBe('No nits in this round. The notes of the reviewers are under All.');
 
     expect(overview.emptyMessage(waiting, 'all')).toBe('No findings yet. This page fills in as each reviewer finishes.');
 

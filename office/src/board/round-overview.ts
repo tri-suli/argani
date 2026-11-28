@@ -6,27 +6,12 @@ import RoundSummary from '@/board/round-summary';
 import { FILE_TONE_ICONS, TONE_LABELS, ROUND_OUTCOME_TONES, NO_TONE_ICON } from '@/constants/file-tree';
 import { REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
 import {
-  EMPTY_FILTER_MESSAGES, FILTER_ALL, FILTER_CHIPS, FILTER_SEVERITY, HUMAN_REVIEWER, MESSAGE_NOT_REPORTED, MESSAGE_NO_FINDING, MESSAGE_NO_FINDINGS_YET, MESSAGE_SOME_PENDING, MESSAGE_UNREADABLE, MODEL_INHERIT,
+  EMPTY_FILTER_MESSAGES, FILTER_ALL, MESSAGE_NOTES_BELOW, MESSAGE_NOTES_UNDER_ALL, NOTES_TITLE_HUMAN, NOTES_TITLE_PREFIX, NOTE_SENTENCE, FILTER_CHIPS, FILTER_SEVERITY, HUMAN_REVIEWER, MESSAGE_NOT_REPORTED, MESSAGE_NO_FINDING, MESSAGE_NO_FINDINGS_YET, MESSAGE_SOME_PENDING, MESSAGE_UNREADABLE, MODEL_INHERIT,
   PART_LABELS, REVIEW_FILE_NAME, ROUND_GROUP_PREFIX, ROUND_TITLE_PREFIX, SENTENCE_END, SEVERITY_ICONS, SEVERITY_RANK, STATUS_INVALID, STATUS_NOT_REPORTED, STATUS_RUNNING, STATUS_UNDECIDED,
 } from '@/constants/round';
-import type { FindingPartView, FindingView, FilterChip, FindingFilter, ReviewerCard, RoundOption, RoundStatus, RoundTally, RoundView, TextRenderer } from '@/types/round';
+import type { BuildInput, FindingPartView, FindingView, FilterChip, FindingFilter, ReviewerCard, ReviewerNotes, RoundOption, RoundStatus, RoundTally, RoundView, Seat, TextRenderer } from '@/types/round';
 import type { ParsedFinding, ParsedReview } from '@/types/review-file';
 import type { ReviewState, TaskDetail, TaskFile } from '@/types/task';
-
-interface BuildInput {
-  detail: TaskDetail;
-  round: number;
-  /** The text of each review file of the round by path; null for a file that could not be read. */
-  texts: Record<string, string | null>;
-}
-
-/** What is known of one reviewer of a round before it becomes a card. */
-interface Seat {
-  name: string;
-  file: TaskFile | undefined;
-  parsed: ParsedReview | null;
-  state: ReviewState;
-}
 
 /** The overview of one review round: reviewer cards, findings and the sentence, derived from the task detail and the review files. Pure. */
 class RoundOverview {
@@ -58,15 +43,18 @@ class RoundOverview {
 
     findings.sort((left, right) => SEVERITY_RANK[left.severity] - SEVERITY_RANK[right.severity]);
 
+    const notes = seats.flatMap((seat) => this.notesOf(seat));
+
     const counts = { all: findings.length, important: this.countOf(findings, 'important'), nit: this.countOf(findings, 'nit') };
 
     return {
       round,
       title: this.title(round),
       status: this.roundStatus(detail, round),
-      summary: this.summary.sentence(this.tally(seats, findings)),
+      summary: this.summary.sentence(this.tally(seats, findings, notes)),
       cards,
       findings,
+      notes,
       counts,
     };
   }
@@ -80,6 +68,11 @@ class RoundOverview {
     return filter === FILTER_ALL ? view.findings : view.findings.filter((finding) => finding.severity === FILTER_SEVERITY[filter]);
   }
 
+  /** The notes of the reviewers show under the findings of All, not under a severity. */
+  visibleNotes(view: RoundView, filter: FindingFilter): ReviewerNotes[] {
+    return filter === FILTER_ALL ? view.notes : [];
+  }
+
   /** The line shown instead of the findings when the filter leaves none; empty while there is something to show. */
   emptyMessage(view: RoundView, filter: FindingFilter): string {
     if (this.visible(view, filter).length > 0) {
@@ -89,10 +82,10 @@ class RoundOverview {
     const waiting = view.cards.some((card) => card.isPending);
 
     if (filter === FILTER_ALL) {
-      return waiting ? MESSAGE_NO_FINDINGS_YET : MESSAGE_NO_FINDING;
+      return waiting ? MESSAGE_NO_FINDINGS_YET : MESSAGE_NO_FINDING + (view.notes.length > 0 ? MESSAGE_NOTES_BELOW : '');
     }
 
-    return EMPTY_FILTER_MESSAGES[filter] + (waiting ? MESSAGE_SOME_PENDING : SENTENCE_END);
+    return EMPTY_FILTER_MESSAGES[filter] + (waiting ? MESSAGE_SOME_PENDING : SENTENCE_END + (view.notes.length > 0 ? MESSAGE_NOTES_UNDER_ALL : ''));
   }
 
   private title(round: number): string {
@@ -164,7 +157,7 @@ class RoundOverview {
       headline: this.headline(seat),
       counts: readable ? this.countsText(parsed.findings) : '',
       model: name === HUMAN_REVIEWER ? null : this.modelOf(detail, name),
-      otherNote: readable ? this.otherNote(parsed.otherLines) : '',
+      otherNote: readable && parsed.notes !== '' ? NOTE_SENTENCE : '',
       isPending,
     };
   }
@@ -205,12 +198,15 @@ class RoundOverview {
     return [`${important} important`, `${nits} ${nits === 1 ? 'nit' : 'nits'}`, ...(other > 0 ? [`${other} other`] : [])].join(' · ');
   }
 
-  private otherNote(lines: number): string {
-    if (lines === 0) {
-      return '';
+  /** What a reviewer that has reported wrote besides its findings. */
+  private notesOf({ name, parsed, state }: Seat): ReviewerNotes[] {
+    if (state === REVIEW_STATE_PENDING || parsed === null || parsed.notes === '') {
+      return [];
     }
 
-    return lines === 1 ? '1 more line that is not a finding.' : `${lines} more lines that are not findings.`;
+    const isHuman = name === HUMAN_REVIEWER;
+
+    return [{ key: name, reviewer: name, isHuman, title: isHuman ? NOTES_TITLE_HUMAN : NOTES_TITLE_PREFIX + name, html: this.html(parsed.notes) }];
   }
 
   /** The model the task detail names for a reviewer; "inherit" names none. */
@@ -248,12 +244,13 @@ class RoundOverview {
     return findings.filter((finding) => finding.severity === severity).length;
   }
 
-  private tally(seats: Seat[], findings: FindingView[]): RoundTally {
+  private tally(seats: Seat[], findings: FindingView[], notes: ReviewerNotes[]): RoundTally {
     const reviewers = seats.filter((seat) => seat.name !== HUMAN_REVIEWER);
 
     const stateCount = (state: ReviewState) => reviewers.filter((seat) => seat.state === state).length;
 
     return {
+      notes: notes.length,
       seats: reviewers.length,
       passed: stateCount(REVIEW_OUTCOME_PASS),
       changes: stateCount(REVIEW_OUTCOME_CHANGES),

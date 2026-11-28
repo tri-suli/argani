@@ -5,26 +5,56 @@
 @custom-variant narrow (@media (max-width: 640px));
 
 @theme {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --color-bg: #f4f5f8;
+  --color-bg: #f3f4f7;
   --color-panel: #ffffff;
   --color-card: #ffffff;
   --color-hover: #eef0f6;
-  --color-line: #d3d7e2;
-  --color-ink: #1b1d27;
-  --color-muted: #4f556b;
-  --color-faint: #656b83;
-  --color-active: #00668a;
+  --color-line: #dfe2ea;
+  --color-line-strong: #cfd3df;
+  --color-line-dashed: #c3c8d6;
+  --color-ink: #151824;
+  --color-muted: #4a5068;
+  --color-faint: #646b85;
+  --color-tag: #eceef4;
+  --color-badge: #e6e8ef;
+  --color-badge-ink: #2b3044;
+
+  --color-active: #2f48d8;
+  --color-active-tint: #eef1fd;
+  --color-active-ink: #2338b0;
+  --color-active-line: #aab5f0;
+  --color-selected: #f3f5fe;
+  --color-halo: #dfe4fb;
+
   --color-pass: #1a7f37;
+  --color-pass-tint: #e3f4e8;
+  --color-pass-ink: #156c2e;
+  --color-pass-line: #b5dfc1;
+
   --color-changes: #9a5b00;
-  --color-human: #c62828;
-  --color-merged: #6f42c1;
+  --color-changes-tint: #fdefd8;
+  --color-changes-ink: #8a5000;
+  --color-changes-line: #ecc98c;
+
+  --color-pending-line: #9aa1b8;
+
+  --color-human: #c2410c;
+  --color-human-tint: #fff5ec;
+  --color-human-line: #f0c3a2;
+  --color-human-chip: #fbe3d2;
+  --color-human-strong: #a8380b;
+  --color-human-ink: #8a3a12;
+  --color-human-body: #3b2a20;
+  --color-on-human: #ffffff;
+
+  --color-merged: #6d3fc4;
   --color-scrim: rgb(20 22 32 / 0.45);
 
-  --shadow-flagged: 0 0 0 1px color-mix(in srgb, var(--color-human) 40%, transparent),
-    0 8px 24px -12px color-mix(in srgb, var(--color-human) 60%, transparent);
+  --shadow-card: 0 1px 2px rgb(21 24 36 / 0.05);
+  --shadow-menu: 0 18px 40px -12px rgb(21 24 36 / 0.28), 0 2px 6px rgb(21 24 36 / 0.08);
 
   --animate-agent: agent-pulse 1.6s ease-in-out infinite;
   --animate-breathe: breathe 1.6s ease-in-out infinite;
@@ -54,13 +84,43 @@
     --color-card: #20222c;
     --color-hover: #252835;
     --color-line: #2b2e3b;
+    --color-line-strong: #3a3e50;
+    --color-line-dashed: #444960;
     --color-ink: #e4e5ea;
     --color-muted: #a3a8bd;
     --color-faint: #8a8fa5;
-    --color-active: #8be9fd;
+    --color-tag: #2b2e3b;
+    --color-badge: #2f3342;
+    --color-badge-ink: #d5d8e6;
+
+    --color-active: #8ea0ff;
+    --color-active-tint: #232a52;
+    --color-active-ink: #b6c1ff;
+    --color-active-line: #44509b;
+    --color-selected: #232842;
+    --color-halo: #2f3a78;
+
     --color-pass: #50fa7b;
+    --color-pass-tint: #17301f;
+    --color-pass-ink: #7be39a;
+    --color-pass-line: #2d5a3a;
+
     --color-changes: #ffb86c;
-    --color-human: #ff6e6e;
+    --color-changes-tint: #33260f;
+    --color-changes-ink: #ffc98a;
+    --color-changes-line: #6a4a1c;
+
+    --color-pending-line: #6b7189;
+
+    --color-human: #ff9a62;
+    --color-human-tint: #2c1d16;
+    --color-human-line: #6b3a22;
+    --color-human-chip: #4a2a1a;
+    --color-human-strong: #ffa270;
+    --color-human-ink: #ffb48a;
+    --color-human-body: #f0d9cc;
+    --color-on-human: #1a0f08;
+
     --color-merged: #bd93f9;
     --color-scrim: rgb(5 6 10 / 0.55);
   }
@@ -69,6 +129,25 @@
 @layer base {
   [x-cloak] { display: none !important; }
   :focus-visible { outline: 2px solid var(--color-active); outline-offset: 2px; }
+}
+
+/* The icon font glyph: a layer below the utilities, so a size class on the element wins. */
+@layer components {
+  .icon {
+    display: inline-block;
+    flex: none;
+    font-family: 'Material Symbols Outlined';
+    font-size: 18px;
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: normal;
+    line-height: 1;
+    text-transform: none;
+    white-space: nowrap;
+    vertical-align: -4px;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
 /* Typography plugin theme: maps the plugin's colour variables onto the tokens above, so one rule serves both schemes. */

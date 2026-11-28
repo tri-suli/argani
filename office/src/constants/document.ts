@@ -1,5 +1,9 @@
-// plugins/argani/templates/*.md: the lines after the title read `Key: value`
 const META_LINE_PATTERN = /^([A-Za-z][A-Za-z ]{0,30}): (\S.*)$/;
+
+// The keys of the `Key: value` block: Author, Status, Risk and Date (templates/intent.md), Intent (templates/spec.md),
+// Spec (templates/plan.md and build.md), Round (the decision, factory_state.py ROUND_LINE) and MR, Opened and Merged (mr.md,
+// factory_actions.py). Any other `Key: value` line is prose.
+const META_KEYS = ['Author', 'Status', 'Risk', 'Date', 'Intent', 'Spec', 'Round', 'MR', 'Opened', 'Merged'];
 
 const TITLE_PREFIX = '# ';
 
@@ -119,6 +123,7 @@ const HEADING_OPENING_PATTERN = /^<h(\d)>/;
 
 export {
   META_LINE_PATTERN,
+  META_KEYS,
   TITLE_PREFIX,
   NEWLINE_PATTERN,
   LINE_BREAK,

@@ -2,6 +2,9 @@ type Risk = 'low' | 'medium' | 'high';
 
 type ReviewState = 'PASS' | 'CHANGES' | 'pending' | 'invalid';
 
+/** A review round that is decided: every reviewer passed, or one asked for changes. */
+type ReviewOutcome = 'PASS' | 'CHANGES';
+
 type FileTone = 'good' | 'warn' | 'stop';
 
 interface TaskRound {
@@ -48,4 +51,4 @@ interface TaskDetail extends TaskSummary {
   files: TaskFile[];
 }
 
-export type { Risk, ReviewState, FileTone, TaskRound, TokenUsage, TaskSummary, TaskFile, TaskDetail };
+export type { Risk, ReviewState, ReviewOutcome, FileTone, TaskRound, TokenUsage, TaskSummary, TaskFile, TaskDetail };

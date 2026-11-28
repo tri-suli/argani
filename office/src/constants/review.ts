@@ -1,6 +1,10 @@
-import type { ReviewState, Risk } from '@/types/task';
+import type { ReviewOutcome, ReviewState, Risk } from '@/types/task';
 
 const REVIEW_STATE_PENDING = 'pending' as const satisfies ReviewState;
+
+const REVIEW_OUTCOME_PASS = 'PASS' as const satisfies ReviewOutcome;
+
+const REVIEW_OUTCOME_CHANGES = 'CHANGES' as const satisfies ReviewOutcome;
 
 const REVIEW_STATE_INVALID = 'invalid' as const satisfies ReviewState;
 
@@ -23,6 +27,8 @@ const CHIP_ICONS: Record<string, string> = {
 const RISK_ICONS: Record<Risk, string> = { low: 'shield', medium: 'warning', high: 'warning' };
 
 export {
+  REVIEW_OUTCOME_PASS,
+  REVIEW_OUTCOME_CHANGES,
   REVIEW_STATE_PENDING,
   REVIEW_STATE_INVALID,
   CHIP_CLASS_WAITING,

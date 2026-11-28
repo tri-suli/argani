@@ -35,7 +35,7 @@ describe('file tree', () => {
 
     expect(job.rows.map((row) => [row.icon, row.tone, row.tag])).toEqual([['description', 'none', ''], ['check_circle', 'good', 'APPROVE']]);
 
-    expect(review.rows[1]).toMatchObject({ kind: 'file', icon: 'error', tone: 'warn', tag: 'CHANGES', nested: true, path: 'review/round-1/review-code.md', tagTitle: 'CHANGES missing a test' });
+    expect(review.rows[1]).toMatchObject({ isRound: false, icon: 'error', tone: 'warn', tag: 'CHANGES', nested: true, path: 'review/round-1/review-code.md', tagTitle: 'CHANGES missing a test' });
 
     expect(review.rows[2]).toMatchObject({ icon: 'difference', tone: 'none', tag: '' });
 
@@ -47,10 +47,10 @@ describe('file tree', () => {
   it('shows the outcome of a round as its own icon and tag, and a running round with a spinner', () => {
     const rows = fileTree.sections(files, rounds, 'Review', [])[1].rows;
 
-    expect(rows.map((row) => [row.kind, row.label, row.icon, row.tone, row.tag, row.spinning])).toEqual([
-      ['round', 'Round 1', 'error', 'warn', 'CHANGES', false],
-      ['round', 'Round 2', 'check_circle', 'good', 'PASS', false],
-      ['round', 'Round 3', 'progress_activity', 'now', 'running', true],
+    expect(rows.map((row) => [row.isRound, row.label, row.icon, row.tone, row.tag, row.spinning])).toEqual([
+      [true, 'Round 1', 'error', 'warn', 'CHANGES', false],
+      [true, 'Round 2', 'check_circle', 'good', 'PASS', false],
+      [true, 'Round 3', 'progress_activity', 'now', 'running', true],
     ]);
   });
 
@@ -73,7 +73,7 @@ describe('file tree', () => {
   it('marks a round expanded only when it is in the open list, and hides its files otherwise', () => {
     const rows = fileTree.sections(files, rounds, 'Review', [2])[1].rows;
 
-    expect(rows.filter((row) => row.kind === 'round').map((row) => [row.label, row.expanded])).toEqual([['Round 1', false], ['Round 2', true], ['Round 3', false]]);
+    expect(rows.filter((row) => row.isRound).map((row) => [row.label, row.expanded])).toEqual([['Round 1', false], ['Round 2', true], ['Round 3', false]]);
 
     expect(rows.map((row) => row.label)).toEqual(['Round 1', 'Round 2', 'review-code.md', 'Round 3']);
   });

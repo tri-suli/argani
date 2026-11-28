@@ -100,7 +100,7 @@ class FileTree {
 
     const label = `${ROUND_LABEL_PREFIX} ${round}`;
 
-    const shared = { key: `round:${round}`, kind: 'round' as const, label, tagTitle: '', nested: false, path: null, round, expanded };
+    const shared = { key: `round:${round}`, isRound: true, label, tagTitle: '', nested: false, path: null, round, expanded };
 
     if (outcome !== null) {
       const tone = ROUND_OUTCOME_TONES[outcome];
@@ -120,7 +120,7 @@ class FileTree {
 
     return {
       key: `file:${file.path}`,
-      kind: 'file',
+      isRound: false,
       label: name,
       icon: file.tone === null ? (name === DIFF_FILE_NAME ? DIFF_ICON : NO_TONE_ICON) : FILE_TONE_ICONS[file.tone],
       tone,

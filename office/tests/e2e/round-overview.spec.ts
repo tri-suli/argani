@@ -442,6 +442,26 @@ test.describe('review round overview', () => {
     expect(await hasNoSidewaysScroll(page)).toBe(true);
   });
 
+  test('does nothing to the address when a link in a finding points at a fragment', async ({ page }) => {
+    const text = ['CHANGES links', '- [Important] a.sh:1 - What: see [the section](#notes) first. Why: y. Fix: f.', '', 'And [below](#more).', '=== END OF REVIEW ===', ''].join('\n');
+
+    await page.unroute('**/api/tasks/demo/ship-report');
+
+    await mockRounds(page, [{ round: 1, reviews: { code: 'CHANGES' }, texts: { code: text } }]);
+
+    await page.goto(taskUrl('/round/1'));
+
+    await page.getByTestId('finding').getByRole('link', { name: 'the section' }).click();
+
+    await page.getByTestId('reviewer-notes').getByRole('link', { name: 'below' }).click();
+
+    await expect(page).toHaveURL(/#\/task\/demo\/ship-report\/round\/1$/);
+
+    await expect(page.getByTestId('round-title')).toHaveText('Round 1');
+
+    await expect(page.getByTestId('board')).toBeHidden();
+  });
+
   test('takes a long unbreakable text without sideways scroll', async ({ page }) => {
     const long: RoundSpec = { round: 1, reviews: { code: 'CHANGES' }, texts: { code: `CHANGES ${'x'.repeat(200)}\n- [Important] ${'a/'.repeat(120)}file.ts:1 - What: ${'y'.repeat(300)} \`${'z'.repeat(200)}\`. Why: w. Fix: f.\n=== END OF REVIEW ===\n` } };
 

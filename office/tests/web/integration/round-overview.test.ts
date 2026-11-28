@@ -588,6 +588,38 @@ describe('round overview: markup in the text of a finding', () => {
   });
 });
 
+describe('round overview: links in the text of a finding', () => {
+  it('leaves the address alone when a link inside the text points at a fragment', async () => {
+    await mount('#/task/demo/fix-export/round/1', (client) => {
+      client.texts['review/round-1/review-code.md'] = ['CHANGES x', '- [Important] a.ts:1 - What: see [the section](#notes) and [docs](https://example.test). Why: y. Fix: ok.', '', 'See [below](#more).', CLOSING, ''].join('\n');
+    });
+
+    await eventually(() => expect(findings()).toHaveLength(2));
+
+    const hash = navigation.hash();
+
+    const clickPrevented = (selector: string) => {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+
+      (document.querySelector(selector) as HTMLElement).dispatchEvent(event);
+
+      return event.defaultPrevented;
+    };
+
+    expect(clickPrevented('[data-testid=finding] a[href="#notes"]')).toBe(true);
+
+    await eventually(() => expect(all('[data-testid=reviewer-notes]')).toHaveLength(1));
+
+    expect(clickPrevented('[data-testid=reviewer-notes] a[href="#more"]')).toBe(true);
+
+    expect(clickPrevented('[data-testid=finding] a[href="https://example.test"]')).toBe(false);
+
+    expect(navigation.hash()).toBe(hash);
+
+    expect(isShown('[data-testid=round-overview]')).toBe(true);
+  });
+});
+
 describe('round overview: notes', () => {
   it('shows what a file says besides its findings as a notes block of that reviewer, under All only', async () => {
     await mount('#/task/demo/fix-export/round/1', (client) => {

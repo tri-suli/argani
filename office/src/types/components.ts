@@ -163,6 +163,8 @@ interface TaskPage {
   /** Shows the overview of a round in place of the file. */
   selectRound(round: number): Promise<void>;
   setFindingFilter(filter: FindingFilter): void;
+  /** Stops a click on a fragment link in the text of a finding from changing the address, which would leave the task. */
+  ignoreFragmentLinks(event: MouseEvent): void;
   /** Reads the review files of the selected round (those that changed) and builds its overview. */
   loadRound(generation: number): Promise<void>;
   toggleRound(round: number): void;

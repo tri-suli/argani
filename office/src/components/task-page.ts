@@ -8,7 +8,7 @@ import type { OutlineTracker } from '@/types/document';
 import type { TaskPage } from '@/types/components';
 import type { TaskDetail, TaskFile } from '@/types/task';
 import { BOARD_TITLE_SELECTOR } from '@/constants/dashboard';
-import { FILTER_ALL } from '@/constants/round';
+import { FILTER_ALL, FRAGMENT_LINK_SELECTOR } from '@/constants/round';
 
 function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree, diffRows: DiffRows, roundOverview: RoundOverview, outline: OutlineTracker): TaskPage {
   // The review files read for the overview, by task and path: not state of the page, so a poll that finds them unchanged draws nothing.
@@ -160,6 +160,12 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
 
     setFindingFilter(filter) {
       this.findingFilter = filter;
+    },
+
+    ignoreFragmentLinks(event) {
+      if ((event.target as Element).closest(FRAGMENT_LINK_SELECTOR) !== null) {
+        event.preventDefault();
+      }
     },
 
     async refresh() {

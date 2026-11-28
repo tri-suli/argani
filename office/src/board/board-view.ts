@@ -1,10 +1,10 @@
 import { formatCount, formatDuration, formatElapsed, pluralize } from '@/board/format';
 import { AGENT_TYPE_SEPARATOR, ALL_PROJECTS, ALL_PROJECTS_LABEL, DETAIL_SEPARATOR, NO_COUNT, NO_VALUE, REASON_WORD_SEPARATOR, TILE_AGENTS, TILE_MANUAL, TILE_TOKENS, NOT_FOUND, TILE_WAITING, UNKNOWN_WAIT } from '@/constants/dashboard';
-import { ANSWER_COMMAND_PREFIX, ANSWER_PLACEHOLDER, DONE, KNOWN_COLUMNS, NEEDS_HUMAN, OUTCOME_CANCELLED, OUTCOME_ICONS, OUTCOME_MERGED, PIPELINE, STAGE_CANCELLED, WORKING_COLUMNS } from '@/constants/pipeline';
+import { ANSWER_COMMAND_PREFIX, ANSWER_PLACEHOLDER, COLUMN_REVIEW, DONE, KNOWN_COLUMNS, NEEDS_HUMAN, OUTCOME_CANCELLED, OUTCOME_ICONS, OUTCOME_MERGED, PIPELINE, STAGE_CANCELLED, WORKING_COLUMNS } from '@/constants/pipeline';
 import { CHIP_CLASS_INVALID, CHIP_CLASS_PENDING, CHIP_CLASS_WAITING, CHIP_ICONS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING, RISK_ICONS } from '@/constants/review';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
 import type { ReviewState, TaskSummary } from '@/types/task';
-import type { AgentView, CardView, ColumnView, DoneRow, HistoryRow, NeedsHumanRow, ProjectOption, TotalsTile } from '@/types/view';
+import type { AgentView, CardView, ColumnView, DoneRow, NeedsHumanRow, ProjectOption, TaskHeaderView, TotalsTile } from '@/types/view';
 
 class BoardView {
   columnOf(task: BoardTask): string {
@@ -150,9 +150,26 @@ class BoardView {
     return snapshot?.projects.flatMap((candidate) => candidate.tasks).find((task) => task.project === project && task.slug === slug) ?? null;
   }
 
-  /** The columns the task has been through, in order, each with the time it stayed. */
-  historyRows(task: BoardTask): HistoryRow[] {
-    return task.durations.map(({ column, milliseconds }) => ({ column, duration: formatDuration(milliseconds) }));
+  /** The pills and metrics at the top of the task page; what the data does not state is left empty. */
+  taskHeader(task: BoardTask, summary: TaskSummary | null): TaskHeaderView {
+    const column = this.columnOf(task);
+
+    const risk = summary?.risk ?? null;
+
+    const { manualAcceptanceCriteria, needsHumanCount, needsHumanMilliseconds } = task.metrics;
+
+    return {
+      column,
+      round: column === COLUMN_REVIEW && summary !== null && summary.round > NO_COUNT ? `round ${summary.round}` : '',
+      stage: summary?.stage ?? task.stage,
+      risk,
+      riskIcon: risk === null ? '' : RISK_ICONS[risk],
+      time: summary && summary.agentMilliseconds > NO_COUNT ? formatDuration(summary.agentMilliseconds) : '',
+      tokens: summary && summary.tokens.total > NO_COUNT ? `${formatCount(summary.tokens.total)} tokens` : '',
+      manual: pluralize(manualAcceptanceCriteria, 'manual AC'),
+      visits: needsHumanCount > NO_COUNT ? `${needsHumanCount}× needed you · ${formatDuration(needsHumanMilliseconds)}` : '',
+      mrUrl: summary?.mrUrl ?? null,
+    };
   }
 
   private tasksOf(snapshot: BoardSnapshot, project: string | null): BoardTask[] {

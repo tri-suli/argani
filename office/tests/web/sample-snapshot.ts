@@ -1,3 +1,6 @@
+import BoardView from '@/board/board-view';
+import FileTree from '@/board/file-tree';
+import HistorySteps from '@/board/history-steps';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { TaskDetail, TaskSummary } from '@/types/task';
@@ -104,7 +107,8 @@ function sampleDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
     ...sampleSummary({ project: 'demo', slug: 'fix-export', risk: 'medium', round: 1, mrUrl: 'https://example.test/mr/7', agentMilliseconds: 125000, tokens: { ...noTokens, total: 6000 } }),
     stage: 'build',
     next: 'review',
-    column: 'In progress',
+    column: 'Build',
+    rounds: [{ n: 1, reviews: { code: 'PASS' } }],
     reviewers: ['code'],
     models: {},
     decision: { exists: false, complete: false, verdict: null },
@@ -155,4 +159,9 @@ class FakeTaskClient implements TaskClient {
   }
 }
 
-export { sampleAgent, sampleTask, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };
+/** The pure view modules a dashboard is built with. */
+function sampleViews() {
+  return { boardView: new BoardView(), historySteps: new HistorySteps(), fileTree: new FileTree() };
+}
+
+export { sampleViews, sampleAgent, sampleTask, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };

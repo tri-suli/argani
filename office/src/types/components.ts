@@ -1,15 +1,23 @@
 import type BoardView from '@/board/board-view';
+import type FileTree from '@/board/file-tree';
+import type HistorySteps from '@/board/history-steps';
 import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
-import type { FileTone, TaskDetail, TaskFile, TaskSummary } from '@/types/task';
-import type { ColumnView, DoneRow, FileGroup, HistoryRow, NeedsHumanRow, ProjectOption, RenderedDocument, TotalsTile } from '@/types/view';
+import type { FileSection } from '@/types/file-tree';
+import type { HistoryStep, LegendEntry } from '@/types/history';
+import type { Navigation, TaskRoute } from '@/types/route';
+import type { TaskDetail, TaskFile, TaskSummary } from '@/types/task';
+import type { ColumnView, DoneRow, NeedsHumanRow, ProjectOption, RenderedDocument, TaskHeaderView, TotalsTile } from '@/types/view';
 
 interface DashboardDependencies {
   poller: Poller;
   taskClient: TaskClient;
   boardView: BoardView;
+  historySteps: HistorySteps;
+  fileTree: FileTree;
+  navigation: Navigation;
   markdownRenderer: MarkdownRenderer;
   clipboard: ClipboardWriter;
   now: () => Date;
@@ -44,7 +52,9 @@ interface Dashboard {
   lastSuccessAt: string | null;
   clockMilliseconds: number;
   selectedProject: string;
-  drawer: TaskDrawer;
+  taskPage: TaskPage;
+  /** The colour legend of the history strip. */
+  legend: LegendEntry[];
   picker: ProjectPicker;
   copier: CommandCopier;
   init(): void;
@@ -62,18 +72,29 @@ interface Dashboard {
   /** Filters the board to the project and closes the picker, giving the focus back to its button. */
   chooseProject(value: string, button: HTMLElement): void;
   closePicker(button: HTMLElement): void;
-  /** The task open in the drawer, read from the latest board so its history stays current. */
-  readonly drawerTask: BoardTask | null;
-  readonly drawerWaiting: string;
-  readonly drawerHasHistory: boolean;
-  readonly drawerHistory: HistoryRow[];
+  /** Opens the task page for the task of a card or row, remembering where the board was scrolled. */
+  openTask(task: BoardTask): void;
+  /** The "← Board" button: back in the history when the task was opened from the board, otherwise straight to the board. */
+  leaveTask(): void;
+  /** Picks a file of the open task and puts it in the address. */
+  selectFile(path: string): Promise<void>;
+  /** Shows the task or the board the address names. */
+  applyRoute(): void;
+  /** The task open on the task page, read from the latest board so its title and history stay current. */
+  readonly taskPageTask: BoardTask | null;
+  /** The summary of the open task: the detail once it is loaded, the board's list until then. */
+  readonly taskSummary: TaskSummary | null;
+  readonly taskTitle: string;
+  /** The open task is not on the board (any more), once a board has been received. */
+  readonly taskMissing: boolean;
+  readonly taskHeader: TaskHeaderView | null;
+  readonly taskHistory: HistoryStep[];
 }
 
-interface TaskDrawer {
+interface TaskPage {
   isOpen: boolean;
   project: string;
   slug: string;
-  title: string;
   detail: TaskDetail | null;
   selectedPath: string | null;
   fileText: string;
@@ -85,21 +106,35 @@ interface TaskDrawer {
   errorMessage: string | null;
   /** Bumped by every request so a slow answer for an old selection is dropped. */
   generation: number;
-  open(task: BoardTask): Promise<void>;
-  close(): void;
+  /** The review rounds whose files are listed; null until the first load of the task has chosen them. */
+  openRounds: number[] | null;
+  /** Whether the Back button of the browser leads to the board: the task was opened from a card or row. */
+  openedFromBoard: boolean;
+  /** Where the board was scrolled when the task was opened from it. */
+  boardScrollY: number;
+  /** Counts the opens and the closes, so the page can move the focus once per change. */
+  openCount: number;
+  closeCount: number;
+  open(route: TaskRoute): Promise<void>;
+  /** Shows the task of the route: opens it, or only changes the file when it is the task already open. */
+  show(route: TaskRoute): Promise<void>;
+  /** Leaves the task page; the board comes back and the page restores it. */
+  hide(): void;
+  /** Remembers where the board was and that the browser history leads back to it. */
+  leaveBoard(scrollY: number): void;
+  /** Scrolls the board to where it was and returns the focus to the element that opened the task. */
+  restoreBoard(): void;
+  focusTitle(title: HTMLElement): void;
   select(path: string): Promise<void>;
+  toggleRound(round: number): void;
   /** Reloads the open task, called after every board poll. */
   refresh(): Promise<void>;
-  trapFocus(event: KeyboardEvent, container: HTMLElement): void;
   clearFile(): void;
   fileStamp(detail: TaskDetail): string;
   load(): Promise<void>;
   loadFile(generation: number): Promise<void>;
-  readonly headline: string;
-  readonly groups: FileGroup[];
+  readonly sections: FileSection[];
   readonly selectedFile: TaskFile | null;
-  fileLabel(file: TaskFile): string;
-  toneLabel(tone: FileTone | null): string;
 }
 
-export type { DashboardDependencies, Dashboard, TaskDrawer, ClipboardWriter, CommandCopier, ProjectPicker };
+export type { DashboardDependencies, Dashboard, TaskPage, ClipboardWriter, CommandCopier, ProjectPicker };

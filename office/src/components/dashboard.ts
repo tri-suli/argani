@@ -1,13 +1,16 @@
-import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_COUNT, NO_PROJECT_OPTION } from '@/constants/dashboard';
+import { buildTaskHash, parseTaskRoute } from '@/board/task-route';
+import { ALL_PROJECTS, CLOCK_INTERVAL_MILLISECONDS, NO_PROJECT_OPTION } from '@/constants/dashboard';
+import { STEP_LEGEND } from '@/constants/history';
+import { BOARD_HASH } from '@/constants/route';
 import { MILLISECONDS_PER_MINUTE, MILLISECONDS_PER_SECOND } from '@/constants/format';
 import { formatDuration } from '@/board/format';
 import createCommandCopier from '@/components/command-copier';
 import createProjectPicker from '@/components/project-picker';
-import createTaskDrawer from '@/components/task-drawer';
+import createTaskPage from '@/components/task-page';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
-function createDashboard({ poller, taskClient, boardView, markdownRenderer, clipboard, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, clipboard, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
@@ -17,7 +20,8 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, clip
     lastSuccessAt: null,
     clockMilliseconds: 0,
     selectedProject: ALL_PROJECTS,
-    drawer: createTaskDrawer(taskClient, markdownRenderer),
+    taskPage: createTaskPage(taskClient, markdownRenderer, fileTree),
+    legend: STEP_LEGEND,
     picker: createProjectPicker(),
     copier: createCommandCopier(clipboard),
 
@@ -28,6 +32,11 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, clip
       clockTimer = setInterval(() => {
         this.clockMilliseconds = now().getTime();
       }, CLOCK_INTERVAL_MILLISECONDS);
+
+      navigation.listen(() => this.applyRoute());
+
+      // a link to a task opens it at once; the board data it needs arrives with the first poll
+      this.applyRoute();
 
       poller.start({
         onSnapshot: (snapshot, tasks) => {
@@ -45,7 +54,7 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, clip
 
           this.lastSuccessAt = new Date(this.clockMilliseconds).toISOString();
 
-          void this.drawer.refresh();
+          void this.taskPage.refresh();
         },
         onError: (error) => {
           this.errorMessage = error.message;
@@ -55,6 +64,8 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, clip
 
     destroy() {
       poller.stop();
+
+      navigation.stop();
 
       if (clockTimer !== null) {
         clearInterval(clockTimer);
@@ -121,20 +132,64 @@ function createDashboard({ poller, taskClient, boardView, markdownRenderer, clip
       button.focus();
     },
 
-    get drawerTask() {
-      return boardView.findTask(this.snapshot, this.drawer.project, this.drawer.slug);
+    openTask(task) {
+      this.taskPage.leaveBoard(window.scrollY);
+
+      navigation.push(buildTaskHash({ project: task.project, slug: task.slug, path: null }));
+
+      this.applyRoute();
     },
 
-    get drawerWaiting() {
-      return formatDuration(this.drawerTask?.metrics.needsHumanMilliseconds ?? 0);
+    leaveTask() {
+      if (this.taskPage.openedFromBoard) {
+        navigation.back();
+
+        return;
+      }
+
+      navigation.replace(BOARD_HASH);
+
+      this.applyRoute();
     },
 
-    get drawerHasHistory() {
-      return this.drawerHistory.length > NO_COUNT;
+    async selectFile(path) {
+      await this.taskPage.select(path);
+
+      navigation.replace(buildTaskHash({ project: this.taskPage.project, slug: this.taskPage.slug, path }));
     },
 
-    get drawerHistory() {
-      return this.drawerTask === null ? [] : boardView.historyRows(this.drawerTask);
+    applyRoute() {
+      const route = parseTaskRoute(navigation.hash());
+
+      if (route === null) {
+        this.taskPage.hide();
+      } else {
+        void this.taskPage.show(route);
+      }
+    },
+
+    get taskPageTask() {
+      return boardView.findTask(this.snapshot, this.taskPage.project, this.taskPage.slug);
+    },
+
+    get taskSummary() {
+      return this.taskPage.detail ?? this.tasks.find((summary) => summary.project === this.taskPage.project && summary.slug === this.taskPage.slug) ?? null;
+    },
+
+    get taskTitle() {
+      return this.taskPageTask?.title ?? this.taskPage.slug;
+    },
+
+    get taskMissing() {
+      return this.taskPage.isOpen && this.snapshot !== null && this.taskPageTask === null;
+    },
+
+    get taskHeader() {
+      return this.taskPageTask === null ? null : boardView.taskHeader(this.taskPageTask, this.taskSummary);
+    },
+
+    get taskHistory() {
+      return this.taskPageTask === null ? [] : historySteps.derive(this.taskPageTask, this.taskSummary, this.clockMilliseconds);
     },
   };
 }

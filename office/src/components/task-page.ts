@@ -1,22 +1,15 @@
-import { fileName, groupFiles, isMarkdownFile } from '@/board/file-view';
-import { formatCount, formatDuration } from '@/board/format';
+import { isMarkdownFile } from '@/board/file-view';
+import type FileTree from '@/board/file-tree';
 import type MarkdownRenderer from '@/board/markdown-renderer';
 import type { TaskClient } from '@/types/client';
+import type { TaskPage } from '@/types/components';
 import type { TaskDetail } from '@/types/task';
-import { FOCUSABLE, PAGE_CONTENT, TONE_LABELS } from '@/constants/drawer';
-import type { TaskDrawer } from '@/types/components';
 
-/** The page behind the modal drawer must not be reachable by keyboard or screen reader. */
-function setPageInert(inert: boolean): void {
-  document.querySelectorAll(PAGE_CONTENT).forEach((element) => element.toggleAttribute('inert', inert));
-}
-
-function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRenderer): TaskDrawer {
+function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRenderer, fileTree: FileTree): TaskPage {
   return {
     isOpen: false,
     project: '',
     slug: '',
-    title: '',
     detail: null,
     selectedPath: null,
     fileText: '',
@@ -25,16 +18,33 @@ function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRend
     rendered: null,
     errorMessage: null,
     generation: 0,
+    openRounds: null,
+    openedFromBoard: false,
+    boardScrollY: 0,
+    openCount: 0,
+    closeCount: 0,
 
-    async open({ project, slug, title }) {
-      Object.assign(this, { isOpen: true, project, slug, title, detail: null, selectedPath: null, fileText: '', rendered: null, loadedPath: null, loadedStamp: null, errorMessage: null });
+    async open({ project, slug, path }) {
+      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null });
 
-      setPageInert(true);
+      this.openCount += 1;
 
       await this.load();
     },
 
-    close() {
+    async show(route) {
+      if (!this.isOpen || route.project !== this.project || route.slug !== this.slug) {
+        await this.open(route);
+
+        return;
+      }
+
+      if (route.path !== null && route.path !== this.selectedPath && this.detail?.files.some((file) => file.path === route.path)) {
+        await this.select(route.path);
+      }
+    },
+
+    hide() {
       if (!this.isOpen) {
         return;
       }
@@ -43,15 +53,35 @@ function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRend
 
       this.generation += 1;
 
-      setPageInert(false);
+      this.closeCount += 1;
+
+      this.openedFromBoard = false;
+    },
+
+    leaveBoard(scrollY) {
+      this.boardScrollY = scrollY;
+
+      this.openedFromBoard = true;
+    },
+
+    restoreBoard() {
+      window.scrollTo(0, this.boardScrollY);
 
       const key = `${this.project}/${this.slug}`;
 
-      [...document.querySelectorAll<HTMLElement>('[data-task]')].find((card) => card.dataset.task === key)?.focus();
+      [...document.querySelectorAll<HTMLElement>('[data-task]')].find((element) => element.dataset.task === key)?.focus();
+    },
+
+    focusTitle(title) {
+      window.scrollTo(0, 0);
+
+      title.focus();
     },
 
     async select(path) {
       this.selectedPath = path;
+
+      this.openRounds = fileTree.withRoundOf(this.openRounds as number[], path, (this.detail as TaskDetail).files);
 
       this.clearFile();
 
@@ -81,6 +111,9 @@ function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRend
 
           this.clearFile();
         }
+
+        // the rounds shown open are chosen once, then only the reader changes them: a poll must not close or open any
+        this.openRounds ??= fileTree.initialOpenRounds(detail.files, detail.rounds, detail.column, this.selectedPath);
 
         // shortcut: updatedAt has one-second resolution, so a rewrite within the second of the last fetch is
         // missed until the next change; upgrade to a size/mtime in the file listing if that ever shows.
@@ -142,52 +175,18 @@ function createTaskDrawer(taskClient: TaskClient, markdownRenderer: MarkdownRend
       return JSON.stringify([this.selectedPath, detail.updatedAt, file]);
     },
 
-    trapFocus(event, container) {
-      const focusable = container.querySelectorAll<HTMLElement>(FOCUSABLE);
-
-      const first = focusable[0];
-
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-
-        first.focus();
-      }
+    toggleRound(round) {
+      this.openRounds = fileTree.toggled(this.openRounds as number[], round);
     },
 
-    get headline() {
-      const detail = this.detail;
-
-      if (detail === null) {
-        return `${this.project} · ${this.slug}`;
-      }
-
-      const parts = [detail.project, detail.slug, detail.stage, `round ${detail.round}`, detail.risk ?? '', formatDuration(detail.agentMilliseconds), `${formatCount(detail.tokens.total)} tok`];
-
-      return parts.filter((part) => part !== '').join(' · ');
-    },
-
-    get groups() {
-      return this.detail === null ? [] : groupFiles(this.detail.files);
+    get sections() {
+      return this.detail === null ? [] : fileTree.sections(this.detail.files, this.detail.rounds, this.detail.column, this.openRounds as number[]);
     },
 
     get selectedFile() {
       return this.detail?.files.find((file) => file.path === this.selectedPath) ?? null;
     },
-
-    fileLabel(file) {
-      return fileName(file.path);
-    },
-
-    toneLabel(tone) {
-      return tone === null ? '' : TONE_LABELS[tone];
-    },
   };
 }
 
-export default createTaskDrawer;
+export default createTaskPage;

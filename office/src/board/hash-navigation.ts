@@ -1,8 +1,5 @@
 import { BOARD_HASH, POP_STATE_EVENT } from '@/constants/route';
-import type { Navigation } from '@/types/route';
-
-/** The parts of `window` the navigation uses, so a test can hand in a fake. */
-type NavigationWindow = Pick<Window, 'location' | 'history' | 'addEventListener' | 'removeEventListener'>;
+import type { Navigation, NavigationWindow } from '@/types/route';
 
 /** The hash of the page as a history of its own: the task page is a place the Back button leaves. */
 class HashNavigation implements Navigation {

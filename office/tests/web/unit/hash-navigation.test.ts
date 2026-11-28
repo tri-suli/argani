@@ -59,4 +59,12 @@ describe('hash navigation', () => {
 
     expect(browser.listening()).toBe(0);
   });
+
+  it('has nothing to remove when it was never listening', () => {
+    const browser = fakeWindow();
+
+    new HashNavigation(browser).stop();
+
+    expect(browser.removeEventListener).not.toHaveBeenCalled();
+  });
 });

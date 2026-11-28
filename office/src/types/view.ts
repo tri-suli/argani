@@ -83,9 +83,20 @@ interface ProjectOption {
   waiting: number;
 }
 
-interface HistoryRow {
+/** The pills and metrics of the task page header; an empty string means the data does not state it. */
+interface TaskHeaderView {
   column: string;
-  duration: string;
+  /** "round 3", only while the task is in Review. */
+  round: string;
+  stage: string;
+  risk: Risk | null;
+  riskIcon: string;
+  time: string;
+  tokens: string;
+  manual: string;
+  /** "2× needed you · 25m"; empty when the task never waited for the human. */
+  visits: string;
+  mrUrl: string | null;
 }
 
 interface ColumnView {
@@ -109,4 +120,4 @@ interface RenderedDocument {
   bodyHtml: string;
 }
 
-export type { HistoryRow, PipelineColumn, ChipView, RoundView, AgentView, CardView, TileTone, TotalsTile, NeedsHumanRow, DoneRow, ProjectOption, ColumnView, FileGroup, RenderedDocument };
+export type { TaskHeaderView, PipelineColumn, ChipView, RoundView, AgentView, CardView, TileTone, TotalsTile, NeedsHumanRow, DoneRow, ProjectOption, ColumnView, FileGroup, RenderedDocument };

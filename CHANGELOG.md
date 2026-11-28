@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - The office reads the column, question, history and metrics from `board.json`.
 - The office board is redesigned: IBM Plex and Material Symbols bundled for offline use, a searchable project picker, four totals tiles (agents working, longest wait for you, tokens, manual acceptance criteria), a Needs human panel with the question and a copyable `/argani:factory answer` command per task, five numbered pipeline columns with count badges, richer cards (running agent with elapsed time, review chips with state icons) and a Done rail. The footer command list is gone.
 
+- The office task page shows each review round as an overview (`#/task/<project>/<slug>/round/<n>`, reached from the first entry of a round in the file list): verdict and a summary sentence, a Round dropdown, a card per reviewer (the human's `review-human.md` marked as such), All / Important / Nits chips and every finding as a What / Why / Fix card; a finding that does not match the protocol format is shown whole.
+
 ### Fixed
 
 - `register_project.py` refuses two path patterns that can match the same directory even when each has a wildcard the other lacks (`/w/a*` and `/w/*b`), which made resolving `/w/ab` fail later; `[` in a pattern is a literal here, as in resolution.

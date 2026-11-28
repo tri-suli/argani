@@ -98,6 +98,8 @@ interface ReaderEnvironment {
   findElement(id: string): HTMLElement | null;
   /** Read from the element's place on the screen, since an observer says nothing about a heading that jumps from one side of the zone to the other. */
   positionOf(id: string): SectionPosition;
+  /** Runs `onScroll` at most once per frame while the page scrolls; returns the function that stops listening. */
+  watchScroll(handlers: { onScroll: () => void }): () => void;
   prefersReducedMotion(): boolean;
 }
 

@@ -22,6 +22,26 @@ function createBrowserReaderEnvironment(win: Window & typeof globalThis): Reader
       return box.bottom < 0 ? PASSED : IN_ZONE;
     },
 
+    watchScroll({ onScroll }) {
+      let frameRequested = false;
+
+      const listener = () => {
+        if (!frameRequested) {
+          frameRequested = true;
+
+          win.requestAnimationFrame(() => {
+            frameRequested = false;
+
+            onScroll();
+          });
+        }
+      };
+
+      win.addEventListener('scroll', listener, { passive: true });
+
+      return () => win.removeEventListener('scroll', listener);
+    },
+
     prefersReducedMotion: () => win.matchMedia(REDUCED_MOTION_QUERY).matches,
   };
 }

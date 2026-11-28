@@ -15,7 +15,15 @@ class FakeIntersectionObserver {
 }
 
 const fakeWindow = (matches = false) =>
-  ({ IntersectionObserver: FakeIntersectionObserver, document, innerHeight: 1000, matchMedia: vi.fn(() => ({ matches })) }) as unknown as Window & typeof globalThis;
+  ({
+    IntersectionObserver: FakeIntersectionObserver,
+    document,
+    innerHeight: 1000,
+    matchMedia: vi.fn(() => ({ matches })),
+    addEventListener: window.addEventListener.bind(window),
+    removeEventListener: window.removeEventListener.bind(window),
+    requestAnimationFrame: (callback: () => void) => setTimeout(callback, 0),
+  }) as unknown as Window & typeof globalThis;
 
 const heading = (top: number, bottom: number) => {
   document.body.innerHTML = '<h3 id="doc-a"></h3>';
@@ -72,6 +80,40 @@ describe('browser reader environment', () => {
     expect(environment.positionOf('doc-a')).toBe('zone');
 
     expect(environment.positionOf('doc-missing')).toBe('below');
+  });
+
+  it('calls the scroll handler once per frame however many scroll events arrive, until it is stopped', () => {
+    vi.useFakeTimers();
+
+    const onScroll = vi.fn();
+
+    const stop = createBrowserReaderEnvironment(fakeWindow()).watchScroll({ onScroll });
+
+    window.dispatchEvent(new Event('scroll'));
+
+    window.dispatchEvent(new Event('scroll'));
+
+    expect(onScroll).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+
+    expect(onScroll).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event('scroll'));
+
+    vi.advanceTimersByTime(1);
+
+    expect(onScroll).toHaveBeenCalledTimes(2);
+
+    stop();
+
+    window.dispatchEvent(new Event('scroll'));
+
+    vi.advanceTimersByTime(1);
+
+    expect(onScroll).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 
   it('finds elements by id and reads the reduced-motion preference when asked', () => {

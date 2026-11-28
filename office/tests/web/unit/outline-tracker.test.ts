@@ -67,6 +67,30 @@ describe('outline tracker', () => {
     expect(tracker.activeId).toBe('doc-a');
   });
 
+  it('follows a scroll that no heading crossed the edge of the zone for, such as End or a dragged scrollbar', () => {
+    const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+    environment.scroll({ 'doc-a': 'above', 'doc-b': 'above', 'doc-c': 'above' });
+
+    expect(tracker.activeId).toBe('doc-c');
+
+    environment.scroll({ 'doc-a': 'zone', 'doc-b': 'below', 'doc-c': 'below' });
+
+    expect(tracker.activeId).toBe('doc-a');
+  });
+
+  it('stops listening to the scroll with the page, and listens again once tracked again', () => {
+    const tracker = trackerOver(['doc-a']);
+
+    tracker.stop();
+
+    expect(environment.stoppedScrollWatches).toBe(1);
+
+    tracker.track(['doc-a']);
+
+    expect(environment.scrollHandlers).toHaveLength(2);
+  });
+
   it('keeps the highlight when the same sections are tracked again, and stops observing the old elements', () => {
     const tracker = trackerOver(['doc-a', 'doc-b']);
 

@@ -151,6 +151,33 @@ describe('renderDocument', () => {
     expect(html).not.toContain('<h1');
   });
 
+  it('never renders a second h1: headings nested in quotes and list items and raw html headings shift down too', () => {
+    const rendered = renderer.renderDocument(
+      ['intro', '', '> # Quoted', '', '- # Listed', '  text', '', '<h1>Raw</h1>', '', '<H2 class="x">Raw two</H2>', '', 'inline <h1>mid</h1> text', '', '<h6>Six</h6>', '', '## Summary', '', '> # In the summary', '', '<h1>Raw summary</h1>'].join('\n'),
+      null,
+    );
+
+    const everything = htmlOf(rendered).join('') + rendered.summaryHtml;
+
+    expect(everything).not.toMatch(/<h1/i);
+
+    expect(everything).toContain('<h2>Quoted</h2>');
+
+    expect(everything).toContain('<h2>Listed</h2>');
+
+    expect(everything).toContain('<h2>Raw</h2>');
+
+    expect(everything).toMatch(/<h3 class="x">Raw two<\/h3>/);
+
+    expect(everything).toContain('<h2>mid</h2>');
+
+    expect(everything).toContain('<h6>Six</h6>');
+
+    expect(rendered.summaryHtml).toContain('<h2>In the summary</h2>');
+
+    expect(rendered.summaryHtml).toContain('<h2>Raw summary</h2>');
+  });
+
   it('gives duplicate headings unique ids and a heading without letters a fallback id', () => {
     const outline = renderer.renderDocument('## Notes\n\n## Notes\n\n## Notes 2\n\n## ???\n\n## Fish & `a<b`', null).outline;
 

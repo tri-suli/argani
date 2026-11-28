@@ -27,6 +27,18 @@ const SLUG_SEPARATOR = '-';
 
 const MAX_HEADING_DEPTH = 6;
 
+// an opening or closing h1-h6 tag of raw html, with the character that ends its name
+const RAW_HEADING_TAG_PATTERN = /<(\/?)h([1-6])(?=[\s>/])/gi;
+
+// marked token types
+const TOKEN_HEADING = 'heading';
+
+const TOKEN_CODE = 'code';
+
+const TOKEN_LIST = 'list';
+
+const TOKEN_HTML = 'html';
+
 const MAX_OUTLINE_DEPTH = 3;
 
 const SECTION_DEPTH = 2;
@@ -137,6 +149,11 @@ export {
   EDGE_DASH_PATTERN,
   SLUG_SEPARATOR,
   MAX_HEADING_DEPTH,
+  RAW_HEADING_TAG_PATTERN,
+  TOKEN_HEADING,
+  TOKEN_CODE,
+  TOKEN_LIST,
+  TOKEN_HTML,
   MAX_OUTLINE_DEPTH,
   SECTION_DEPTH,
   SUMMARY_TITLE,

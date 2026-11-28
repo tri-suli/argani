@@ -170,6 +170,30 @@ describe('dashboard board', () => {
     await eventually(() => expect(document.querySelector('[data-testid=needs-human]')).toBeNull());
   });
 
+  it('keeps the page inert while the drawer is open, including a Needs human panel that appears meanwhile', async () => {
+    const withoutAsk = sampleSnapshot({ projects: [{ name: 'demo', tasks: sampleSnapshot().projects[0].tasks.slice(0, 2) }] });
+
+    await deliver(withoutAsk, 2);
+
+    expect(document.querySelector('[data-testid=needs-human]')).toBeNull();
+
+    card('demo/add-login').click();
+
+    await eventually(() => expect(visible('[data-testid=drawer]')).toBe(true));
+
+    poller.handlers.onSnapshot(sampleSnapshot(), sampleTasks());
+
+    await eventually(() => expect(document.querySelector('[data-testid=needs-human]')).not.toBeNull());
+
+    expect(document.querySelector('[data-testid=needs-human]')?.closest('[inert]')).not.toBeNull();
+
+    expect(document.querySelector('[data-testid=done-rail]')?.closest('[inert]')).not.toBeNull();
+
+    pressOn(document.body, 'Escape');
+
+    await eventually(() => expect(document.querySelector('[data-testid=needs-human]')?.closest('[inert]')).toBeNull());
+  });
+
   it('copies the answer command and says Copied, then Copy failed when the clipboard refuses', async () => {
     await deliver();
 

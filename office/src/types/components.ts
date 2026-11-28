@@ -108,8 +108,6 @@ interface TaskPage {
   generation: number;
   /** The review rounds whose files are listed; null until the first load of the task has chosen them. */
   openRounds: number[] | null;
-  /** Whether the Back button of the browser leads to the board: the task was opened from a card or row. */
-  openedFromBoard: boolean;
   /** Where the board was scrolled when the task was opened from it. */
   boardScrollY: number;
   /** Counts the opens and the closes, so the page can move the focus once per change. */
@@ -120,8 +118,8 @@ interface TaskPage {
   show(route: TaskRoute): Promise<void>;
   /** Leaves the task page; the board comes back and the page restores it. */
   hide(): void;
-  /** Remembers where the board was and that the browser history leads back to it. */
-  leaveBoard(scrollY: number): void;
+  /** Remembers where the board was scrolled, to restore it when the task page is left. */
+  rememberBoardPosition(scrollY: number): void;
   /** Scrolls the board to where it was and returns the focus to the element that opened the task. */
   restoreBoard(): void;
   focusTitle(title: HTMLElement): void;

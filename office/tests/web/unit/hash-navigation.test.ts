@@ -7,7 +7,7 @@ function fakeWindow() {
 
   return {
     location: { hash: '#/task/demo/a', pathname: '/office', search: '?x=1' },
-    history: { pushState: vi.fn(), replaceState: vi.fn(), back: vi.fn() },
+    history: { state: { fromBoard: true } as unknown, pushState: vi.fn(), replaceState: vi.fn(), back: vi.fn() },
     addEventListener: vi.fn((type: string, listener: () => void) => listeners.set(type, listener)),
     removeEventListener: vi.fn((type: string) => listeners.delete(type)),
     fire: (type: string) => listeners.get(type)?.(),
@@ -27,11 +27,31 @@ describe('hash navigation', () => {
 
     navigation.push('#/task/demo/b');
 
-    expect(browser.history.pushState).toHaveBeenCalledWith(null, '', '/office?x=1#/task/demo/b');
+    expect(browser.history.pushState).toHaveBeenCalledWith({ fromBoard: false }, '', '/office?x=1#/task/demo/b');
+
+    navigation.push('#/task/demo/c', true);
+
+    expect(browser.history.pushState).toHaveBeenLastCalledWith({ fromBoard: true }, '', '/office?x=1#/task/demo/c');
 
     navigation.replace('');
 
-    expect(browser.history.replaceState).toHaveBeenCalledWith(null, '', '/office?x=1');
+    expect(browser.history.replaceState).toHaveBeenCalledWith({ fromBoard: true }, '', '/office?x=1');
+  });
+
+  it('knows from the state of the current entry whether the task was opened from the board', () => {
+    const browser = fakeWindow();
+
+    const navigation = new HashNavigation(browser);
+
+    expect(navigation.fromBoard()).toBe(true);
+
+    browser.history.state = null;
+
+    expect(navigation.fromBoard()).toBe(false);
+
+    browser.history.state = { other: 1 };
+
+    expect(navigation.fromBoard()).toBe(false);
   });
 
   it('goes back through the browser history', () => {

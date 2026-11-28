@@ -1,4 +1,4 @@
-import { BOARD_HASH, POP_STATE_EVENT } from '@/constants/route';
+import { BOARD_HASH, FROM_BOARD_KEY, POP_STATE_EVENT } from '@/constants/route';
 import type { Navigation, NavigationWindow } from '@/types/route';
 
 /** The hash of the page as a history of its own: the task page is a place the Back button leaves. */
@@ -11,12 +11,16 @@ class HashNavigation implements Navigation {
     return this.browser.location.hash;
   }
 
-  push(hash: string): void {
-    this.browser.history.pushState(null, '', this.address(hash));
+  push(hash: string, fromBoard = false): void {
+    this.browser.history.pushState({ [FROM_BOARD_KEY]: fromBoard }, '', this.address(hash));
+  }
+
+  fromBoard(): boolean {
+    return (this.browser.history.state as Record<string, unknown> | null)?.[FROM_BOARD_KEY] === true;
   }
 
   replace(hash: string): void {
-    this.browser.history.replaceState(null, '', this.address(hash));
+    this.browser.history.replaceState(this.browser.history.state, '', this.address(hash));
   }
 
   back(): void {

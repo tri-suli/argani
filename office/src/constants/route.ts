@@ -14,6 +14,8 @@ const FILE_SEGMENT_INDEX = 2;
 
 const POP_STATE_EVENT = 'popstate';
 
+const FROM_BOARD_KEY = 'fromBoard';
+
 export {
   BOARD_HASH,
   TASK_HASH_PREFIX,
@@ -22,4 +24,5 @@ export {
   MAX_ROUTE_SEGMENTS,
   FILE_SEGMENT_INDEX,
   POP_STATE_EVENT,
+  FROM_BOARD_KEY,
 };

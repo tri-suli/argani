@@ -1,5 +1,6 @@
 import type BoardView from '@/board/board-view';
 import type FileTree from '@/board/file-tree';
+import type RoundOverview from '@/board/round-overview';
 import type HistorySteps from '@/board/history-steps';
 import type DiffRows from '@/board/diff-rows';
 import type MarkdownRenderer from '@/board/markdown-renderer';
@@ -10,6 +11,7 @@ import type { Poller } from '@/types/poller';
 import type { FileSection } from '@/types/file-tree';
 import type { HistoryStep, LegendEntry } from '@/types/history';
 import type { Navigation, TaskRoute } from '@/types/route';
+import type { FilterChip, FindingFilter, FindingView, RoundOption, RoundView } from '@/types/round';
 import type { TaskDetail, TaskFile, TaskSummary } from '@/types/task';
 import type { ColumnView, DoneRow, NeedsHumanRow, ProjectOption, RenderedDocument, TaskHeaderView, TotalsTile } from '@/types/view';
 
@@ -19,6 +21,7 @@ interface DashboardDependencies {
   boardView: BoardView;
   historySteps: HistorySteps;
   fileTree: FileTree;
+  roundOverview: RoundOverview;
   navigation: Navigation;
   markdownRenderer: MarkdownRenderer;
   diffRows: DiffRows;
@@ -60,6 +63,8 @@ interface Dashboard {
   /** The colour legend of the history strip. */
   legend: LegendEntry[];
   picker: ProjectPicker;
+  /** The Round dropdown of the overview: the same open/close/arrow-key state as the project picker, its search field unused. */
+  roundPicker: ProjectPicker;
   copier: CommandCopier;
   init(): void;
   destroy(): void;
@@ -82,9 +87,18 @@ interface Dashboard {
   leaveTask(): void;
   /** Picks a file of the open task and puts it in the address. */
   selectFile(path: string): Promise<void>;
+  /** Opens the overview of a review round and puts it in the address. */
+  selectRound(round: number): Promise<void>;
+  /** The Round dropdown's choice: closes it, gives the focus back to its button and opens the round. */
+  chooseRound(round: number, button: HTMLElement): void;
+  closeRoundPicker(button: HTMLElement): void;
+  /** A reviewer card's link: opens the file as a new history entry, so Back returns to the overview. */
+  openReviewerFile(path: string): void;
+  /** The address of a file of the open task, for the href of a link to it. */
+  fileHash(path: string): string;
   /** Shows the task or the board the address names. */
   applyRoute(): void;
-  /** Puts the file really shown in the address when the route named one the task does not list. */
+  /** Puts what is really shown in the address when the route named a file or round the task does not have. */
   correctAddress(route: TaskRoute, hash: string): void;
   /** The task open on the task page, read from the latest board so its title and history stay current. */
   readonly taskPageTask: BoardTask | null;
@@ -122,6 +136,14 @@ interface TaskPage {
   openRounds: number[] | null;
   /** The round numbers listed at the last load, to tell a round that has just appeared from one the reader has seen. */
   knownRounds: number[];
+  /** The review round whose overview is shown instead of a file; null while a file is selected. */
+  selectedRound: number | null;
+  /** The overview of the selected round; null until its files have been read. */
+  round: RoundView | null;
+  /** What `round` was built from, so an unchanged poll leaves the cards in place. */
+  roundSignature: string;
+  /** Which findings the chips show. */
+  findingFilter: FindingFilter;
   /** Where the board was scrolled when the task was opened from it. */
   boardScrollY: number;
   /** Counts the opens and the closes, so the page can move the focus once per change. */
@@ -138,6 +160,11 @@ interface TaskPage {
   restoreBoard(): void;
   focusTitle(title: HTMLElement): void;
   select(path: string): Promise<void>;
+  /** Shows the overview of a round in place of the file. */
+  selectRound(round: number): Promise<void>;
+  setFindingFilter(filter: FindingFilter): void;
+  /** Reads the review files of the selected round (those that changed) and builds its overview. */
+  loadRound(generation: number): Promise<void>;
   toggleRound(round: number): void;
   /** Reloads the open task, called after every board poll. */
   refresh(): Promise<void>;
@@ -148,6 +175,13 @@ interface TaskPage {
   load(): Promise<void>;
   loadFile(generation: number): Promise<void>;
   readonly sections: FileSection[];
+  /** The rounds of the Round dropdown, and the one selected. */
+  readonly roundOptions: RoundOption[];
+  readonly selectedRoundOption: RoundOption | null;
+  readonly roundChips: FilterChip[];
+  /** The findings the filter lets through, and the line to show when it leaves none. */
+  readonly visibleFindings: FindingView[];
+  readonly emptyFindingsMessage: string;
   readonly selectedFile: TaskFile | null;
   /** The name of the selected file without its folders. */
   readonly selectedFileName: string;

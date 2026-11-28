@@ -2,7 +2,9 @@ import BoardView from '@/board/board-view';
 import DiffRows from '@/board/diff-rows';
 import FileTree from '@/board/file-tree';
 import HistorySteps from '@/board/history-steps';
+import RoundOverview from '@/board/round-overview';
 import FakeReaderEnvironment from './fake-reader-environment';
+import sampleMarkdownRenderer from './sample-markdown-renderer';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { TaskDetail, TaskSummary } from '@/types/task';
@@ -163,7 +165,7 @@ class FakeTaskClient implements TaskClient {
 
 /** The pure view modules a dashboard is built with. */
 function sampleViews() {
-  return { boardView: new BoardView(), historySteps: new HistorySteps(), fileTree: new FileTree(), diffRows: new DiffRows(), readerEnvironment: new FakeReaderEnvironment() };
+  return { boardView: new BoardView(), historySteps: new HistorySteps(), fileTree: new FileTree(), roundOverview: new RoundOverview(sampleMarkdownRenderer()), diffRows: new DiffRows(), readerEnvironment: new FakeReaderEnvironment() };
 }
 
 export { sampleViews, sampleAgent, sampleTask, sampleSnapshot, sampleSummary, sampleTasks, sampleDetail, sampleFileTexts, FakeTaskClient };

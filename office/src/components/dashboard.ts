@@ -11,7 +11,7 @@ import createTaskPage from '@/components/task-page';
 import type { Dashboard, DashboardDependencies } from '@/types/components';
 
 /** UI state only: all polling and grouping logic lives in injected or pure modules. */
-function createDashboard({ poller, taskClient, boardView, historySteps, fileTree, navigation, markdownRenderer, diffRows, readerEnvironment, clipboard, now }: DashboardDependencies): Dashboard {
+function createDashboard({ poller, taskClient, boardView, historySteps, fileTree, roundOverview, navigation, markdownRenderer, diffRows, readerEnvironment, clipboard, now }: DashboardDependencies): Dashboard {
   let clockTimer: ReturnType<typeof setInterval> | null = null;
 
   return {
@@ -21,9 +21,10 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
     lastSuccessAt: null,
     clockMilliseconds: 0,
     selectedProject: ALL_PROJECTS,
-    taskPage: createTaskPage(taskClient, markdownRenderer, fileTree, diffRows, createOutlineTracker(readerEnvironment)),
+    taskPage: createTaskPage(taskClient, markdownRenderer, fileTree, diffRows, roundOverview, createOutlineTracker(readerEnvironment)),
     legend: STEP_LEGEND,
     picker: createProjectPicker(),
+    roundPicker: createProjectPicker(),
     copier: createCommandCopier(clipboard),
 
     init() {
@@ -160,6 +161,35 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
       await this.taskPage.select(path);
     },
 
+    async selectRound(round) {
+      // like a file: the address follows the click, before the files of the round arrive
+      navigation.replace(buildTaskHash({ project: this.taskPage.project, slug: this.taskPage.slug, path: null, round }));
+
+      await this.taskPage.selectRound(round);
+    },
+
+    chooseRound(round, button) {
+      this.closeRoundPicker(button);
+
+      void this.selectRound(round);
+    },
+
+    closeRoundPicker(button) {
+      this.roundPicker.close();
+
+      button.focus();
+    },
+
+    openReviewerFile(path) {
+      navigation.push(buildTaskHash({ project: this.taskPage.project, slug: this.taskPage.slug, path }));
+
+      this.applyRoute();
+    },
+
+    fileHash(path) {
+      return buildTaskHash({ project: this.taskPage.project, slug: this.taskPage.slug, path });
+    },
+
     applyRoute() {
       const route = parseTaskRoute(navigation.hash());
 
@@ -171,9 +201,13 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
     },
 
     correctAddress(route, hash) {
-      // a link to a file the task does not list: the address names the file that is really shown (unless the reader has moved on)
-      if (route.path !== null && navigation.hash() === hash && this.taskPage.isOpen && this.taskPage.selectedPath !== route.path) {
-        navigation.replace(buildTaskHash({ project: route.project, slug: route.slug, path: this.taskPage.selectedPath }));
+      // a link to a file or round the task does not have: the address names what is really shown (unless the reader has moved on)
+      const missingFile = route.path !== null && this.taskPage.selectedPath !== route.path;
+
+      const missingRound = route.round !== undefined && this.taskPage.selectedRound !== route.round;
+
+      if (navigation.hash() === hash && this.taskPage.isOpen && (missingFile || missingRound)) {
+        navigation.replace(buildTaskHash({ project: route.project, slug: route.slug, path: this.taskPage.selectedPath, round: this.taskPage.selectedRound ?? undefined }));
       }
     },
 

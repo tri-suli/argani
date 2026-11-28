@@ -291,6 +291,12 @@
                         <span class="ml-auto font-mono text-[10px] font-semibold text-faint data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes" data-testid="file-tag" :data-tone="row.tone" x-text="row.tag"></span>
                       </button>
                     </template>
+                    <template x-if="row.isRound &amp;&amp; row.expanded">
+                      <button type="button" class="flex min-h-[34px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 pl-[26px] text-left text-[13px] text-muted hover:bg-hover hover:text-ink aria-[current=true]:bg-active-tint aria-[current=true]:font-semibold aria-[current=true]:text-active-ink narrow:min-h-11" data-testid="round-overview-row" :data-round="row.round" :aria-current="row.round === taskPage.selectedRound" @click="selectRound(row.round)">
+                        <span class="icon text-[17px] text-faint" aria-hidden="true">dashboard</span>
+                        <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" data-testid="overview-label">Overview</span>
+                      </button>
+                    </template>
                     <template x-if="!row.isRound">
                       <button type="button" class="file flex min-h-[34px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-[13px] text-muted hover:bg-hover hover:text-ink aria-[current=true]:bg-active-tint aria-[current=true]:font-semibold aria-[current=true]:text-active-ink data-[nested=true]:pl-[26px] narrow:min-h-11" data-testid="file-row" :data-nested="row.nested" :title="row.path" :aria-current="row.path === taskPage.selectedPath" @click="selectFile(row.path)">
                         <span class="icon text-[17px] text-faint data-[tone=good]:text-pass data-[tone=stop]:text-human data-[tone=warn]:text-changes" aria-hidden="true" data-testid="file-tone" :data-tone="row.tone" x-text="row.icon"></span>
@@ -303,9 +309,121 @@
               </div>
             </template>
           </nav>
-          <!-- the seam for the document reader and the review-round view: everything the selected file shows lives in here -->
+          <!-- everything the selection shows lives in here: the document reader for a file, the overview for a review round -->
           <section class="min-w-0 flex-[999_1_640px]" data-testid="task-content" aria-label="Selected file">
             <p class="mb-3 text-[13px] text-human" data-testid="task-error" x-show="taskPage.errorMessage !== null" x-text="taskPage.errorMessage"></p>
+          <div class="flex min-w-0 flex-col gap-[18px]" data-testid="round-overview" x-show="taskPage.selectedRound !== null" x-cloak>
+            <template x-if="taskPage.selectedRoundOption !== null">
+              <div class="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
+                <h2 class="text-[20px] leading-[1.25] font-bold tracking-[-0.01em]" data-testid="round-title" x-text="taskPage.selectedRoundOption.title"></h2>
+                <span class="inline-flex items-center gap-[5px] rounded-full bg-badge px-2.5 py-1 font-mono text-[12px] font-semibold text-badge-ink data-[tone=good]:bg-pass-tint data-[tone=good]:text-pass-ink data-[tone=now]:bg-active-tint data-[tone=now]:text-active-ink data-[tone=stop]:bg-human-chip data-[tone=stop]:text-human-strong data-[tone=warn]:bg-changes-tint data-[tone=warn]:text-changes-ink" data-testid="round-status" :data-tone="taskPage.selectedRoundOption.status.tone"><span class="icon text-[15px] motion-safe:data-[spinning=true]:animate-spin" aria-hidden="true" :data-spinning="taskPage.selectedRoundOption.status.spinning" x-text="taskPage.selectedRoundOption.status.icon"></span><span x-text="taskPage.selectedRoundOption.status.label"></span></span>
+                <p class="min-w-0 flex-[1_1_320px] text-muted" data-testid="round-summary" x-text="taskPage.round !== null ? taskPage.round.summary : ''"></p>
+
+                <div class="relative ml-auto narrow:ml-0" @keydown.escape.stop="roundPicker.isOpen &amp;&amp; closeRoundPicker($refs.roundButton)" @click.outside="roundPicker.close()" @focusout="roundPicker.isOpen &amp;&amp; $event.relatedTarget !== null &amp;&amp; !$el.contains($event.relatedTarget) &amp;&amp; roundPicker.close()">
+                  <button
+                    type="button"
+                    class="flex min-h-11 w-[184px] cursor-pointer items-center gap-2.5 rounded-xl border border-line-strong bg-card pr-2.5 pl-3 text-[14px] font-semibold text-ink shadow-card aria-expanded:border-active aria-expanded:ring-3 aria-expanded:ring-halo"
+                    data-testid="round-picker"
+                    x-ref="roundButton"
+                    aria-haspopup="listbox"
+                    aria-controls="round-listbox"
+                    :aria-expanded="roundPicker.isOpen"
+                    @click="roundPicker.toggle()"
+                  >
+                    <span class="icon text-faint data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes motion-safe:data-[spinning=true]:animate-spin" aria-hidden="true" :data-tone="taskPage.selectedRoundOption.status.tone" :data-spinning="taskPage.selectedRoundOption.status.spinning" x-text="taskPage.selectedRoundOption.status.icon"></span>
+                    <span class="flex flex-col items-start leading-[1.2]">
+                      <span class="text-[11px] font-medium text-faint">Round</span>
+                      <span x-text="taskPage.selectedRoundOption.title"></span>
+                    </span>
+                    <span class="icon ml-auto text-faint" aria-hidden="true">unfold_more</span>
+                  </button>
+
+                  <div
+                    class="absolute top-[52px] right-0 z-5 w-[260px] max-w-[86vw] rounded-[14px] border border-line bg-card p-2 shadow-menu narrow:right-auto narrow:left-0"
+                    data-testid="round-menu"
+                    tabindex="-1"
+                    x-show="roundPicker.isOpen"
+                    x-cloak
+                    x-effect="roundPicker.isOpen &amp;&amp; $nextTick(() => roundPicker.isOpen &amp;&amp; $el.querySelector('[role=option][aria-selected=true]')?.focus())"
+                    @keydown="roundPicker.navigate($event, $el)"
+                  >
+                    <ul id="round-listbox" class="max-h-80 overflow-y-auto" role="listbox" aria-label="Round">
+                      <template x-for="option in taskPage.roundOptions" :key="option.round">
+                        <li
+                          class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 text-[14px] hover:bg-hover aria-selected:bg-selected aria-selected:font-semibold"
+                          role="option"
+                          tabindex="-1"
+                          data-testid="round-option"
+                          :aria-selected="option.round === taskPage.selectedRound"
+                          :data-round="option.round"
+                          @click="chooseRound(option.round, $refs.roundButton)"
+                          @keydown.enter.prevent="chooseRound(option.round, $refs.roundButton)"
+                          @keydown.space.prevent="chooseRound(option.round, $refs.roundButton)"
+                        >
+                          <span class="icon text-active" :class="option.round !== taskPage.selectedRound &amp;&amp; 'invisible'" aria-hidden="true">check</span>
+                          <span class="min-w-0 flex-1" x-text="option.title"></span>
+                          <span class="inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-faint data-[tone=good]:text-pass data-[tone=now]:text-active data-[tone=stop]:text-human data-[tone=warn]:text-changes" :data-tone="option.status.tone"><span class="icon text-[16px] motion-safe:data-[spinning=true]:animate-spin" aria-hidden="true" :data-spinning="option.status.spinning" x-text="option.status.icon"></span><span x-text="option.status.label"></span></span>
+                        </li>
+                      </template>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <p class="text-[13px] text-muted" data-testid="round-loading" x-show="taskPage.round === null &amp;&amp; taskPage.selectedRoundOption !== null">Loading the round…</p>
+
+            <template x-if="taskPage.round !== null">
+              <div class="flex min-w-0 flex-col gap-[18px]">
+                <section class="flex flex-wrap gap-3" aria-label="Reviewers" data-testid="reviewer-cards">
+                  <template x-for="card in taskPage.round.cards" :key="card.key">
+                    <article class="min-w-0 flex-[1_1_240px] rounded-xl border border-t-[3px] border-line border-t-pending-line bg-card px-4 py-3.5 data-[tone=good]:border-t-step-pass data-[tone=now]:border-t-active data-[tone=stop]:border-t-human data-[tone=warn]:border-t-step-changes" data-testid="reviewer-card" :data-reviewer="card.name" :data-tone="card.status.tone">
+                      <div class="flex items-center gap-1.5">
+                        <h3 class="text-[14px] font-semibold [overflow-wrap:anywhere]" x-text="card.name"></h3>
+                        <span class="ml-auto inline-flex flex-none items-center gap-1 font-mono text-[11px] font-semibold text-faint data-[tone=good]:text-pass-ink data-[tone=now]:text-active-ink data-[tone=stop]:text-human-strong data-[tone=warn]:text-changes-ink" data-testid="reviewer-verdict" :data-tone="card.status.tone"><span class="icon text-[15px] motion-safe:data-[spinning=true]:animate-spin" aria-hidden="true" :data-spinning="card.status.spinning" x-text="card.status.icon"></span><span x-text="card.status.label"></span></span>
+                      </div>
+                      <p class="mt-1 inline-flex items-center gap-1 font-mono text-[11px] font-semibold text-human-strong" data-testid="reviewer-origin" x-show="card.isHuman"><span class="icon text-[15px]" aria-hidden="true">person_raised_hand</span>from the human</p>
+                      <p class="mt-1.5 text-[13px] text-badge-ink [overflow-wrap:anywhere]" data-testid="reviewer-headline" x-show="card.headline !== ''" x-text="card.headline"></p>
+                      <p class="mt-2.5 font-mono text-[11px] text-faint" data-testid="reviewer-counts" x-show="card.counts !== '' || card.model !== null" x-text="[card.counts, card.model].filter((part) => part !== '' &amp;&amp; part !== null).join(' · ')"></p>
+                      <p class="mt-1.5 text-[12px] text-faint" data-testid="reviewer-other" x-show="card.otherNote !== ''" x-text="card.otherNote"></p>
+                      <p class="mt-2.5" x-show="card.path !== null">
+                        <a class="inline-flex items-center gap-1 text-[13px] font-medium text-active hover:underline" data-testid="reviewer-link" :href="card.path === null ? '#' : fileHash(card.path)" @click.prevent="openReviewerFile(card.path)">Read the full file<span class="sr-only"> of <span x-text="card.name"></span></span><span class="icon text-[15px]" aria-hidden="true">arrow_forward</span></a>
+                      </p>
+                    </article>
+                  </template>
+                </section>
+
+                <div role="group" aria-label="Filter findings" class="flex flex-wrap gap-1.5">
+                  <template x-for="chip in taskPage.roundChips" :key="chip.filter">
+                    <button type="button" class="min-h-9 cursor-pointer rounded-full border border-line-strong bg-card px-3.5 text-[13px] font-medium text-badge-ink hover:bg-hover aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-bg narrow:min-h-11" data-testid="filter-chip" :aria-pressed="taskPage.findingFilter === chip.filter" @click="taskPage.setFindingFilter(chip.filter)"><span x-text="chip.label"></span> <span class="font-mono" x-text="String(chip.count)"></span></button>
+                  </template>
+                </div>
+                <p class="sr-only" role="status" data-testid="findings-count" x-text="'Showing ' + taskPage.visibleFindings.length + ' of ' + taskPage.round.counts.all + ' findings'"></p>
+
+                <section class="flex flex-col gap-3" aria-label="Findings" data-testid="findings">
+                  <template x-for="finding in taskPage.visibleFindings" :key="finding.key">
+                    <article class="overflow-hidden rounded-xl border border-line bg-card" data-testid="finding" :data-severity="finding.severity">
+                      <header class="flex flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-line px-4 py-3">
+                        <span class="inline-flex items-center gap-1 rounded-md bg-tag py-[3px] pr-[9px] pl-1.5 text-[12px] font-semibold text-muted data-[severity=important]:bg-human-chip data-[severity=important]:text-human-strong" data-testid="finding-severity" :data-severity="finding.severity"><span class="icon text-[15px]" aria-hidden="true" x-text="finding.icon"></span><span x-text="finding.severityLabel"></span></span>
+                        <code class="rounded-md bg-tag px-2 py-[3px] font-mono text-[12px] [overflow-wrap:anywhere]" data-testid="finding-location" x-show="finding.location !== null" x-text="finding.location"></code>
+                        <span class="ml-auto font-mono text-[11px] text-faint data-[human=true]:font-semibold data-[human=true]:text-human-strong" data-testid="finding-reviewer" :data-human="finding.isHuman" x-text="finding.reviewer"></span>
+                      </header>
+                      <dl class="m-0 grid grid-cols-[44px_minmax(0,1fr)] gap-x-3.5 gap-y-2.5 px-4 pt-3.5 pb-4 text-[14px] leading-[1.6] narrow:grid-cols-[38px_minmax(0,1fr)]">
+                        <template x-for="(part, index) in finding.parts" :key="index">
+                          <div class="contents">
+                            <dt class="pt-[3px] text-[11px] font-semibold tracking-[0.06em] text-faint uppercase data-[kind=fix]:text-pass-ink" :data-kind="part.kind" x-show="part.isLabelled" x-text="part.label"></dt>
+                            <!-- part.html is rendered by MarkdownRenderer, which sanitizes it with DOMPurify -->
+                            <dd class="m-0 max-w-[72ch] min-w-0 [overflow-wrap:anywhere] data-[kind=fix]:rounded-lg data-[kind=fix]:bg-pass-tint data-[kind=fix]:px-3 data-[kind=fix]:py-2 data-[labelled=false]:col-span-2 [&_a]:text-active [&_a]:hover:underline [&_code]:rounded-[5px] [&_code]:bg-tag [&_code]:px-[5px] [&_code]:font-mono [&_code]:text-[0.88em] [&_li]:mt-1 [&_p]:m-0 [&_p+p]:mt-2 [&_ul]:mt-1.5 [&_ul]:list-disc [&_ul]:pl-5" :data-kind="part.kind" :data-labelled="part.isLabelled" x-html="part.html"></dd>
+                          </div>
+                        </template>
+                      </dl>
+                    </article>
+                  </template>
+                </section>
+                <p class="text-[13px] text-muted" data-testid="findings-empty" x-show="taskPage.emptyFindingsMessage !== ''" x-text="taskPage.emptyFindingsMessage"></p>
+              </div>
+            </template>
+          </div>
           <div class="flex flex-wrap items-start gap-5" data-testid="task-markdown" x-show="taskPage.rendered !== null" x-effect="taskPage.trackSections()">
             <article class="min-w-0 flex-[999_1_520px] rounded-[14px] border border-line bg-card px-11 pt-9 pb-14 narrow:px-4 narrow:pt-5 narrow:pb-8" aria-label="Document" @click="taskPage.outline.followAnchor($event)">
               <div class="max-w-[70ch]">
@@ -390,7 +508,7 @@
               </div>
             </div>
           </div>
-          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null &amp;&amp; taskPage.diff === null" x-text="taskPage.rendered === null &amp;&amp; taskPage.diff === null ? taskPage.fileText : ''"></pre>
+          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null &amp;&amp; taskPage.diff === null &amp;&amp; taskPage.selectedRound === null" x-text="taskPage.rendered === null &amp;&amp; taskPage.diff === null ? taskPage.fileText : ''"></pre>
           </section>
         </div>
       </main>

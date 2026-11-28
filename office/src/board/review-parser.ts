@@ -1,6 +1,6 @@
 import {
   BACKTICK, BLOCK_START, BYTE_ORDER_MARK, CLOSING_LINE, CODE_SPAN_WRAPPER, FENCE_CLOSING, FENCE_OPENING, FINDING_START, FULL_PART_COUNT, INDENTED_LINE, LABEL_KINDS, LEADING_WHITESPACE, LINE_BREAK, LINE_ENDINGS, LOCATION_BEFORE_DASH, NOT_FOUND,
-  PART_LABEL, SEVERITIES, SEVERITY_LABELS, VERDICT_LINE, VERDICT_WORDS, WHITESPACE,
+  PART_LABEL, PART_TEXT, SEVERITIES, SEVERITY_OTHER, SEVERITY_LABELS, VERDICT_LINE, VERDICT_WORDS, WHITESPACE,
 } from '@/constants/review-file';
 import type { FindingPart, LabelHit, OpenFence, ParsedFinding, ParsedReview, RawFinding } from '@/types/review-file';
 
@@ -124,7 +124,7 @@ class ReviewParser {
     const parts: FindingPart[] = [];
 
     if (located === null && prefix !== '') {
-      parts.push({ kind: 'text', text: prefix });
+      parts.push({ kind: PART_TEXT, text: prefix });
     }
 
     hits.forEach((hit, position) => {
@@ -142,11 +142,11 @@ class ReviewParser {
     const location = located === null ? null : located[1].replace(CODE_SPAN_WRAPPER, '$1');
 
     return {
-      severity: known ?? 'other',
+      severity: known ?? SEVERITY_OTHER,
       severityLabel: known === undefined ? raw.label.trim() : SEVERITY_LABELS[known],
       location,
       parts,
-      isComplete: known !== undefined && location !== null && parts.length === FULL_PART_COUNT && parts.every((part) => part.kind !== 'text'),
+      isComplete: known !== undefined && location !== null && parts.length === FULL_PART_COUNT && parts.every((part) => part.kind !== PART_TEXT),
     };
   }
 

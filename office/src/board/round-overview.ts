@@ -3,12 +3,13 @@ import { fileName } from '@/board/file-view';
 import ReviewParser from '@/board/review-parser';
 import roundOutcome from '@/board/review-outcome';
 import RoundSummary from '@/board/round-summary';
+import { PART_FIX, PART_TEXT, SEVERITY_IMPORTANT, SEVERITY_NIT, SEVERITY_OTHER } from '@/constants/review-file';
 import { WORKING_COLUMNS } from '@/constants/pipeline';
 import { FILE_TONE_ICONS, TONE_LABELS, ROUND_OUTCOME_TONES, NO_TONE_ICON } from '@/constants/file-tree';
 import { HUMAN_REVIEWER, REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
 import {
   EMPTY_FILTER_MESSAGES, FILTER_ALL, MESSAGE_NOTES_BELOW, MESSAGE_NOTES_UNDER_ALL, NOTES_TITLE_HUMAN, NOTES_TITLE_PREFIX, NOTE_SENTENCE, FILTER_CHIPS, FILTER_SEVERITY, MESSAGE_NOT_REPORTED, MESSAGE_NO_FINDING, MESSAGE_NO_FINDINGS_YET, MESSAGE_SOME_PENDING, MESSAGE_UNREADABLE, MODEL_INHERIT,
-  PART_LABELS, REVIEW_FILE_NAME, ROUND_GROUP_PREFIX, ROUND_TITLE_PREFIX, SENTENCE_END, SEVERITY_ICONS, SEVERITY_RANK, STATUS_INVALID, STATUS_NOT_REPORTED, STATUS_RUNNING, STATUS_UNDECIDED,
+  PART_LABELS, REVIEW_FILE_NAME, ROUND_GROUP_PREFIX, ROUND_TITLE_PREFIX, SENTENCE_END, SEVERITY_ICONS, SEVERITY_RANK, STATUS_INVALID, STATUS_NOT_REPORTED, STATUS_RUNNING, STATUS_UNDECIDED, SUMMARY_SEPARATOR,
 } from '@/constants/round';
 import type { BuildInput, FindingPartView, FindingView, FilterChip, FindingFilter, ReviewerCard, ReviewerNotes, RoundOption, RoundStatus, RoundTally, RoundView, Seat, TextRenderer } from '@/types/round';
 import type { ParsedFinding, ParsedReview } from '@/types/review-file';
@@ -51,7 +52,7 @@ class RoundOverview {
 
     const notes = seats.flatMap((seat) => this.notesOf(seat));
 
-    const counts = { all: findings.length, important: this.countOf(findings, 'important'), nit: this.countOf(findings, 'nit') };
+    const counts = { all: findings.length, important: this.countOf(findings, SEVERITY_IMPORTANT), nit: this.countOf(findings, SEVERITY_NIT) };
 
     return {
       round,
@@ -195,13 +196,13 @@ class RoundOverview {
   }
 
   private countsText(findings: ParsedFinding[]): string {
-    const important = findings.filter((finding) => finding.severity === 'important').length;
+    const important = findings.filter((finding) => finding.severity === SEVERITY_IMPORTANT).length;
 
-    const nits = findings.filter((finding) => finding.severity === 'nit').length;
+    const nits = findings.filter((finding) => finding.severity === SEVERITY_NIT).length;
 
     const other = findings.length - important - nits;
 
-    return [`${important} important`, `${nits} ${nits === 1 ? 'nit' : 'nits'}`, ...(other > 0 ? [`${other} other`] : [])].join(' · ');
+    return [`${important} important`, `${nits} ${nits === 1 ? 'nit' : 'nits'}`, ...(other > 0 ? [`${other} other`] : [])].join(SUMMARY_SEPARATOR);
   }
 
   /** What a reviewer that has reported wrote besides its findings. */
@@ -237,7 +238,7 @@ class RoundOverview {
       location: finding.location,
       reviewer,
       isHuman: reviewer === HUMAN_REVIEWER,
-      parts: finding.parts.map((part): FindingPartView => ({ kind: part.kind, label: PART_LABELS[part.kind], html: this.html(part.text), isLabelled: part.kind !== 'text', isFix: part.kind === 'fix' })),
+      parts: finding.parts.map((part): FindingPartView => ({ kind: part.kind, label: PART_LABELS[part.kind], html: this.html(part.text), isLabelled: part.kind !== PART_TEXT, isFix: part.kind === PART_FIX })),
     };
   }
 
@@ -265,9 +266,9 @@ class RoundOverview {
       unreadable: seats.filter((seat) => seat.file !== undefined && seat.parsed === null).length,
       read: seats.filter((seat) => seat.state !== REVIEW_STATE_PENDING && seat.parsed !== null).length,
       hasHuman: seats.some((seat) => seat.name === HUMAN_REVIEWER),
-      important: this.countOf(findings, 'important'),
-      nits: this.countOf(findings, 'nit'),
-      other: this.countOf(findings, 'other'),
+      important: this.countOf(findings, SEVERITY_IMPORTANT),
+      nits: this.countOf(findings, SEVERITY_NIT),
+      other: this.countOf(findings, SEVERITY_OTHER),
     };
   }
 }

@@ -310,7 +310,7 @@
             </template>
           </nav>
           <!-- everything the selection shows lives in here: the document reader for a file, the overview for a review round -->
-          <section class="min-w-0 flex-[999_1_640px]" data-testid="task-content" aria-label="Selected file">
+          <section class="min-w-0 flex-[999_1_640px]" data-testid="task-content" :aria-label="taskPage.selectedRound === null ? 'Selected file' : 'Review round overview'">
             <p class="mb-3 text-[13px] text-human" data-testid="task-error" x-show="taskPage.errorMessage !== null" x-text="taskPage.errorMessage"></p>
           <div class="flex min-w-0 flex-col gap-[18px]" data-testid="round-overview" x-show="taskPage.selectedRound !== null" x-cloak x-effect="(taskPage.selectedRound === null || !taskPage.isOpen) &amp;&amp; roundPicker.close()" @click="taskPage.ignoreFragmentLinks($event)">
             <template x-if="taskPage.selectedRoundOption !== null">

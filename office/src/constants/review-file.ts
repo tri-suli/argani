@@ -31,9 +31,19 @@ const INDENTED_LINE = /^[ \t]+\S/;
 
 const LEADING_WHITESPACE = /^[ \t]*/;
 
-const SEVERITIES: Record<string, Exclude<FindingSeverity, 'other'>> = { important: 'important', nit: 'nit' };
+const SEVERITY_IMPORTANT = 'important' as const satisfies FindingSeverity;
 
-const SEVERITY_LABELS: Record<Exclude<FindingSeverity, 'other'>, string> = { important: 'Important', nit: 'Nit' };
+const SEVERITY_NIT = 'nit' as const satisfies FindingSeverity;
+
+const SEVERITY_OTHER = 'other' as const satisfies FindingSeverity;
+
+const PART_TEXT = 'text' as const satisfies FindingPartKind;
+
+const PART_FIX = 'fix' as const satisfies FindingPartKind;
+
+const SEVERITIES: Record<string, Exclude<FindingSeverity, typeof SEVERITY_OTHER>> = { important: SEVERITY_IMPORTANT, nit: SEVERITY_NIT };
+
+const SEVERITY_LABELS: Record<Exclude<FindingSeverity, typeof SEVERITY_OTHER>, string> = { [SEVERITY_IMPORTANT]: 'Important', [SEVERITY_NIT]: 'Nit' };
 
 const LABEL_KINDS: Record<string, FindingPartKind> = { What: 'what', Why: 'why', Fix: 'fix' };
 
@@ -54,6 +64,11 @@ const NOT_FOUND = -1;
 const FULL_PART_COUNT = 3;
 
 export {
+  SEVERITY_IMPORTANT,
+  SEVERITY_NIT,
+  SEVERITY_OTHER,
+  PART_TEXT,
+  PART_FIX,
   CLOSING_LINE,
   BYTE_ORDER_MARK,
   LINE_ENDINGS,

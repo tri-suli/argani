@@ -12,7 +12,10 @@ import type { ReviewOutcome, TaskSummary } from '@/types/task';
 interface Run {
   column: string;
   startedAt: string;
+  /** The first reason of the run: the one a past wait is shown with. */
   reason: string | null;
+  /** The latest reason of the run: the one the wait going on now is shown with, as on the board row. */
+  latestReason: string | null;
   milliseconds: number;
 }
 
@@ -59,8 +62,10 @@ class HistorySteps {
         previous.milliseconds += milliseconds;
 
         previous.reason ??= entry.reason;
+
+        previous.latestReason = entry.reason ?? previous.latestReason;
       } else {
-        runs.push({ column: entry.column, startedAt: entry.ts, reason: entry.reason, milliseconds });
+        runs.push({ column: entry.column, startedAt: entry.ts, reason: entry.reason, latestReason: entry.reason, milliseconds });
       }
     });
 
@@ -111,7 +116,7 @@ class HistorySteps {
     const elapsed = Number.isFinite(started) ? formatElapsed(nowMilliseconds - started) : run.milliseconds > NO_COUNT ? formatDuration(run.milliseconds) : undefined;
 
     if (run.column === NEEDS_HUMAN) {
-      return { note: this.joinNote(elapsed, run.reason?.replaceAll(REASON_WORD_SEPARATOR, ' ')) || step.note };
+      return { note: this.joinNote(elapsed, run.latestReason?.replaceAll(REASON_WORD_SEPARATOR, ' ')) || step.note };
     }
 
     return { kind: STEP_NOW, note: this.joinNote(RUNNING_NOTE, elapsed) };

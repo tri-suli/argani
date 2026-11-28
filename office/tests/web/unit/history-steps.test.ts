@@ -188,4 +188,14 @@ describe('history steps', () => {
 
     expect(historySteps.derive(task, null, now)[0].note).toBe('0m');
   });
+
+  it('shows the latest reason on the wait that is still going on, and the first one on a past wait', () => {
+    const current = taskThrough([['Build', 0], ['Needs human', 30, 'manual-verification'], ['Needs human', 35, 'merge-failed']], 40);
+
+    expect(historySteps.derive(current, null, now).at(-1)?.note).toBe('30m 00s · merge failed');
+
+    const past = taskThrough([['Needs human', 0, 'manual-verification'], ['Needs human', 2, 'merge-failed'], ['Build', 5]], 40);
+
+    expect(historySteps.derive(past, null, now)[0].note).toBe('5m · manual verification');
+  });
 });

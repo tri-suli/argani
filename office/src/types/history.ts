@@ -15,4 +15,14 @@ interface LegendEntry {
   label: string;
 }
 
-export type { StepKind, HistoryStep, LegendEntry };
+/** The entries of one column, back to back in the task's history. */
+interface Run {
+  column: string;
+  startedAt: string;
+  /** The first reason of the run: the one a past wait is shown with. */
+  reason: string | null;
+  /** The latest reason of the run: the one the wait going on now is shown with, as on the board row. */
+  latestReason: string | null;
+  milliseconds: number;
+}
+export type { Run, StepKind, HistoryStep, LegendEntry };

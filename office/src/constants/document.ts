@@ -1,0 +1,146 @@
+// plugins/argani/templates/*.md: the lines after the title read `Key: value`
+const META_LINE_PATTERN = /^([A-Za-z][A-Za-z ]{0,30}): (\S.*)$/;
+
+const TITLE_PREFIX = '# ';
+
+const NEWLINE_PATTERN = /\r\n?/g;
+
+const LINE_BREAK = '\n';
+
+const STATUS_KEY = 'Status';
+
+const APPROVED_STATUS_PREFIX = 'approved';
+
+const DOCUMENT_ID_PREFIX = 'doc-';
+
+const FALLBACK_SECTION_SLUG = 'section';
+
+const NON_SLUG_PATTERN = /[^\p{L}\p{N}]+/gu;
+
+const EDGE_DASH_PATTERN = /^-+|-+$/g;
+
+const SLUG_SEPARATOR = '-';
+
+const MAX_HEADING_DEPTH = 6;
+
+const MAX_OUTLINE_DEPTH = 3;
+
+const SECTION_DEPTH = 2;
+
+const SUMMARY_TITLE = 'Summary';
+
+// plugins/argani/templates/intent.md: the section that holds the numbered criteria
+const ACCEPTANCE_CRITERIA_TITLE = 'Acceptance criteria';
+
+// plugins/argani/scripts/artifact_check.py AC_ITEM_PATTERN: `n. [ ] <claim> — verify: <how>`
+const CRITERION_PATTERN = /^(\d+)\. \[[ xX]\] (.+) — verify: (\S.*)$/;
+
+// artifact_check.py MANUAL_PREFIX: `verify: manual: <step>` marks a criterion only a human can check
+const MANUAL_PREFIX_PATTERN = /^`?manual:\s*/i;
+
+const CRITERION_ID_PREFIX = 'AC-';
+
+const COMMENT_PATTERN = /<!--[\s\S]*?-->/g;
+
+const WHITESPACE_PATTERN = /\s+/;
+
+const WORDS_PER_MINUTE = 230;
+
+const MINIMUM_READ_MINUTES = 1;
+
+const ANCHOR_ATTRIBUTE = 'data-document-anchor';
+
+const ANCHOR_SELECTOR = `a[${ANCHOR_ATTRIBUTE}]`;
+
+const FRAGMENT_PREFIX = '#';
+
+const READING_ZONE_MARGIN = '0px 0px -65% 0px';
+
+const SMOOTH_SCROLL = 'smooth';
+
+const INSTANT_SCROLL = 'auto';
+
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+const FIRST_INDEX = 0;
+
+const NOT_FOUND_ENTRY = -1;
+
+// how many lines of a diff are put in the page; the rest is counted and named in a note
+const DIFF_ROW_LIMIT = 1500;
+
+const DIFF_FILE_START = 'diff ';
+
+const DIFF_FILE_MARKERS = ['--- ', '+++ '];
+
+const DIFF_HUNK_START = '@@';
+
+const DIFF_ADD_MARKER = '+';
+
+const DIFF_REMOVE_MARKER = '-';
+
+const DIFF_NOTE_MARKER = '\\';
+
+const DIFF_BINARY_STARTS = ['Binary files ', 'GIT binary patch'];
+
+const DIFF_EXTENSION = '.diff';
+
+const TRAILING_CARRIAGE_RETURN = /\r$/;
+
+// `Status: approved by <name> on <date>`: the pill names who approved, the Date line carries the day
+const STATUS_DATE_SUFFIX_PATTERN = / on \d{4}-\d{2}-\d{2}$/;
+
+const TRAILING_NEWLINES_PATTERN = /\n+$/;
+
+const INFO_STRING_SEPARATOR = /\s+/;
+
+const HEADING_OPENING_PATTERN = /^<h(\d)>/;
+
+export {
+  META_LINE_PATTERN,
+  TITLE_PREFIX,
+  NEWLINE_PATTERN,
+  LINE_BREAK,
+  STATUS_KEY,
+  APPROVED_STATUS_PREFIX,
+  DOCUMENT_ID_PREFIX,
+  FALLBACK_SECTION_SLUG,
+  NON_SLUG_PATTERN,
+  EDGE_DASH_PATTERN,
+  SLUG_SEPARATOR,
+  MAX_HEADING_DEPTH,
+  MAX_OUTLINE_DEPTH,
+  SECTION_DEPTH,
+  SUMMARY_TITLE,
+  ACCEPTANCE_CRITERIA_TITLE,
+  CRITERION_PATTERN,
+  MANUAL_PREFIX_PATTERN,
+  CRITERION_ID_PREFIX,
+  COMMENT_PATTERN,
+  WHITESPACE_PATTERN,
+  WORDS_PER_MINUTE,
+  MINIMUM_READ_MINUTES,
+  ANCHOR_ATTRIBUTE,
+  ANCHOR_SELECTOR,
+  FRAGMENT_PREFIX,
+  READING_ZONE_MARGIN,
+  SMOOTH_SCROLL,
+  INSTANT_SCROLL,
+  REDUCED_MOTION_QUERY,
+  FIRST_INDEX,
+  NOT_FOUND_ENTRY,
+  DIFF_ROW_LIMIT,
+  DIFF_FILE_START,
+  DIFF_FILE_MARKERS,
+  DIFF_HUNK_START,
+  DIFF_ADD_MARKER,
+  DIFF_REMOVE_MARKER,
+  DIFF_NOTE_MARKER,
+  DIFF_BINARY_STARTS,
+  DIFF_EXTENSION,
+  TRAILING_CARRIAGE_RETURN,
+  STATUS_DATE_SUFFIX_PATTERN,
+  TRAILING_NEWLINES_PATTERN,
+  INFO_STRING_SEPARATOR,
+  HEADING_OPENING_PATTERN,
+};

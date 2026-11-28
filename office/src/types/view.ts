@@ -1,5 +1,6 @@
 import type { BoardTask } from '@/types/board';
-import type { FileTone, ReviewState, Risk, TaskFile } from '@/types/task';
+import type { DocumentBlock, DocumentStatus, MetaEntry, OutlineEntry } from '@/types/document';
+import type { ReviewState, Risk, TaskFile } from '@/types/task';
 
 interface PipelineColumn {
   /** "01" to "05": the position in the pipeline. */
@@ -112,12 +113,18 @@ interface FileGroup {
 }
 
 interface RenderedDocument {
-  /** First line of the file, shown as a badge, when the file has a tone. */
-  verdict: string | null;
-  tone: FileTone | null;
-  /** The `## Summary` section, if any. */
+  /** The pill of the head: the `Status:` value, else the first line of a file that has a tone. */
+  status: DocumentStatus | null;
+  /** The first `# ` heading as sanitized inline html. */
+  titleHtml: string | null;
+  meta: MetaEntry[];
+  /** The `## Summary` section, if any, and the id its heading would have. */
   summaryHtml: string | null;
-  bodyHtml: string;
+  summaryId: string | null;
+  blocks: DocumentBlock[];
+  outline: OutlineEntry[];
+  wordCount: number;
+  readMinutes: number;
 }
 
 export type { TaskHeaderView, PipelineColumn, ChipView, RoundView, AgentView, CardView, TileTone, TotalsTile, NeedsHumanRow, DoneRow, ProjectOption, ColumnView, FileGroup, RenderedDocument };

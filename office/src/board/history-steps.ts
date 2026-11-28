@@ -28,10 +28,13 @@ class HistorySteps {
 
     let reviewVisits = NO_COUNT;
 
+    // an interrupted review keeps its round number, so visits and rounds only line up when their counts are equal
+    const visitsMatchRounds = summary !== null && summary.rounds.length === runs.filter((run) => run.column === COLUMN_REVIEW).length;
+
     return runs.map((run, index) => {
       const isLast = index === runs.length - 1;
 
-      const step = run.column === COLUMN_REVIEW ? this.reviewStep(run, ++reviewVisits, summary) : this.plainStep(run, task);
+      const step = run.column === COLUMN_REVIEW ? this.reviewStep(run, ++reviewVisits, visitsMatchRounds ? summary : null) : this.plainStep(run, task);
 
       return { ...this.withNumber(step, index), ...(isLast ? this.lastStepOf(step, run, task, nowMilliseconds) : {}) };
     });
@@ -80,7 +83,7 @@ class HistorySteps {
     return { name: run.column, kind: STEP_AGENT, note: formatDuration(run.milliseconds) };
   }
 
-  /** The n-th visit to Review is review round n, when the task summary has that round. */
+  /** The n-th visit to Review is review round n, when the summary lists exactly as many rounds as there were visits. */
   private reviewStep(run: Run, visit: number, summary: TaskSummary | null): Omit<HistoryStep, 'number'> {
     const round = summary?.rounds.find((candidate) => candidate.n === visit);
 

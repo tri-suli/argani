@@ -24,7 +24,6 @@ interface CommandCopier {
   key: string | null;
   failed: boolean;
   copy(key: string, command: string): Promise<void>;
-  isCopied(key: string): boolean;
   /** "Copy", "Copied" or "Copy failed" for the button of this command. */
   label(key: string): string;
 }

@@ -7,7 +7,7 @@ const ALL_PROJECTS = '';
 const ALL_PROJECTS_LABEL = 'All projects';
 
 /** Stands in for the picked option until the first snapshot has listed the projects. */
-const NO_PROJECT_OPTION: ProjectOption = { value: '', label: 'All projects', count: 0, waiting: 0 };
+const NO_PROJECT_OPTION: ProjectOption = { value: ALL_PROJECTS, label: ALL_PROJECTS_LABEL, count: 0, waiting: 0 };
 
 /** Zero as a count, token total or duration in milliseconds. */
 const NO_COUNT = 0;

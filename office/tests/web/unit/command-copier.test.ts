@@ -17,7 +17,7 @@ describe('command copier', () => {
 
     expect(writeText).toHaveBeenCalledWith('/argani:factory answer a <answer>');
 
-    expect([copier.label('a'), copier.label('b'), copier.isCopied('a'), copier.isCopied('b')]).toEqual(['Copied', 'Copy', true, false]);
+    expect([copier.label('a'), copier.label('b')]).toEqual(['Copied', 'Copy']);
 
     vi.advanceTimersByTime(1999);
 
@@ -26,8 +26,6 @@ describe('command copier', () => {
     vi.advanceTimersByTime(1);
 
     expect(copier.label('a')).toBe('Copy');
-
-    expect(copier.isCopied('a')).toBe(false);
   });
 
   it('says Copy failed instead of throwing when the clipboard rejects or is missing', async () => {
@@ -35,7 +33,7 @@ describe('command copier', () => {
 
     await expect(copier.copy('a', 'x')).resolves.toBeUndefined();
 
-    expect([copier.label('a'), copier.isCopied('a')]).toEqual(['Copy failed', false]);
+    expect(copier.label('a')).toBe('Copy failed');
 
     const missing = createCommandCopier({ writeText: () => { throw new TypeError('no clipboard'); } });
 
@@ -60,5 +58,25 @@ describe('command copier', () => {
     vi.advanceTimersByTime(500);
 
     expect(copier.label('b')).toBe('Copy');
+  });
+
+  it('gives the feedback to the latest click when the writes resolve out of order', async () => {
+    const releases: (() => void)[] = [];
+
+    const copier = createCommandCopier({ writeText: () => new Promise<void>((resolve) => releases.push(resolve)) });
+
+    const first = copier.copy('a', 'x');
+
+    const second = copier.copy('b', 'y');
+
+    releases[1]();
+
+    await second;
+
+    releases[0]();
+
+    await first;
+
+    expect([copier.label('a'), copier.label('b')]).toEqual(['Copy', 'Copied']);
   });
 });

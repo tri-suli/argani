@@ -9,21 +9,25 @@ class FakeIntersectionObserver {
 
   disconnect = vi.fn();
 
-  constructor(readonly callback: (entries: unknown[]) => void, readonly options: IntersectionObserverInit) {
+  constructor(readonly callback: () => void, readonly options: IntersectionObserverInit) {
     FakeIntersectionObserver.instances.push(this);
   }
 }
 
-const fakeWindow = (matches: boolean) =>
-  ({ IntersectionObserver: FakeIntersectionObserver, document, matchMedia: vi.fn(() => ({ matches })) }) as unknown as Window & typeof globalThis;
+const fakeWindow = (matches = false) =>
+  ({ IntersectionObserver: FakeIntersectionObserver, document, innerHeight: 1000, matchMedia: vi.fn(() => ({ matches })) }) as unknown as Window & typeof globalThis;
+
+const heading = (top: number, bottom: number) => {
+  document.body.innerHTML = '<h3 id="doc-a"></h3>';
+
+  vi.spyOn(document.getElementById('doc-a') as HTMLElement, 'getBoundingClientRect').mockReturnValue({ top, bottom } as DOMRect);
+};
 
 describe('browser reader environment', () => {
-  it('watches a reading zone near the top of the page and reports where a heading left it', () => {
-    const environment = createBrowserReaderEnvironment(fakeWindow(false));
-
+  it('watches a reading zone near the top of the page and says when a heading enters or leaves it', () => {
     const onChange = vi.fn();
 
-    const observer = environment.createObserver(onChange);
+    const observer = createBrowserReaderEnvironment(fakeWindow()).createObserver(onChange);
 
     const native = FakeIntersectionObserver.instances[0];
 
@@ -31,39 +35,53 @@ describe('browser reader environment', () => {
 
     const target = document.createElement('h3');
 
-    target.id = 'doc-a';
-
     observer.observe(target);
 
     expect(native.observe).toHaveBeenCalledWith(target);
 
-    native.callback([
-      { target, isIntersecting: true, boundingClientRect: { top: 10 }, rootBounds: { bottom: 300 } },
-      { target, isIntersecting: false, boundingClientRect: { top: 400 }, rootBounds: { bottom: 300 } },
-      { target, isIntersecting: false, boundingClientRect: { top: -20 }, rootBounds: { bottom: 300 } },
-      { target, isIntersecting: false, boundingClientRect: { top: 400 }, rootBounds: null },
-    ]);
+    native.callback();
 
-    expect(onChange).toHaveBeenCalledWith([
-      { id: 'doc-a', intersecting: true, below: false },
-      { id: 'doc-a', intersecting: false, below: true },
-      { id: 'doc-a', intersecting: false, below: false },
-      { id: 'doc-a', intersecting: false, below: false },
-    ]);
+    expect(onChange).toHaveBeenCalledOnce();
 
     observer.disconnect();
 
     expect(native.disconnect).toHaveBeenCalled();
   });
 
+  it('places a heading from where it is on the screen: in the top 35% it is in the zone, above that passed, below that not reached', () => {
+    const environment = createBrowserReaderEnvironment(fakeWindow());
+
+    heading(100, 130);
+
+    expect(environment.positionOf('doc-a')).toBe('zone');
+
+    heading(350, 380);
+
+    expect(environment.positionOf('doc-a')).toBe('zone');
+
+    heading(351, 380);
+
+    expect(environment.positionOf('doc-a')).toBe('below');
+
+    heading(-60, -10);
+
+    expect(environment.positionOf('doc-a')).toBe('above');
+
+    heading(-30, 0);
+
+    expect(environment.positionOf('doc-a')).toBe('zone');
+
+    expect(environment.positionOf('doc-missing')).toBe('below');
+  });
+
   it('finds elements by id and reads the reduced-motion preference when asked', () => {
     document.body.innerHTML = '<h3 id="doc-a"></h3>';
 
-    expect(createBrowserReaderEnvironment(fakeWindow(false)).findElement('doc-a')).toBe(document.getElementById('doc-a'));
+    expect(createBrowserReaderEnvironment(fakeWindow()).findElement('doc-a')).toBe(document.getElementById('doc-a'));
 
-    expect(createBrowserReaderEnvironment(fakeWindow(false)).findElement('doc-none')).toBeNull();
+    expect(createBrowserReaderEnvironment(fakeWindow()).findElement('doc-none')).toBeNull();
 
-    expect(createBrowserReaderEnvironment(fakeWindow(false)).prefersReducedMotion()).toBe(false);
+    expect(createBrowserReaderEnvironment(fakeWindow()).prefersReducedMotion()).toBe(false);
 
     expect(createBrowserReaderEnvironment(fakeWindow(true)).prefersReducedMotion()).toBe(true);
   });

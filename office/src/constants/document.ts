@@ -54,13 +54,27 @@ const ANCHOR_SELECTOR = `a[${ANCHOR_ATTRIBUTE}]`;
 
 const FRAGMENT_PREFIX = '#';
 
-const READING_ZONE_MARGIN = '0px 0px -65% 0px';
+// the band of the viewport, from its top, in which a heading counts as the one being read
+const READING_ZONE_PERCENT = 35;
+
+const READING_ZONE_MARGIN = `0px 0px -${100 - READING_ZONE_PERCENT}% 0px`;
+
+const PERCENT = 100;
 
 const SMOOTH_SCROLL = 'smooth';
 
 const INSTANT_SCROLL = 'auto';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+// where a heading is in relation to the reading zone
+const IN_ZONE = 'zone';
+
+const PASSED = 'above';
+
+const NOT_REACHED = 'below';
+
+const NOT_FOUND_INDEX = -1;
 
 const FIRST_INDEX = 0;
 
@@ -124,10 +138,16 @@ export {
   ANCHOR_ATTRIBUTE,
   ANCHOR_SELECTOR,
   FRAGMENT_PREFIX,
+  READING_ZONE_PERCENT,
   READING_ZONE_MARGIN,
+  PERCENT,
   SMOOTH_SCROLL,
   INSTANT_SCROLL,
   REDUCED_MOTION_QUERY,
+  IN_ZONE,
+  PASSED,
+  NOT_REACHED,
+  NOT_FOUND_INDEX,
   FIRST_INDEX,
   DIFF_ROW_LIMIT,
   DIFF_FILE_START,

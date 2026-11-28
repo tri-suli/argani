@@ -1,52 +1,23 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import createOutlineTracker from '@/components/outline-tracker';
-import type { ReaderEnvironment, SectionObserver, SectionVisibility } from '@/types/document';
+import FakeReaderEnvironment from '../fake-reader-environment';
+import type { SectionPosition } from '@/types/document';
 
-class FakeObserver implements SectionObserver {
-  observed: Element[] = [];
+let environment: FakeReaderEnvironment;
 
-  disconnected = false;
+const move = (positions: Record<string, SectionPosition>) => environment.move(positions);
 
-  constructor(readonly onChange: (entries: SectionVisibility[]) => void) {}
+const trackerOver = (ids: string[]) => {
+  const tracker = createOutlineTracker(environment);
 
-  observe(element: Element) {
-    this.observed.push(element);
-  }
+  tracker.track(ids);
 
-  disconnect() {
-    this.disconnected = true;
-  }
-}
-
-let observers: FakeObserver[];
-
-let reducedMotion: boolean;
-
-const environment: ReaderEnvironment = {
-  createObserver: (onChange) => {
-    const observer = new FakeObserver(onChange);
-
-    observers.push(observer);
-
-    return observer;
-  },
-  findElement: (id) => document.getElementById(id),
-  prefersReducedMotion: () => reducedMotion,
+  return tracker;
 };
 
-const latest = () => observers[observers.length - 1];
-
-const enter = (id: string) => latest().onChange([{ id, intersecting: true, below: false }]);
-
-const leaveBelow = (id: string) => latest().onChange([{ id, intersecting: false, below: true }]);
-
-const leaveAbove = (id: string) => latest().onChange([{ id, intersecting: false, below: false }]);
-
 beforeEach(() => {
-  observers = [];
-
-  reducedMotion = false;
+  environment = new FakeReaderEnvironment();
 
   document.body.innerHTML = '<h3 id="doc-a">A</h3><h3 id="doc-b">B</h3><h3 id="doc-c">C</h3>';
 
@@ -57,105 +28,71 @@ beforeEach(() => {
 
 describe('outline tracker', () => {
   it('observes the headings that are in the page and starts at the first section', () => {
-    const tracker = createOutlineTracker(environment);
+    const tracker = trackerOver(['doc-a', 'doc-b', 'doc-missing']);
 
-    tracker.track(['doc-a', 'doc-b', 'doc-missing']);
-
-    expect(latest().observed.map((element) => element.id)).toEqual(['doc-a', 'doc-b']);
+    expect(environment.latest.observed.map((element) => element.id)).toEqual(['doc-a', 'doc-b']);
 
     expect(tracker.activeId).toBe('doc-a');
   });
 
-  it('follows the heading that is in the reading zone, the first one when several are', () => {
-    const tracker = createOutlineTracker(environment);
+  it('follows the first heading in the reading zone, and the last one it has passed when none is', () => {
+    const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
 
-    tracker.track(['doc-a', 'doc-b', 'doc-c']);
-
-    enter('doc-c');
-
-    enter('doc-b');
+    move({ 'doc-a': 'above', 'doc-b': 'zone', 'doc-c': 'zone' });
 
     expect(tracker.activeId).toBe('doc-b');
 
-    leaveAbove('doc-b');
+    move({ 'doc-b': 'above' });
 
     expect(tracker.activeId).toBe('doc-c');
 
-    leaveAbove('doc-c');
+    move({ 'doc-c': 'above' });
 
     expect(tracker.activeId).toBe('doc-c');
   });
 
-  it('goes back to the section above when the reader scrolls up past the heading in view', () => {
-    const tracker = createOutlineTracker(environment);
+  it('settles on the right section after a jump over several, in either direction, and stays on the first above all', () => {
+    const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
 
-    tracker.track(['doc-a', 'doc-b', 'doc-c']);
+    move({ 'doc-a': 'above', 'doc-b': 'above', 'doc-c': 'above' });
 
-    enter('doc-c');
+    expect(tracker.activeId).toBe('doc-c');
 
-    leaveBelow('doc-c');
-
-    expect(tracker.activeId).toBe('doc-b');
-
-    leaveBelow('doc-a');
-
-    expect(tracker.activeId).toBe('doc-b');
-
-    tracker.track(['doc-a', 'doc-b', 'doc-c']);
-
-    leaveBelow('doc-b');
+    move({ 'doc-a': 'above', 'doc-b': 'below', 'doc-c': 'below' });
 
     expect(tracker.activeId).toBe('doc-a');
-  });
 
-  it('stays on the first section when the reader scrolls back above it', () => {
-    const tracker = createOutlineTracker(environment);
-
-    tracker.track(['doc-a', 'doc-b']);
-
-    leaveBelow('doc-a');
+    move({ 'doc-a': 'below' });
 
     expect(tracker.activeId).toBe('doc-a');
-  });
-
-  it('ignores a heading that left below when it was not the active one', () => {
-    const tracker = createOutlineTracker(environment);
-
-    tracker.track(['doc-a', 'doc-b', 'doc-c']);
-
-    enter('doc-b');
-
-    leaveBelow('doc-c');
-
-    expect(tracker.activeId).toBe('doc-b');
   });
 
   it('keeps the highlight when the same sections are tracked again, and stops observing the old elements', () => {
-    const tracker = createOutlineTracker(environment);
+    const tracker = trackerOver(['doc-a', 'doc-b']);
+
+    move({ 'doc-b': 'zone' });
 
     tracker.track(['doc-a', 'doc-b']);
 
-    enter('doc-b');
-
-    tracker.track(['doc-a', 'doc-b']);
-
-    expect(observers[0].disconnected).toBe(true);
+    expect(environment.observers[0].disconnected).toBe(true);
 
     expect(tracker.activeId).toBe('doc-b');
   });
 
   it('forgets the highlight of a section that is gone, and has none without sections', () => {
-    const tracker = createOutlineTracker(environment);
+    const tracker = trackerOver(['doc-a', 'doc-b']);
 
-    tracker.track(['doc-a', 'doc-b']);
-
-    enter('doc-b');
+    move({ 'doc-b': 'zone' });
 
     tracker.track(['doc-a']);
 
     expect(tracker.activeId).toBe('doc-a');
 
     tracker.track([]);
+
+    expect(tracker.activeId).toBeNull();
+
+    environment.latest.onChange();
 
     expect(tracker.activeId).toBeNull();
   });
@@ -165,19 +102,17 @@ describe('outline tracker', () => {
 
     tracker.stop();
 
-    expect(observers).toHaveLength(0);
+    expect(environment.observers).toHaveLength(0);
 
     tracker.track(['doc-a']);
 
     tracker.stop();
 
-    expect(latest().disconnected).toBe(true);
+    expect(environment.latest.disconnected).toBe(true);
   });
 
   it('smooth-scrolls to a section and highlights it at once, instantly under reduced motion', () => {
-    const tracker = createOutlineTracker(environment);
-
-    tracker.track(['doc-a', 'doc-b']);
+    const tracker = trackerOver(['doc-a', 'doc-b']);
 
     tracker.scrollTo('doc-b');
 
@@ -185,17 +120,71 @@ describe('outline tracker', () => {
 
     expect(tracker.activeId).toBe('doc-b');
 
-    reducedMotion = true;
+    environment.reducedMotion = true;
 
     tracker.scrollTo('doc-a');
 
     expect(document.getElementById('doc-a')?.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
   });
 
-  it('does not highlight a target that is not an outline section, and ignores a missing one', () => {
-    const tracker = createOutlineTracker(environment);
+  describe('after a click', () => {
+    it('keeps the clicked section while it is on its way, and when an earlier one shares the zone with it at the end of the page', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
 
-    tracker.track(['doc-a']);
+      tracker.scrollTo('doc-c');
+
+      move({ 'doc-b': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+
+      move({ 'doc-c': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+
+      move({ 'doc-b': 'above' });
+
+      expect(tracker.activeId).toBe('doc-c');
+    });
+
+    it('follows the reader again once the clicked section has been in the zone and left it', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+      tracker.scrollTo('doc-b');
+
+      move({ 'doc-a': 'above', 'doc-b': 'zone' });
+
+      move({ 'doc-b': 'above', 'doc-c': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+    });
+
+    it('follows the reader when the section was already in the zone at the click and the reader moves on', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b', 'doc-c']);
+
+      move({ 'doc-b': 'zone' });
+
+      tracker.scrollTo('doc-b');
+
+      move({ 'doc-b': 'above', 'doc-c': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-c');
+    });
+
+    it('lets a new tracking of the page drop the pin', () => {
+      const tracker = trackerOver(['doc-a', 'doc-b']);
+
+      tracker.scrollTo('doc-b');
+
+      tracker.track(['doc-a', 'doc-b']);
+
+      move({ 'doc-a': 'zone' });
+
+      expect(tracker.activeId).toBe('doc-a');
+    });
+  });
+
+  it('does not highlight a target that is not an outline section, and ignores a missing one', () => {
+    const tracker = trackerOver(['doc-a']);
 
     tracker.scrollTo('doc-b');
 

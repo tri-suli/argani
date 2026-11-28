@@ -1,4 +1,4 @@
-import { ANCHOR_SELECTOR, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
+import { ANCHOR_SELECTOR, IN_ZONE, NOT_FOUND_INDEX, PASSED, DOCUMENT_ID_PREFIX, FIRST_INDEX, FRAGMENT_PREFIX, INSTANT_SCROLL, SMOOTH_SCROLL } from '@/constants/document';
 import type { OutlineTracker, ReaderEnvironment, SectionObserver } from '@/types/document';
 
 function decodedFragment(fragment: string): string {
@@ -15,7 +15,11 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
   let sectionIds: string[] = [];
 
-  let inZone = new Set<string>();
+  // the section the reader clicked: it stays highlighted while it is on its way and while it is in the zone,
+  // because at the end of the page an earlier section can share the zone with it
+  let pinnedId: string | null = null;
+
+  let pinArrived = false;
 
   return {
     activeId: null,
@@ -25,9 +29,9 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
       sectionIds = ids;
 
-      inZone = new Set();
+      pinnedId = null;
 
-      observer = environment.createObserver((entries) => this.change(entries));
+      observer = environment.createObserver(() => this.change());
 
       for (const id of ids) {
         const element = environment.findElement(id);
@@ -56,6 +60,10 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
       if (sectionIds.includes(id)) {
         this.activeId = id;
+
+        pinnedId = id;
+
+        pinArrived = environment.positionOf(id) === IN_ZONE;
       }
 
       element.scrollIntoView({ behavior: environment.prefersReducedMotion() ? INSTANT_SCROLL : SMOOTH_SCROLL, block: 'start' });
@@ -74,29 +82,32 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       this.scrollTo(DOCUMENT_ID_PREFIX + decodedFragment((anchor.getAttribute('href') as string).slice(FRAGMENT_PREFIX.length)));
     },
 
-    change(entries) {
-      let scrolledBack = false;
+    change() {
+      const positions = sectionIds.map((id) => environment.positionOf(id));
 
-      for (const entry of entries) {
-        if (entry.intersecting) {
-          inZone.add(entry.id);
-        } else {
-          inZone.delete(entry.id);
+      if (pinnedId !== null) {
+        if (environment.positionOf(pinnedId) === IN_ZONE) {
+          pinArrived = true;
 
-          scrolledBack = scrolledBack || (entry.below && entry.id === this.activeId);
+          this.activeId = pinnedId;
+
+          return;
         }
+
+        if (!pinArrived) {
+          return;
+        }
+
+        pinnedId = null;
       }
 
-      const inView = sectionIds.find((id) => inZone.has(id));
+      // the first heading in the zone; else the last one the reader has passed; else the page has not reached the first
+      const inZone = positions.indexOf(IN_ZONE);
 
-      if (inView !== undefined) {
-        this.activeId = inView;
-      } else if (scrolledBack) {
-        const above = sectionIds.indexOf(this.activeId as string) - 1;
+      const passed = positions.lastIndexOf(PASSED);
 
-        this.activeId = sectionIds[above] ?? sectionIds[FIRST_INDEX];
-      }
-    }
+      this.activeId = sectionIds[inZone !== NOT_FOUND_INDEX ? inZone : Math.max(passed, FIRST_INDEX)] ?? null;
+    },
   };
 }
 

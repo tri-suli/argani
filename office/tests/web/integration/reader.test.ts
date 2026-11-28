@@ -268,7 +268,7 @@ describe('document reader', () => {
 
     await eventually(() => expect(all('[data-testid=outline-entry]')[0].getAttribute('aria-current')).toBe('location'));
 
-    environment.latest.onChange([{ id: 'doc-out-of-scope', intersecting: true, below: false }]);
+    environment.move({ 'doc-out-of-scope': 'zone' });
 
     await eventually(() => expect(all('[data-testid=outline-entry]')[4].getAttribute('aria-current')).toBe('location'));
 
@@ -304,7 +304,7 @@ describe('document reader', () => {
 
     const title = document.querySelector('[data-testid=reader-title]') as HTMLElement;
 
-    environment.latest.onChange([{ id: 'doc-out-of-scope', intersecting: true, below: false }]);
+    environment.move({ 'doc-out-of-scope': 'zone' });
 
     await eventually(() => expect(all('[data-testid=outline-entry]')[4].getAttribute('aria-current')).toBe('location'));
 

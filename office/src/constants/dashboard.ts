@@ -12,6 +12,9 @@ const NO_PROJECT_OPTION: ProjectOption = { value: '', label: 'All projects', cou
 /** Zero as a count, token total or duration in milliseconds. */
 const NO_COUNT = 0;
 
+/** What `findIndex` returns when nothing matches. */
+const NOT_FOUND = -1;
+
 /** Sorts below every real wait (which is never negative). */
 const UNKNOWN_WAIT = -1;
 
@@ -47,6 +50,7 @@ export {
   ALL_PROJECTS_LABEL,
   NO_PROJECT_OPTION,
   NO_COUNT,
+  NOT_FOUND,
   UNKNOWN_WAIT,
   NO_VALUE,
   AGENT_TYPE_SEPARATOR,

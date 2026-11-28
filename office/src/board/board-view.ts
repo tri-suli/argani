@@ -1,5 +1,5 @@
 import { formatCount, formatDuration, formatElapsed, pluralize } from '@/board/format';
-import { AGENT_TYPE_SEPARATOR, ALL_PROJECTS, ALL_PROJECTS_LABEL, DETAIL_SEPARATOR, NO_COUNT, NO_VALUE, REASON_WORD_SEPARATOR, TILE_AGENTS, TILE_MANUAL, TILE_TOKENS, TILE_WAITING, UNKNOWN_WAIT } from '@/constants/dashboard';
+import { AGENT_TYPE_SEPARATOR, ALL_PROJECTS, ALL_PROJECTS_LABEL, DETAIL_SEPARATOR, NO_COUNT, NO_VALUE, REASON_WORD_SEPARATOR, TILE_AGENTS, TILE_MANUAL, TILE_TOKENS, NOT_FOUND, TILE_WAITING, UNKNOWN_WAIT } from '@/constants/dashboard';
 import { ANSWER_COMMAND_PREFIX, ANSWER_PLACEHOLDER, DONE, KNOWN_COLUMNS, NEEDS_HUMAN, OUTCOME_CANCELLED, OUTCOME_ICONS, OUTCOME_MERGED, PIPELINE, STAGE_CANCELLED, WORKING_COLUMNS } from '@/constants/pipeline';
 import { CHIP_CLASS_INVALID, CHIP_CLASS_PENDING, CHIP_CLASS_WAITING, CHIP_ICONS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING, RISK_ICONS } from '@/constants/review';
 import type { BoardAgent, BoardSnapshot, BoardTask } from '@/types/board';
@@ -60,11 +60,17 @@ class BoardView {
       }));
   }
 
-  /** Time since the task entered its current column, from the last history entry; null without history. */
+  /** Time since the task entered Needs human, from the earliest entry of the trailing run in that column; null when unknown. */
   waitedMilliseconds(task: BoardTask, nowMilliseconds: number): number | null {
-    const last = task.history.at(-1);
+    const leftAt = [...task.history].reverse().findIndex((entry) => entry.column !== NEEDS_HUMAN);
 
-    return last === undefined ? null : Math.max(NO_COUNT, nowMilliseconds - Date.parse(last.ts));
+    const runLength = leftAt === NOT_FOUND ? task.history.length : leftAt;
+
+    const first = runLength === NO_COUNT ? undefined : task.history[task.history.length - runLength];
+
+    const since = first === undefined ? Number.NaN : Date.parse(first.ts);
+
+    return Number.isFinite(since) ? Math.max(NO_COUNT, nowMilliseconds - since) : null;
   }
 
   /** Finished tasks, newest first. */

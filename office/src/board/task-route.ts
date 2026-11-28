@@ -1,4 +1,4 @@
-import { FILE_SEGMENT_INDEX, MAX_ROUTE_SEGMENTS, MIN_ROUTE_SEGMENTS, ROUND_NUMBER_PATTERN, ROUND_SEGMENT, ROUND_SEGMENT_COUNT, ROUTE_SEPARATOR, TASK_HASH_PREFIX } from '@/constants/route';
+import { FILE_SEGMENT_INDEX, MAX_ROUTE_SEGMENTS, MIN_ROUTE_SEGMENTS, NO_SUCH_ROUND, ROUND_NUMBER_PATTERN, ROUND_SEGMENT, ROUND_SEGMENT_COUNT, ROUTE_SEPARATOR, TASK_HASH_PREFIX } from '@/constants/route';
 import type { TaskRoute } from '@/types/route';
 
 /** "#/task/<project>/<slug>[/<file> | /round/<n>]", every segment encoded, the file path as one segment. */
@@ -24,8 +24,14 @@ function parseTaskRoute(hash: string): TaskRoute | null {
     const [project, slug, path, round] = segments.map(decodeURIComponent);
 
     if (segments.length === ROUND_SEGMENT_COUNT) {
+      if (path !== ROUND_SEGMENT) {
+        return null;
+      }
+
       // the number is checked as text first: Number() would read "1e3" or " 2"
-      return path === ROUND_SEGMENT && ROUND_NUMBER_PATTERN.test(round) && Number.isSafeInteger(Number(round)) ? { project, slug, path: null, round: Number(round) } : null;
+      const valid = ROUND_NUMBER_PATTERN.test(round) && Number.isSafeInteger(Number(round));
+
+      return { project, slug, path: null, round: valid ? Number(round) : NO_SUCH_ROUND };
     }
 
     return { project, slug, path: segments.length > FILE_SEGMENT_INDEX ? path : null };

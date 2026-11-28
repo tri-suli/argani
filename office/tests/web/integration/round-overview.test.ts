@@ -265,6 +265,68 @@ describe('round overview: the entry in the file list', () => {
   });
 });
 
+describe('round overview: leaving the overview and invalid round numbers', () => {
+  it('does not come back with the Round menu open, whether the overview was left for a file or the task page was left', async () => {
+    await openOverview(1);
+
+    button().click();
+
+    await eventually(() => expect(isShown('[data-testid=round-menu]')).toBe(true));
+
+    navigation.edit('#/task/demo/fix-export/spec.md');
+
+    await eventually(() => expect(isShown('[data-testid=round-overview]')).toBe(false));
+
+    navigation.edit('#/task/demo/fix-export/round/1');
+
+    await eventually(() => expect(text('[data-testid=round-title]')).toBe('Round 1'));
+
+    expect(isShown('[data-testid=round-menu]')).toBe(false);
+
+    expect(button().getAttribute('aria-expanded')).toBe('false');
+
+    expect(menuOptions().some((option) => option === document.activeElement)).toBe(false);
+
+    button().click();
+
+    await eventually(() => expect(isShown('[data-testid=round-menu]')).toBe(true));
+
+    (document.querySelector('[data-testid=task-back]') as HTMLElement).click();
+
+    await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
+
+    navigation.edit('#/task/demo/fix-export/round/1');
+
+    await eventually(() => {
+      expect(cards()).toHaveLength(2);
+
+      expect(isShown('[data-testid=round-menu]')).toBe(false);
+    });
+  });
+
+  it.each(['0', '-3', 'x'])('opens the task with the address corrected for the round number %s, not the board', async (number) => {
+    await mount(`#/task/demo/fix-export/round/${number}`);
+
+    await eventually(() => expect(text('[data-testid=task-body]')).toContain('Hello'));
+
+    expect(isShown('[data-testid=task-page]')).toBe(true);
+
+    expect(isShown('[data-testid=round-overview]')).toBe(false);
+
+    expect(navigation.hash()).toBe('#/task/demo/fix-export/spec.md');
+  });
+
+  it('puts the round that is shown back in the address when it is edited to an invalid number', async () => {
+    await openOverview(1);
+
+    navigation.edit('#/task/demo/fix-export/round/0');
+
+    await eventually(() => expect(navigation.hash()).toBe('#/task/demo/fix-export/round/1'));
+
+    expect(text('[data-testid=round-title]')).toBe('Round 1');
+  });
+});
+
 describe('round overview: addresses that name a round', () => {
   it('stays where it is for the round already shown, and puts the shown round back for a round that does not exist', async () => {
     await openOverview(1);

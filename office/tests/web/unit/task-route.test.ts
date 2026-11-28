@@ -37,7 +37,11 @@ describe('task route', () => {
     expect(parseTaskRoute('#/task/demo/ship')).not.toHaveProperty('round');
   });
 
-  it.each(['#/task/demo/ship/round/0', '#/task/demo/ship/round/-1', '#/task/demo/ship/round/1.5', '#/task/demo/ship/round/x', '#/task/demo/ship/round/01', '#/task/demo/ship/round/', '#/task/demo/ship/round/2/extra', '#/task/demo/ship/rounds/2', '#/task/demo/ship/round/99999999999999999999'])('is not a task route: %j', (hash) => {
+  it.each(['0', '-1', '1.5', 'x', '01', '1e3', ' 2', '99999999999999999999'])('names the task and no round that exists for the round number %j', (number) => {
+    expect(parseTaskRoute(`#/task/demo/ship/round/${encodeURIComponent(number)}`)).toEqual({ project: 'demo', slug: 'ship', path: null, round: 0 });
+  });
+
+  it.each(['#/task/demo/ship/round/', '#/task/demo/ship/round/2/extra', '#/task/demo/ship/rounds/2'])('is not a task route: %j', (hash) => {
     expect(parseTaskRoute(hash)).toBeNull();
   });
 

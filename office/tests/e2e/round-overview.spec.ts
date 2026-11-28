@@ -446,6 +446,11 @@ test.describe('review round overview', () => {
 
     await expect(table).toHaveCSS('overflow-x', 'auto');
 
+    // a long cell widens the table, which scrolls, rather than being broken letter by letter
+    expect(await table.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+
+    expect(await table.locator('th').first().evaluate((cell) => cell.getBoundingClientRect().height)).toBeLessThan(45);
+
     expect(await hasNoSidewaysScroll(page)).toBe(true);
   });
 

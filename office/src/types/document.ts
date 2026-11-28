@@ -98,8 +98,10 @@ interface ReaderEnvironment {
   findElement(id: string): HTMLElement | null;
   /** Read from the element's place on the screen, since an observer says nothing about a heading that jumps from one side of the zone to the other. */
   positionOf(id: string): SectionPosition;
-  /** Runs `onScroll` at most once per frame while the page scrolls; returns the function that stops listening. */
-  watchScroll(handlers: { onScroll: () => void }): () => void;
+  /** Runs `onScroll` at most once per frame while the page scrolls and `onSettled` once it has stopped; returns the function that stops listening. */
+  watchScroll(handlers: { onScroll: () => void; onSettled: () => void }): () => void;
+  /** The page cannot scroll any further down. */
+  isAtPageEnd(): boolean;
   prefersReducedMotion(): boolean;
 }
 
@@ -114,6 +116,8 @@ interface OutlineTracker {
   followAnchor(event: Event): void;
   /** The reader scrolled: works out which section is in view. */
   change(): void;
+  /** The scrolling stopped: a click-scroll the reader interrupted lets go of its section. */
+  settle(): void;
 }
 
 export type { MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionPosition, SectionObserver, ReaderEnvironment, OutlineTracker };

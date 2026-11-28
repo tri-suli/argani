@@ -23,6 +23,14 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
   let pinArrived = false;
 
+  // a section has arrived when it is in the zone, or when the page cannot scroll further and the section is not behind the reader:
+  // the last section of a page can be too short to ever reach the zone
+  const hasArrived = (id: string) => {
+    const position = environment.positionOf(id);
+
+    return position === IN_ZONE || (environment.isAtPageEnd() && position !== PASSED);
+  };
+
   return {
     activeId: null,
 
@@ -36,7 +44,7 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       observer = environment.createObserver(() => this.change());
 
       // the observer misses a jump that crosses no edge of the zone (End key, a dragged scrollbar)
-      stopWatchingScroll = environment.watchScroll({ onScroll: () => this.change() });
+      stopWatchingScroll = environment.watchScroll({ onScroll: () => this.change(), onSettled: () => this.settle() });
 
       for (const id of ids) {
         const element = environment.findElement(id);
@@ -72,7 +80,7 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
         pinnedId = id;
 
-        pinArrived = environment.positionOf(id) === IN_ZONE;
+        pinArrived = hasArrived(id);
       }
 
       element.scrollIntoView({ behavior: environment.prefersReducedMotion() ? INSTANT_SCROLL : SMOOTH_SCROLL, block: 'start' });
@@ -91,11 +99,20 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       this.scrollTo(DOCUMENT_ID_PREFIX + decodedFragment((anchor.getAttribute('href') as string).slice(FRAGMENT_PREFIX.length)));
     },
 
+    settle() {
+      // a click-scroll that never arrived was interrupted: the reader is the one scrolling now
+      if (!pinArrived) {
+        pinnedId = null;
+      }
+
+      this.change();
+    },
+
     change() {
       const positions = sectionIds.map((id) => environment.positionOf(id));
 
       if (pinnedId !== null) {
-        if (environment.positionOf(pinnedId) === IN_ZONE) {
+        if (hasArrived(pinnedId)) {
           pinArrived = true;
 
           this.activeId = pinnedId;

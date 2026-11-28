@@ -311,18 +311,20 @@
               <div class="max-w-[70ch]">
                 <p class="mb-2.5 flex flex-wrap items-center gap-2 font-mono text-[12px] text-faint">
                   <span class="[overflow-wrap:anywhere]" data-testid="reader-file" x-text="taskPage.selectedFileName"></span>
-                  <span class="inline-flex items-center gap-1 rounded-full bg-badge px-[9px] py-[3px] font-semibold text-badge-ink data-[tone=good]:bg-pass-tint data-[tone=good]:text-pass-ink data-[tone=stop]:bg-human-chip data-[tone=stop]:text-human-strong data-[tone=warn]:bg-changes-tint data-[tone=warn]:text-changes-ink" data-testid="task-status" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null"><span class="icon text-[15px]" aria-hidden="true" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.icon : ''"></span><span data-testid="task-verdict" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.label : ''"></span></span>
+                  <span class="inline-flex max-w-full items-center gap-1 rounded-[14px] bg-badge px-[9px] py-[3px] font-semibold text-badge-ink [overflow-wrap:anywhere] data-[tone=good]:bg-pass-tint data-[tone=good]:text-pass-ink data-[tone=stop]:bg-human-chip data-[tone=stop]:text-human-strong data-[tone=warn]:bg-changes-tint data-[tone=warn]:text-changes-ink" data-testid="task-status" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null"><span class="icon text-[15px]" aria-hidden="true" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.icon : ''"></span><span data-testid="task-verdict" :data-tone="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.tone : ''" x-show="taskPage.rendered && taskPage.rendered.status !== null" x-text="taskPage.rendered && taskPage.rendered.status ? taskPage.rendered.status.label : ''"></span></span>
                 </p>
                 <h2 class="text-[28px] leading-[1.2] font-bold tracking-[-0.02em] [overflow-wrap:anywhere] narrow:text-[22px] [&_code]:rounded-md [&_code]:bg-tag [&_code]:px-1.5 [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.88em] [&_code]:font-medium" data-testid="reader-title" x-show="taskPage.rendered && taskPage.rendered.titleHtml !== null" x-html="taskPage.rendered && taskPage.rendered.titleHtml !== null ? taskPage.rendered.titleHtml : ''"></h2>
 
-                <dl class="mt-5 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-px overflow-hidden rounded-[10px] border border-line bg-line text-[13px]" data-testid="task-meta" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
+                <div class="mt-5 overflow-hidden rounded-[10px] border border-line" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
+                <dl class="-mr-px -mb-px flex flex-wrap text-[13px]" data-testid="task-meta" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
                   <template x-for="(entry, index) in taskPage.rendered ? taskPage.rendered.meta : []" :key="index">
-                    <div class="min-w-0 bg-card px-3.5 py-2.5" data-testid="meta-entry">
+                    <div class="min-w-0 flex-[1_1_150px] border-r border-b border-line px-3.5 py-2.5" data-testid="meta-entry">
                       <dt class="text-[11px] font-semibold tracking-[0.06em] text-faint uppercase" x-text="entry.key"></dt>
                       <dd class="mt-0.5 [overflow-wrap:anywhere]" x-text="entry.value"></dd>
                     </div>
                   </template>
                 </dl>
+                </div>
 
                 <section class="mt-6 scroll-mt-5 rounded-xl border border-callout-line bg-selected px-5 py-4 [&_code]:rounded-[5px] [&_code]:bg-halo [&_code]:px-[5px] [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.88em] [&_p]:mb-0 [&_p+p]:mt-3 [&_p]:text-[16px] [&_p]:leading-[1.65] [&_ul]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-[16px]" data-testid="task-summary" :id="taskPage.rendered ? taskPage.rendered.summaryId : null" aria-labelledby="task-summary-heading" x-show="taskPage.rendered && taskPage.rendered.summaryHtml !== null">
                   <h3 class="mb-1.5 text-[12px] font-semibold tracking-[0.07em] text-active-ink uppercase" id="task-summary-heading">Summary</h3>
@@ -383,7 +385,7 @@
             <div class="overflow-x-auto" tabindex="0" role="region" aria-label="Diff">
               <div class="min-w-max py-1 font-mono text-[12px] leading-[1.55]">
                 <template x-for="row in taskPage.diff ? taskPage.diff.rows : []" :key="row.key">
-                  <div class="min-h-[1.55em] px-4 whitespace-pre data-[kind=add]:bg-pass-tint data-[kind=add]:text-pass-ink data-[kind=binary]:italic data-[kind=file]:font-semibold data-[kind=hunk]:bg-active-tint data-[kind=hunk]:text-active-ink data-[kind=note]:text-faint data-[kind=remove]:bg-remove-tint data-[kind=remove]:text-remove-ink data-[start=true]:mt-2 data-[start=true]:border-t data-[start=true]:border-line-strong data-[start=true]:bg-hover data-[start=true]:pt-1" data-testid="diff-row" :data-kind="row.kind" :data-start="row.fileStart" x-text="row.text"></div>
+                  <div class="min-h-[1.55em] px-4 whitespace-pre data-[kind=add]:bg-pass-tint data-[kind=add]:text-pass-ink data-[kind=binary]:italic data-[kind=file]:font-semibold data-[kind=hunk]:bg-active-tint data-[kind=hunk]:text-active-ink data-[kind=note]:text-faint data-[kind=remove]:bg-remove-tint data-[kind=remove]:text-remove-ink data-[start=true]:mt-2 data-[start=true]:first:mt-0 data-[start=true]:first:border-t-0 data-[start=true]:border-t data-[start=true]:border-line-strong data-[start=true]:bg-hover data-[start=true]:pt-1" data-testid="diff-row" :data-kind="row.kind" :data-start="row.fileStart" x-text="row.text"></div>
                 </template>
               </div>
             </div>

@@ -84,13 +84,8 @@ interface DiffView {
   truncated: boolean;
 }
 
-/** What the outline needs to know about a section heading scrolling through the reading zone. */
-interface SectionVisibility {
-  id: string;
-  intersecting: boolean;
-  /** It left the zone through the bottom: the reader scrolled back above the heading. */
-  below: boolean;
-}
+/** Where a heading is in relation to the reading zone near the top of the viewport. */
+type SectionPosition = 'zone' | 'above' | 'below';
 
 interface SectionObserver {
   observe(element: Element): void;
@@ -98,8 +93,11 @@ interface SectionObserver {
 }
 
 interface ReaderEnvironment {
-  createObserver(onChange: (entries: SectionVisibility[]) => void): SectionObserver;
+  /** `onChange` runs when a heading enters or leaves the reading zone. */
+  createObserver(onChange: () => void): SectionObserver;
   findElement(id: string): HTMLElement | null;
+  /** Read from the element's place on the screen, since an observer says nothing about a heading that jumps from one side of the zone to the other. */
+  positionOf(id: string): SectionPosition;
   prefersReducedMotion(): boolean;
 }
 
@@ -112,8 +110,8 @@ interface OutlineTracker {
   scrollTo(id: string): void;
   /** A click on an in-document link of the markdown scrolls to its heading instead of changing the route. */
   followAnchor(event: Event): void;
-  /** Receives the headings that entered or left the reading zone. */
-  change(entries: SectionVisibility[]): void;
+  /** The reader scrolled: works out which section is in view. */
+  change(): void;
 }
 
-export type { MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionVisibility, SectionObserver, ReaderEnvironment, OutlineTracker };
+export type { MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionPosition, SectionObserver, ReaderEnvironment, OutlineTracker };

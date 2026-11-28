@@ -19,12 +19,13 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
     errorMessage: null,
     generation: 0,
     openRounds: null,
+    knownRounds: [],
     boardScrollY: 0,
     openCount: 0,
     closeCount: 0,
 
     async open({ project, slug, path }) {
-      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null });
+      Object.assign(this, { isOpen: true, project, slug, detail: null, selectedPath: path, fileText: '', rendered: null, loadedPath: null, loadedStamp: null, errorMessage: null, openRounds: null, knownRounds: [] });
 
       this.openCount += 1;
 
@@ -110,8 +111,7 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
           this.clearFile();
         }
 
-        // the rounds shown open are chosen once, then only the reader changes them: a poll must not close or open any
-        this.openRounds ??= fileTree.initialOpenRounds(detail.files, detail.rounds, detail.column, this.selectedPath);
+        this.chooseOpenRounds(detail);
 
         // shortcut: updatedAt has one-second resolution, so a rewrite within the second of the last fetch is
         // missed until the next change; upgrade to a size/mtime in the file listing if that ever shows.
@@ -161,6 +161,23 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
           this.errorMessage = (error as Error).message;
         }
       }
+    },
+
+    chooseOpenRounds(detail) {
+      const numbers = fileTree.roundNumbers(detail.files);
+
+      if (this.openRounds === null) {
+        this.openRounds = fileTree.initialOpenRounds(detail.files, detail.rounds, detail.column, this.selectedPath);
+      } else {
+        // a round that is new and already running opens once; the rounds the reader has seen keep the reader's choice
+        const running = fileTree.runningRound(detail.files, detail.rounds, detail.column);
+
+        if (running !== null && !this.knownRounds.includes(running) && !this.openRounds.includes(running)) {
+          this.openRounds = fileTree.toggled(this.openRounds, running);
+        }
+      }
+
+      this.knownRounds = numbers;
     },
 
     clearFile() {

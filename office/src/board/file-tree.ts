@@ -4,7 +4,6 @@ import { DIFF_FILE_NAME, DIFF_ICON, FILE_TONE_ICONS, NO_TONE_ICON, REVIEW_SECTIO
 import { WORKING_COLUMNS } from '@/constants/pipeline';
 import type { FileRow, FileSection } from '@/types/file-tree';
 import type { TaskFile, TaskRound } from '@/types/task';
-import type { FileGroup } from '@/types/view';
 
 /** The file list of a task page: the files the server lists, with each review round as a row that opens and closes. */
 class FileTree {
@@ -12,7 +11,7 @@ class FileTree {
   sections(files: TaskFile[], rounds: TaskRound[], column: string, openRounds: number[]): FileSection[] {
     const groups = groupFiles(files);
 
-    const numbers = this.roundNumbers(groups);
+    const numbers = this.roundNumbers(files);
 
     const latest = numbers.length === 0 ? null : Math.max(...numbers);
 
@@ -49,13 +48,25 @@ class FileTree {
 
   /** The round that is running, otherwise the latest, plus the round of the selected file. */
   initialOpenRounds(files: TaskFile[], rounds: TaskRound[], column: string, selectedPath: string | null): number[] {
-    const numbers = this.roundNumbers(groupFiles(files));
+    const numbers = this.roundNumbers(files);
+
+    const open = this.runningRound(files, rounds, column) ?? (numbers.length === 0 ? null : Math.max(...numbers));
+
+    return this.withRoundOf(open === null ? [] : [open], selectedPath, files);
+  }
+
+  /** The numbers of the review rounds that have files, as the server groups them. */
+  roundNumbers(files: TaskFile[]): number[] {
+    return groupFiles(files).map((group) => this.roundNumber(group.name)).filter((round) => round !== null);
+  }
+
+  /** The round that is running, if any: the latest one, undecided, while the task is with the agents. */
+  runningRound(files: TaskFile[], rounds: TaskRound[], column: string): number | null {
+    const numbers = this.roundNumbers(files);
 
     const latest = numbers.length === 0 ? null : Math.max(...numbers);
 
-    const open = numbers.find((round) => this.isRunning(round, rounds, column, latest)) ?? latest;
-
-    return this.withRoundOf(open === null ? [] : [open], selectedPath, files);
+    return numbers.find((round) => this.isRunning(round, rounds, column, latest)) ?? null;
   }
 
   toggled(openRounds: number[], round: number): number[] {
@@ -75,10 +86,6 @@ class FileTree {
     const match = ROUND_GROUP_PATTERN.exec(groupName);
 
     return match === null ? null : Number(match[1]);
-  }
-
-  private roundNumbers(groups: FileGroup[]): number[] {
-    return groups.map((group) => this.roundNumber(group.name)).filter((round) => round !== null);
   }
 
   /** Running: the latest round, undecided, while the task is with the agents. */

@@ -852,4 +852,68 @@ describe('review rounds in the file list', () => {
 
     expect(navigation.hash()).toBe('#/task/demo/fix-export/review%2Fround-1%2Fchange.diff');
   });
+
+  it('opens a round that appears while the page is open and is running, once, and leaves the rounds the reader knows as they are', async () => {
+    const first = withRounds([{ n: 1, reviews: { code: 'CHANGES' } }], { files: withRounds([]).files.slice(0, 3) });
+
+    taskClient.detail = first;
+
+    taskClient.texts = textsOf(first);
+
+    card().click();
+
+    await eventually(() => expect(roundToggles()).toHaveLength(1));
+
+    expect(expanded()).toEqual(['true']);
+
+    roundToggles()[0].click();
+
+    await eventually(() => expect(expanded()).toEqual(['false']));
+
+    const next = withRounds([{ n: 1, reviews: { code: 'CHANGES' } }, { n: 2, reviews: { code: 'pending' } }], { updatedAt: '2026-11-24T11:00:00Z', files: withRounds([]).files.slice(0, 4) });
+
+    taskClient.detail = next;
+
+    taskClient.texts = textsOf(next);
+
+    pollAgain();
+
+    await eventually(() => expect(expanded()).toEqual(['false', 'true']));
+
+    const decided = withRounds([{ n: 1, reviews: { code: 'CHANGES' } }, { n: 2, reviews: { code: 'PASS' } }, { n: 3, reviews: { code: 'PASS' } }], { updatedAt: '2026-11-24T12:00:00Z' });
+
+    taskClient.detail = decided;
+
+    taskClient.texts = textsOf(decided);
+
+    pollAgain();
+
+    await eventually(() => expect(roundToggles()).toHaveLength(3));
+
+    expect(expanded()).toEqual(['false', 'true', 'false']);
+  });
+
+  it('opens the first round when it starts while the page is open', async () => {
+    const jobOnly = withRounds([], { files: withRounds([]).files.slice(0, 1) });
+
+    taskClient.detail = jobOnly;
+
+    taskClient.texts = textsOf(jobOnly);
+
+    card().click();
+
+    await eventually(() => expect(fileButtons()).toHaveLength(1));
+
+    expect(roundToggles()).toHaveLength(0);
+
+    const started = withRounds([{ n: 1, reviews: { code: 'pending' } }], { updatedAt: '2026-11-24T11:00:00Z', files: withRounds([]).files.slice(0, 2) });
+
+    taskClient.detail = started;
+
+    taskClient.texts = textsOf(started);
+
+    pollAgain();
+
+    await eventually(() => expect(expanded()).toEqual(['true']));
+  });
 });

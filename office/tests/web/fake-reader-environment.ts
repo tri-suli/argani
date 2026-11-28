@@ -24,6 +24,10 @@ class FakeReaderEnvironment implements ReaderEnvironment {
 
   reducedMotion = false;
 
+  scrollHandlers: { onScroll: () => void }[] = [];
+
+  stoppedScrollWatches = 0;
+
   createObserver(onChange: () => void) {
     const observer = new FakeSectionObserver(onChange);
 
@@ -40,6 +44,14 @@ class FakeReaderEnvironment implements ReaderEnvironment {
     return this.positions[id] ?? 'below';
   }
 
+  watchScroll(handlers: { onScroll: () => void }) {
+    this.scrollHandlers.push(handlers);
+
+    return () => {
+      this.stoppedScrollWatches += 1;
+    };
+  }
+
   prefersReducedMotion() {
     return this.reducedMotion;
   }
@@ -49,6 +61,13 @@ class FakeReaderEnvironment implements ReaderEnvironment {
     Object.assign(this.positions, positions);
 
     this.latest.onChange();
+  }
+
+  /** The reader scrolled: the headings are where `positions` says, and the scroll listener runs. */
+  scroll(positions: Record<string, SectionPosition>) {
+    Object.assign(this.positions, positions);
+
+    this.scrollHandlers[this.scrollHandlers.length - 1].onScroll();
   }
 
   get latest() {

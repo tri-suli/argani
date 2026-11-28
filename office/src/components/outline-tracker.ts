@@ -13,6 +13,8 @@ function decodedFragment(fragment: string): string {
 function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
   let observer: SectionObserver | null = null;
 
+  let stopWatchingScroll: (() => void) | null = null;
+
   let sectionIds: string[] = [];
 
   // the section the reader clicked: it stays highlighted while it is on its way and while it is in the zone,
@@ -33,6 +35,9 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
 
       observer = environment.createObserver(() => this.change());
 
+      // the observer misses a jump that crosses no edge of the zone (End key, a dragged scrollbar)
+      stopWatchingScroll = environment.watchScroll({ onScroll: () => this.change() });
+
       for (const id of ids) {
         const element = environment.findElement(id);
 
@@ -49,6 +54,10 @@ function createOutlineTracker(environment: ReaderEnvironment): OutlineTracker {
       observer?.disconnect();
 
       observer = null;
+
+      stopWatchingScroll?.();
+
+      stopWatchingScroll = null;
     },
 
     scrollTo(id) {

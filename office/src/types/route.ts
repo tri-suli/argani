@@ -1,8 +1,10 @@
-/** What the URL hash of the task page names: a task and, optionally, the selected file. */
+/** What the URL hash of the task page names: a task and, optionally, the selected file or the overview of a review round. */
 interface TaskRoute {
   project: string;
   slug: string;
   path: string | null;
+  /** The review round whose overview is selected; absent for a file and for the task alone. */
+  round?: number;
 }
 
 /** The browser's address bar and history, as far as the task page needs them. */

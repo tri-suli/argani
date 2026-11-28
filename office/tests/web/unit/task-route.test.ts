@@ -23,6 +23,24 @@ describe('task route', () => {
     expect(parseTaskRoute(buildTaskHash(route))).toEqual(route);
   });
 
+  it('names the overview of a review round as "round/<n>" after the slug', () => {
+    expect(buildTaskHash({ project: 'demo', slug: 'ship', path: null, round: 2 })).toBe('#/task/demo/ship/round/2');
+
+    expect(parseTaskRoute('#/task/demo/ship/round/2')).toEqual({ project: 'demo', slug: 'ship', path: null, round: 2 });
+
+    expect(parseTaskRoute('#/task/my%20project/a%2Fb/round/12')).toEqual({ project: 'my project', slug: 'a/b', path: null, round: 12 });
+  });
+
+  it('keeps a file named round a file, and a route without a round has no round', () => {
+    expect(parseTaskRoute('#/task/demo/ship/round')).toEqual({ project: 'demo', slug: 'ship', path: 'round' });
+
+    expect(parseTaskRoute('#/task/demo/ship')).not.toHaveProperty('round');
+  });
+
+  it.each(['#/task/demo/ship/round/0', '#/task/demo/ship/round/-1', '#/task/demo/ship/round/1.5', '#/task/demo/ship/round/x', '#/task/demo/ship/round/01', '#/task/demo/ship/round/', '#/task/demo/ship/round/2/extra', '#/task/demo/ship/rounds/2', '#/task/demo/ship/round/99999999999999999999'])('is not a task route: %j', (hash) => {
+    expect(parseTaskRoute(hash)).toBeNull();
+  });
+
   it.each(['', '#', '#/', '#/board', '#/task', '#/task/demo', '#/task//slug', '#/task/demo/', '#/task/demo/slug/', '#/task/demo/slug/a/b', '#/task/%E0%A4%A/slug', '#/task/demo/slug/%E0%A4%A', '#/other/demo/slug'])('is not a task route: %j', (hash) => {
     expect(parseTaskRoute(hash)).toBeNull();
   });

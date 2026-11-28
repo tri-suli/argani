@@ -405,6 +405,20 @@ describe('diff reader', () => {
     expect(text('[data-testid=task-diff] p')).toBe('change.diff6 lines');
   });
 
+  it('keeps the text of the file out of the hidden plain-text view while the diff or the document is shown', async () => {
+    await mount('change.diff');
+
+    await eventually(() => expect(all('[data-testid=diff-row]')).toHaveLength(6));
+
+    expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('');
+
+    await mount('spec.md');
+
+    await eventually(() => expect(text('[data-testid=reader-title]')).toContain('Spec: Install'));
+
+    expect(document.querySelector('[data-testid=task-plain]')?.textContent).toBe('');
+  });
+
   it('caps a huge diff and says how many lines there are', async () => {
     await mount('change.diff');
 

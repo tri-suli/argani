@@ -390,7 +390,7 @@
               </div>
             </div>
           </div>
-          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null &amp;&amp; taskPage.diff === null" x-text="taskPage.fileText"></pre>
+          <pre class="font-mono text-[12px] leading-[1.55] whitespace-pre-wrap [overflow-wrap:anywhere]" data-testid="task-plain" x-show="taskPage.rendered === null &amp;&amp; taskPage.diff === null" x-text="taskPage.rendered === null &amp;&amp; taskPage.diff === null ? taskPage.fileText : ''"></pre>
           </section>
         </div>
       </main>

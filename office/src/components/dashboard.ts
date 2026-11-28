@@ -165,7 +165,14 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
       if (route === null) {
         this.taskPage.hide();
       } else {
-        void this.taskPage.show(route);
+        void this.taskPage.show(route).then(() => this.correctAddress(route, navigation.hash()));
+      }
+    },
+
+    correctAddress(route, hash) {
+      // a link to a file the task does not list: the address names the file that is really shown (unless the reader has moved on)
+      if (route.path !== null && navigation.hash() === hash && this.taskPage.isOpen && this.taskPage.selectedPath !== route.path) {
+        navigation.replace(buildTaskHash({ project: route.project, slug: route.slug, path: this.taskPage.selectedPath }));
       }
     },
 

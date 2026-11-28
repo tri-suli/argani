@@ -6,7 +6,7 @@ import readingStats from '@/board/reading-time';
 import tokenText from '@/board/token-text';
 import {
   ACCEPTANCE_CRITERIA_TITLE, APPROVED_STATUS_PREFIX, CRITERION_ID_PREFIX, HEADING_OPENING_PATTERN, INFO_STRING_SEPARATOR, LINE_BREAK, MAX_HEADING_DEPTH,
-  MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NEWLINE_PATTERN, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
+  MAX_OUTLINE_DEPTH, NEUTRAL_STATUS_ICON, NEWLINE_PATTERN, RAW_HEADING_TAG_PATTERN, TOKEN_CODE, TOKEN_HEADING, TOKEN_HTML, TOKEN_LIST, SECTION_DEPTH, STATUS_DATE_SUFFIX_PATTERN, STATUS_KEY, SUMMARY_TITLE, TRAILING_NEWLINES_PATTERN,
 } from '@/constants/document';
 import { FILE_TONE_ICONS } from '@/constants/file-tree';
 import { SANITIZE_OPTIONS } from '@/constants/markdown';
@@ -96,17 +96,44 @@ class MarkdownRenderer {
   }
 
   private add(assembly: Assembly, token: Token): void {
-    if (token.type === 'heading') {
+    if (token.type === TOKEN_HEADING) {
       this.addHeading(assembly, token as Tokens.Heading);
-    } else if (assembly.summary !== null) {
-      assembly.summary.push(token);
-    } else if (token.type === 'code') {
-      this.addCode(assembly, token as Tokens.Code);
-    } else if (token.type === 'list' && assembly.criteria !== null) {
-      this.addCriteria(assembly, token as Tokens.List, assembly.criteria);
-    } else {
-      assembly.pending.push(token);
+
+      return;
     }
+
+    const shifted = this.shiftNestedHeadings(token);
+
+    if (assembly.summary !== null) {
+      assembly.summary.push(shifted);
+    } else if (shifted.type === TOKEN_CODE) {
+      this.addCode(assembly, shifted as Tokens.Code);
+    } else if (shifted.type === TOKEN_LIST && assembly.criteria !== null) {
+      this.addCriteria(assembly, shifted as Tokens.List, assembly.criteria);
+    } else {
+      assembly.pending.push(shifted);
+    }
+  }
+
+  /** The page has one h1 (the task title): a heading inside a quote or a list item, or an html heading, moves down a level like the others. */
+  private shiftNestedHeadings(token: Token): Token {
+    if (token.type === TOKEN_HEADING) {
+      return { ...token, depth: Math.min((token as Tokens.Heading).depth + 1, MAX_HEADING_DEPTH) } as Token;
+    }
+
+    if (token.type === TOKEN_HTML) {
+      return { ...token, text: this.shiftedHtml((token as Tokens.HTML).text) } as Token;
+    }
+
+    if ('items' in token) {
+      return { ...token, items: (token.items as Token[]).map((item) => this.shiftNestedHeadings(item)) } as Token;
+    }
+
+    return 'tokens' in token && token.tokens ? ({ ...token, tokens: token.tokens.map((child) => this.shiftNestedHeadings(child)) } as Token) : token;
+  }
+
+  private shiftedHtml(html: string): string {
+    return html.replace(RAW_HEADING_TAG_PATTERN, (_tag, slash: string, level: string) => `<${slash}h${Math.min(Number(level) + 1, MAX_HEADING_DEPTH)}`);
   }
 
   private addHeading(assembly: Assembly, heading: Tokens.Heading): void {

@@ -153,9 +153,10 @@ function createDashboard({ poller, taskClient, boardView, historySteps, fileTree
     },
 
     async selectFile(path) {
-      await this.taskPage.select(path);
-
+      // the address follows the click, before the file arrives: an answer that comes late must not write it
       navigation.replace(buildTaskHash({ project: this.taskPage.project, slug: this.taskPage.slug, path }));
+
+      await this.taskPage.select(path);
     },
 
     applyRoute() {

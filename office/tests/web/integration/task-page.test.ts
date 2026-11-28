@@ -334,6 +334,50 @@ describe('task page', () => {
     });
   });
 
+  it('writes the hash of a picked file at once, so a slow file never writes it over the board after Back', async () => {
+    await openTask();
+
+    const release: (() => void)[] = [];
+
+    taskClient.fetchFile = (_project, _slug, path) => new Promise((resolve) => release.push(() => resolve(`text of ${path}`)));
+
+    selectFile(1);
+
+    expect(navigation.hash()).toBe('#/task/demo/fix-export/build.diff');
+
+    navigation.back();
+
+    expect(navigation.hash()).toBe('');
+
+    release.forEach((resolve) => resolve());
+
+    await flush();
+
+    expect(navigation.hash()).toBe('');
+  });
+
+  it('keeps the hash on the file picked last when the answers arrive out of order', async () => {
+    await openTask();
+
+    const release: Record<string, () => void> = {};
+
+    taskClient.fetchFile = (_project, _slug, path) => new Promise((resolve) => (release[path] = () => resolve(`text of ${path}`)));
+
+    selectFile(1);
+
+    selectFile(2);
+
+    release['review/round-1/review-code.md']();
+
+    release['build.diff']();
+
+    await flush();
+
+    expect(navigation.hash()).toBe('#/task/demo/fix-export/review%2Fround-1%2Freview-code.md');
+
+    expect(fileButtons()[2].getAttribute('aria-current')).toBe('true');
+  });
+
   it('switches files; diffs and other files show as plain text, markdown with verdict and summary', async () => {
     await openTask();
 

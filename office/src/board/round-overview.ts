@@ -3,10 +3,11 @@ import { fileName } from '@/board/file-view';
 import ReviewParser from '@/board/review-parser';
 import roundOutcome from '@/board/review-outcome';
 import RoundSummary from '@/board/round-summary';
+import { WORKING_COLUMNS } from '@/constants/pipeline';
 import { FILE_TONE_ICONS, TONE_LABELS, ROUND_OUTCOME_TONES, NO_TONE_ICON } from '@/constants/file-tree';
-import { REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
+import { HUMAN_REVIEWER, REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS, REVIEW_STATE_INVALID, REVIEW_STATE_PENDING } from '@/constants/review';
 import {
-  EMPTY_FILTER_MESSAGES, FILTER_ALL, MESSAGE_NOTES_BELOW, MESSAGE_NOTES_UNDER_ALL, NOTES_TITLE_HUMAN, NOTES_TITLE_PREFIX, NOTE_SENTENCE, FILTER_CHIPS, FILTER_SEVERITY, HUMAN_REVIEWER, MESSAGE_NOT_REPORTED, MESSAGE_NO_FINDING, MESSAGE_NO_FINDINGS_YET, MESSAGE_SOME_PENDING, MESSAGE_UNREADABLE, MODEL_INHERIT,
+  EMPTY_FILTER_MESSAGES, FILTER_ALL, MESSAGE_NOTES_BELOW, MESSAGE_NOTES_UNDER_ALL, NOTES_TITLE_HUMAN, NOTES_TITLE_PREFIX, NOTE_SENTENCE, FILTER_CHIPS, FILTER_SEVERITY, MESSAGE_NOT_REPORTED, MESSAGE_NO_FINDING, MESSAGE_NO_FINDINGS_YET, MESSAGE_SOME_PENDING, MESSAGE_UNREADABLE, MODEL_INHERIT,
   PART_LABELS, REVIEW_FILE_NAME, ROUND_GROUP_PREFIX, ROUND_TITLE_PREFIX, SENTENCE_END, SEVERITY_ICONS, SEVERITY_RANK, STATUS_INVALID, STATUS_NOT_REPORTED, STATUS_RUNNING, STATUS_UNDECIDED,
 } from '@/constants/round';
 import type { BuildInput, FindingPartView, FindingView, FilterChip, FindingFilter, ReviewerCard, ReviewerNotes, RoundOption, RoundStatus, RoundTally, RoundView, Seat, TextRenderer } from '@/types/round';
@@ -103,7 +104,7 @@ class RoundOverview {
 
   /** The same rule as the file list: an outcome when decided, running while the task is at work on the latest round. */
   private roundStatus(detail: TaskDetail, round: number): RoundStatus {
-    const outcome = roundOutcome(detail.rounds.find((candidate) => candidate.n === round));
+    const outcome = roundOutcome(detail.rounds.find((candidate) => candidate.n === round), WORKING_COLUMNS.has(detail.column));
 
     if (outcome !== null) {
       const tone = ROUND_OUTCOME_TONES[outcome];

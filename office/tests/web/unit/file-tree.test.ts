@@ -54,6 +54,20 @@ describe('file tree', () => {
     ]);
   });
 
+  it('calls a round with the request of the human and reviewers that have not reported running while the task is at work, and CHANGES otherwise', () => {
+    const humanRounds: TaskRound[] = [{ n: 1, reviews: { code: 'PASS' } }, { n: 2, reviews: { code: 'pending', human: 'CHANGES' } }];
+
+    const humanFiles = [file('review/round-1/review-code.md'), file('review/round-2/review-code.md'), file('review/round-2/review-human.md', 'CHANGES x', 'warn')];
+
+    const roundRows = (column: string) => fileTree.sections(humanFiles, humanRounds, column, []).flatMap((section) => section.rows).filter((row) => row.isRound).map((row) => [row.label, row.tag, row.spinning]);
+
+    expect(roundRows('Review')).toEqual([['Round 1', 'PASS', false], ['Round 2', 'running', true]]);
+
+    expect(roundRows('Needs human')).toEqual([['Round 1', 'PASS', false], ['Round 2', 'CHANGES', false]]);
+
+    expect(fileTree.runningRound(humanFiles, humanRounds, 'Build')).toBe(2);
+  });
+
   it('does not call an undecided round running unless the task is at work and it is the latest', () => {
     const undecided: TaskRound[] = [{ n: 1, reviews: { code: 'pending' } }, { n: 2, reviews: { code: 'pending' } }];
 

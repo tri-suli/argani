@@ -90,11 +90,11 @@ class FileTree {
 
   /** Running: the latest round, undecided, while the task is with the agents. */
   private isRunning(round: number, rounds: TaskRound[], column: string, latest: number | null): boolean {
-    return round === latest && WORKING_COLUMNS.has(column) && roundOutcome(rounds.find((candidate) => candidate.n === round)) === null;
+    return round === latest && WORKING_COLUMNS.has(column) && roundOutcome(rounds.find((candidate) => candidate.n === round), true) === null;
   }
 
   private roundRow(round: number, rounds: TaskRound[], column: string, latest: number | null, expanded: boolean): FileRow {
-    const outcome = roundOutcome(rounds.find((candidate) => candidate.n === round));
+    const outcome = roundOutcome(rounds.find((candidate) => candidate.n === round), WORKING_COLUMNS.has(column));
 
     const running = this.isRunning(round, rounds, column, latest);
 

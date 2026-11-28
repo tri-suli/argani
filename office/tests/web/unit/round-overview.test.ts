@@ -202,6 +202,30 @@ describe('round overview: the human request', () => {
   });
 });
 
+describe('round overview: a round opened by the request of the human', () => {
+  const view = (column: string) => overview.build({
+    detail: detailWith({ column, rounds: [{ n: 1, reviews: { code: 'pending', security: 'pending', human: 'CHANGES' } }], files: [reviewFile(1, 'human', 'CHANGES x')] }),
+    round: 1,
+    texts: { [pathOf(1, 'human')]: textOf('CHANGES owner decision', '- [Important] Remove the sets.') },
+  });
+
+  it('is running while the reviewers have not reported, with the reviewers running and the sentence saying so', () => {
+    expect(view('Review').status).toMatchObject({ label: 'RUNNING', spinning: true });
+
+    expect(overview.options(detailWith({ column: 'Review', rounds: [{ n: 1, reviews: { code: 'pending', human: 'CHANGES' } }], files: [reviewFile(1, 'human', 'CHANGES x')] }))[0].status.label).toBe('RUNNING');
+
+    expect(view('Review').cards.map((card) => [card.name, card.status.label])).toEqual([['code', 'RUNNING'], ['security', 'RUNNING'], ['human', 'CHANGES']]);
+
+    expect(view('Review').summary).toBe('The reviewers have not reported yet · 1 important finding · includes a request from the human');
+  });
+
+  it('is CHANGES once the task is no longer at work', () => {
+    expect(view('Needs human').status.label).toBe('CHANGES');
+
+    expect(view('Needs human').cards.map((card) => card.status.label)).toEqual(['NOT REPORTED', 'NOT REPORTED', 'CHANGES']);
+  });
+});
+
 describe('round overview: hostile and odd files', () => {
   it('sanitizes script and event handlers in every part, and in the headline text it never uses as html', () => {
     const text = textOf('CHANGES <script>alert(1)</script>', finding('Important', '<img src=x onerror=alert(1)>:1', 'What: <script>alert(1)</script><img src=x onerror=alert(2)>. Why: [x](javascript:alert(3)). Fix: <a href="javascript:alert(4)">y</a>.'));

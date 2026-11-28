@@ -138,6 +138,13 @@ test.describe('review round overview', () => {
 
     await expect(page.getByTestId('round-summary')).toHaveText('The reviewers have not reported yet · 2 important findings · includes a request from the human');
 
+    // the request of the human alone does not decide a round whose reviewers have not reported: it is running
+    await expect(page.getByTestId('round-status')).toHaveText(/RUNNING/);
+
+    await expect(page.locator('[data-testid=round-toggle][data-round="3"]').getByTestId('file-tag')).toHaveText('running');
+
+    await expect(page.locator('[data-testid=reviewer-card][data-reviewer=code]').getByTestId('reviewer-verdict')).toHaveText(/RUNNING/);
+
     const human = page.locator('[data-testid=reviewer-card][data-reviewer=human]');
 
     await expect(human.getByTestId('reviewer-origin')).toContainText('from the human');

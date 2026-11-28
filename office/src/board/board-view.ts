@@ -55,6 +55,7 @@ class BoardView {
         reason: (task.reason ?? NEEDS_HUMAN).replaceAll(REASON_WORD_SEPARATOR, ' '),
         waiting: waited === null ? '' : formatDuration(waited),
         question: task.question,
+        agents: this.buildAgents(snapshot.agents, task, nowMilliseconds),
         visits: task.metrics.needsHumanCount > NO_COUNT ? `${task.metrics.needsHumanCount}× you` : '',
         command: `${ANSWER_COMMAND_PREFIX} ${task.slug} ${ANSWER_PLACEHOLDER}`,
       }));

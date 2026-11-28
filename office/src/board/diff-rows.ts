@@ -1,5 +1,5 @@
 import {
-  DIFF_ADD_MARKER, DIFF_BINARY_STARTS, DIFF_FILE_MARKERS, DIFF_FILE_START, DIFF_HUNK_START, DIFF_NOTE_MARKER, DIFF_REMOVE_MARKER, DIFF_ROW_LIMIT,
+  DIFF_ADD_MARKER, DIFF_BINARY_STARTS, DIFF_KINDS, DIFF_FILE_MARKERS, DIFF_FILE_START, DIFF_HUNK_START, DIFF_NOTE_MARKER, DIFF_REMOVE_MARKER, DIFF_ROW_LIMIT,
   LINE_BREAK, TRAILING_CARRIAGE_RETURN,
 } from '@/constants/document';
 import type { DiffRow, DiffRowKind, DiffView } from '@/types/document';
@@ -36,43 +36,43 @@ class DiffRows {
 
   /** The header of a file runs from its `diff ` line to its first hunk. */
   private isHeaderAfter(kind: DiffRowKind, inHeader: boolean): boolean {
-    if (kind === 'file') {
+    if (kind === DIFF_KINDS.file) {
       return true;
     }
 
-    return kind === 'binary' || kind === 'note' ? inHeader : false;
+    return kind === DIFF_KINDS.binary || kind === DIFF_KINDS.note ? inHeader : false;
   }
 
   private kindOf(line: string, inHeader: boolean): DiffRowKind {
     if (line.startsWith(DIFF_FILE_START)) {
-      return 'file';
+      return DIFF_KINDS.file;
     }
 
     if (line.startsWith(DIFF_HUNK_START)) {
-      return 'hunk';
+      return DIFF_KINDS.hunk;
     }
 
     if (DIFF_BINARY_STARTS.some((start) => line.startsWith(start))) {
-      return 'binary';
+      return DIFF_KINDS.binary;
     }
 
     if (inHeader && !this.isChange(line)) {
-      return 'file';
+      return DIFF_KINDS.file;
     }
 
     if (inHeader && DIFF_FILE_MARKERS.some((marker) => line.startsWith(marker))) {
-      return 'file';
+      return DIFF_KINDS.file;
     }
 
     if (line.startsWith(DIFF_ADD_MARKER)) {
-      return 'add';
+      return DIFF_KINDS.add;
     }
 
     if (line.startsWith(DIFF_REMOVE_MARKER)) {
-      return 'remove';
+      return DIFF_KINDS.remove;
     }
 
-    return line.startsWith(DIFF_NOTE_MARKER) ? 'note' : 'context';
+    return line.startsWith(DIFF_NOTE_MARKER) ? DIFF_KINDS.note : DIFF_KINDS.context;
   }
 
   private isChange(line: string): boolean {

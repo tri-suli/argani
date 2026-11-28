@@ -1,5 +1,5 @@
 import { LINE_BREAK, META_KEYS, META_LINE_PATTERN, TITLE_PREFIX } from '@/constants/document';
-import type { DocumentHeadParts, MetaEntry } from '@/types/document';
+import type { DocumentHeadParts, MetaBlock, MetaEntry } from '@/types/document';
 
 /** Splits the head of an artifact (verdict line, `# title`, the `Key: value` block) from its body. Line endings must already be `\n`. */
 class DocumentHead {
@@ -27,7 +27,7 @@ class DocumentHead {
   }
 
   /** A block counts only when a blank line or the end of the file follows it: otherwise it is the start of a paragraph. */
-  private readMeta(lines: string[], start: number): { meta: MetaEntry[]; end: number } {
+  private readMeta(lines: string[], start: number): MetaBlock {
     const meta: MetaEntry[] = [];
 
     let end = start;

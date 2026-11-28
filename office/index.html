@@ -315,8 +315,8 @@
                 </p>
                 <h2 class="text-[28px] leading-[1.2] font-bold tracking-[-0.02em] [overflow-wrap:anywhere] narrow:text-[22px] [&_code]:rounded-md [&_code]:bg-tag [&_code]:px-1.5 [&_code]:py-px [&_code]:font-mono [&_code]:text-[0.88em] [&_code]:font-medium" data-testid="reader-title" x-show="taskPage.rendered && taskPage.rendered.titleHtml !== null" x-html="taskPage.rendered && taskPage.rendered.titleHtml !== null ? taskPage.rendered.titleHtml : ''"></h2>
 
-                <div class="mt-5 overflow-hidden rounded-[10px] border border-line" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
-                <dl class="-mr-px -mb-px flex flex-wrap text-[13px]" data-testid="task-meta" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
+                <div class="mt-5 overflow-hidden rounded-[10px] border border-line" data-testid="task-meta" x-show="taskPage.rendered && taskPage.rendered.meta.length > 0">
+                <dl class="-mr-px -mb-px flex flex-wrap text-[13px]">
                   <template x-for="(entry, index) in taskPage.rendered ? taskPage.rendered.meta : []" :key="index">
                     <div class="min-w-0 flex-[1_1_150px] border-r border-b border-line px-3.5 py-2.5" data-testid="meta-entry">
                       <dt class="text-[11px] font-semibold tracking-[0.06em] text-faint uppercase" x-text="entry.key"></dt>
@@ -334,17 +334,17 @@
                 <div class="document-body prose prose-argani" data-testid="task-body">
                   <template x-for="block in taskPage.rendered ? taskPage.rendered.blocks : []" :key="block.key">
                     <div>
-                      <template x-if="block.kind === 'html'">
+                      <template x-if="block.isHtml">
                         <div x-html="block.html"></div>
                       </template>
-                      <template x-if="block.kind === 'code'">
+                      <template x-if="block.isCode">
                         <div class="not-prose my-4 overflow-hidden rounded-[10px] border border-code-line" data-testid="code-block">
                           <p class="flex items-center bg-code-head py-1.5 pr-2 pl-3.5 font-mono text-[11px] text-code-muted"><span data-testid="code-language" x-text="block.language"></span><button type="button" class="ml-auto min-h-7 cursor-pointer rounded-md border border-code-button-line bg-transparent px-2.5 font-sans text-[11px] font-medium text-code-ink hover:bg-code-line narrow:min-h-11" data-testid="code-copy" aria-label="Copy code" @click="copier.copy(taskPage.copyKey(block), block.text)" x-text="copier.label(taskPage.copyKey(block))"></button></p>
                           <span class="sr-only" role="status" x-text="copier.key === taskPage.copyKey(block) ? copier.label(taskPage.copyKey(block)) : ''"></span>
                           <pre class="overflow-x-auto bg-code-bg px-4 py-3.5 font-mono text-[13px] leading-[1.6] text-code-ink" tabindex="0"><code x-text="block.text"></code></pre>
                         </div>
                       </template>
-                      <template x-if="block.kind === 'criteria'">
+                      <template x-if="block.isCriteria">
                         <ul class="not-prose my-3 flex list-none flex-col gap-2 p-0" data-testid="criteria">
                           <template x-for="(criterion, index) in block.criteria" :key="index">
                             <li class="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5 rounded-[10px] border border-line px-3.5 py-3 data-[manual=true]:border-human-line data-[manual=true]:bg-human-tint" data-testid="criterion" :data-manual="criterion.manual">

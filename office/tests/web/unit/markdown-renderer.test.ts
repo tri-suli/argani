@@ -199,7 +199,7 @@ describe('renderDocument', () => {
   });
 
   it('renders a fenced block as a code block with its language and exact text, never as html', () => {
-    expect(blocksOf(document, 'code')).toEqual([{ kind: 'code', key: expect.any(String), language: 'bash', text: 'git rebase --exec "npm run check"' }]);
+    expect(blocksOf(document, 'code')).toEqual([{ kind: 'code', isHtml: false, isCode: true, isCriteria: false, key: expect.any(String), language: 'bash', text: 'git rebase --exec "npm run check"' }]);
 
     expect(htmlOf(document).join('')).not.toContain('<pre');
 
@@ -249,6 +249,14 @@ describe('renderDocument', () => {
 
   it('keeps other blocks of the criteria section as html', () => {
     expect(htmlOf(renderer.renderDocument('## Acceptance criteria\n\nSome words.\n', null)).join('')).toContain('Some words.');
+  });
+
+  it('tells the page which template a block takes with booleans, so it never compares the kind to a string', () => {
+    expect(document.blocks.map((block) => [block.kind, block.isHtml, block.isCode, block.isCriteria])).toEqual(
+      document.blocks.map((block) => [block.kind, block.kind === 'html', block.kind === 'code', block.kind === 'criteria']),
+    );
+
+    expect(new Set(document.blocks.map((block) => block.kind))).toEqual(new Set(['html', 'code', 'criteria']));
   });
 
   it('keeps every block key unique, so the page can key its rows by it', () => {

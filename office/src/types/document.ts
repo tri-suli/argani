@@ -1,9 +1,17 @@
+import type { Token } from 'marked';
+import type HeadingIds from '@/board/heading-ids';
 import type { FileTone } from '@/types/task';
 
 /** One `Key: value` line of the block that follows the title of an artifact. */
 interface MetaEntry {
   key: string;
   value: string;
+}
+
+/** The meta block read from the lines of a document, and the line it ends at. */
+interface MetaBlock {
+  meta: MetaEntry[];
+  end: number;
 }
 
 interface DocumentHeadParts {
@@ -52,12 +60,18 @@ interface CriterionView {
 
 interface HtmlBlock {
   kind: 'html';
+  isHtml: true;
+  isCode: false;
+  isCriteria: false;
   key: string;
   html: string;
 }
 
 interface CodeBlock {
   kind: 'code';
+  isHtml: false;
+  isCode: true;
+  isCriteria: false;
   key: string;
   language: string;
   text: string;
@@ -65,11 +79,30 @@ interface CodeBlock {
 
 interface CriteriaBlock {
   kind: 'criteria';
+  isHtml: false;
+  isCode: false;
+  isCriteria: true;
   key: string;
   criteria: CriterionView[];
 }
 
+/** The booleans let the page choose a template without comparing the kind to a string. */
 type DocumentBlock = HtmlBlock | CodeBlock | CriteriaBlock;
+
+/** What one document has gathered while its tokens are walked. */
+interface Assembly {
+  ids: HeadingIds;
+  blocks: DocumentBlock[];
+  outline: OutlineEntry[];
+  /** Tokens waiting to become one html block. */
+  pending: Token[];
+  /** The tokens of the Summary section while it is being read; null before and after it. */
+  summary: Token[] | null;
+  summaryHtml: string | null;
+  summaryId: string | null;
+  /** The outline entry of the Acceptance criteria section while it is being read. */
+  criteria: OutlineEntry | null;
+}
 
 type DiffRowKind = 'file' | 'hunk' | 'add' | 'remove' | 'context' | 'note' | 'binary';
 
@@ -123,4 +156,4 @@ interface OutlineTracker {
   settle(): void;
 }
 
-export type { MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionPosition, SectionObserver, ReaderEnvironment, OutlineTracker };
+export type { Assembly, MetaBlock, MetaEntry, DocumentHeadParts, DocumentStatus, OutlineEntry, ParsedCriterion, CriterionView, HtmlBlock, CodeBlock, CriteriaBlock, DocumentBlock, DiffRowKind, DiffRow, DiffView, SectionPosition, SectionObserver, ReaderEnvironment, OutlineTracker };

@@ -8,6 +8,14 @@ import addLinkHook from '@/board/link-hook';
 import MarkdownRenderer from '@/board/markdown-renderer';
 import FetchTaskClient from '@/board/task-client';
 import createDashboard from '@/components/dashboard';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/ibm-plex-mono/latin-600.css';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/ibm-plex-sans/latin-700.css';
+import 'material-symbols/outlined.css';
 import '@/styles.css';
 
 const fetchFunction = (url: string, init: RequestInit) => fetch(url, init);
@@ -20,12 +28,15 @@ const poller = new BoardPoller(boardClient, taskClient);
 
 const boardView = new BoardView();
 
+// navigator.clipboard is only read when Copy is pressed, so a page without a clipboard still loads
+const clipboard = { writeText: (text: string) => navigator.clipboard.writeText(text) };
+
 const purify = DOMPurify(window);
 
 addLinkHook(purify);
 
 const markdownRenderer = new MarkdownRenderer(purify, marked);
 
-Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, markdownRenderer, now: () => new Date() }));
+Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView, markdownRenderer, clipboard, now: () => new Date() }));
 
 Alpine.start();

@@ -4,14 +4,38 @@ import type { BoardSnapshot, BoardTask } from '@/types/board';
 import type { TaskClient } from '@/types/client';
 import type { Poller } from '@/types/poller';
 import type { FileTone, TaskDetail, TaskFile, TaskSummary } from '@/types/task';
-import type { BoardTotals, ColumnView, FileGroup, HistoryRow, RenderedDocument } from '@/types/view';
+import type { ColumnView, DoneRow, FileGroup, HistoryRow, NeedsHumanRow, ProjectOption, RenderedDocument, TotalsTile } from '@/types/view';
 
 interface DashboardDependencies {
   poller: Poller;
   taskClient: TaskClient;
   boardView: BoardView;
   markdownRenderer: MarkdownRenderer;
+  clipboard: ClipboardWriter;
   now: () => Date;
+}
+
+interface ClipboardWriter {
+  writeText(text: string): Promise<void>;
+}
+
+interface CommandCopier {
+  /** The command copied last, until its feedback runs out. */
+  key: string | null;
+  failed: boolean;
+  copy(key: string, command: string): Promise<void>;
+  isCopied(key: string): boolean;
+  /** "Copy", "Copied" or "Copy failed" for the button of this command. */
+  label(key: string): string;
+}
+
+interface ProjectPicker {
+  isOpen: boolean;
+  /** The text typed in the search field. */
+  query: string;
+  toggle(): void;
+  close(): void;
+  navigate(event: KeyboardEvent, container: HTMLElement): void;
 }
 
 interface Dashboard {
@@ -22,17 +46,23 @@ interface Dashboard {
   clockMilliseconds: number;
   selectedProject: string;
   drawer: TaskDrawer;
+  picker: ProjectPicker;
+  copier: CommandCopier;
   init(): void;
   destroy(): void;
   readonly status: string;
   readonly updatedLabel: string;
-  readonly projects: string[];
+  /** Every project option, and the ones the search field leaves. */
+  readonly projectOptions: ProjectOption[];
+  readonly matchingProjectOptions: ProjectOption[];
+  readonly selectedOption: ProjectOption;
   readonly columns: ColumnView[];
-  readonly agentsRunning: number;
-  readonly tokensLabel: string;
-  readonly visibleTotals: BoardTotals;
-  readonly manualLabel: string;
-  readonly waitingLabel: string;
+  readonly tiles: TotalsTile[];
+  readonly needsHumanRows: NeedsHumanRow[];
+  readonly doneRows: DoneRow[];
+  /** Filters the board to the project and closes the picker, giving the focus back to its button. */
+  chooseProject(value: string, button: HTMLElement): void;
+  closePicker(button: HTMLElement): void;
   /** The task open in the drawer, read from the latest board so its history stays current. */
   readonly drawerTask: BoardTask | null;
   readonly drawerWaiting: string;
@@ -73,4 +103,4 @@ interface TaskDrawer {
   toneLabel(tone: FileTone | null): string;
 }
 
-export type { DashboardDependencies, Dashboard, TaskDrawer };
+export type { DashboardDependencies, Dashboard, TaskDrawer, ClipboardWriter, CommandCopier, ProjectPicker };

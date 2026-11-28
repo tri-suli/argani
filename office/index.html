@@ -5,101 +5,217 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>argani office</title>
+    <title>Argani Office</title>
   </head>
-  <body class="bg-bg font-sans text-[14px] text-ink antialiased">
-    <div x-data="dashboard" class="page">
-      <header class="flex flex-wrap items-end gap-x-6 gap-y-3 px-6 pt-6 pb-2 narrow:px-4 narrow:pt-5 narrow:pb-1">
-        <div>
-          <h1 class="text-[18px] font-semibold tracking-[-0.01em]">argani office</h1>
-          <p class="font-mono text-[12px] text-muted [overflow-wrap:anywhere]" data-testid="home" x-text="snapshot ? snapshot.home : '-'"></p>
+  <body class="bg-bg font-sans text-[14px] leading-[1.45] text-ink antialiased">
+    <div x-data="dashboard" class="page mx-auto flex max-w-[1600px] flex-col gap-[22px] px-8 pt-7 pb-10 narrow:gap-4 narrow:px-4 narrow:pt-5 narrow:pb-6">
+      <header class="flex flex-wrap items-center gap-x-7 gap-y-4">
+        <div class="flex items-center gap-3">
+          <svg class="flex-none" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="9" class="fill-ink" /><path d="M9 23V11h5v12zM16 23v-7h5v7zM23 23v-4h2.5v4z" class="fill-bg" /></svg>
+          <div>
+            <h1 class="text-[19px] font-bold tracking-[-0.01em]">Argani Office</h1>
+            <p class="font-mono text-[12px] text-faint [overflow-wrap:anywhere]" data-testid="home" x-text="snapshot ? snapshot.home : '-'"></p>
+          </div>
         </div>
-        <label class="grid gap-0.5 text-[11px] text-muted">Project
-          <select class="rounded-md border border-line bg-card px-2 py-1" data-testid="project-filter" x-model="selectedProject">
-            <option value="">All projects</option>
-            <template x-for="name in projects" :key="name">
-              <option :value="name" x-text="name"></option>
-            </template>
-          </select>
-        </label>
+
+        <div class="relative" @keydown.escape.stop="picker.isOpen && closePicker($refs.pickerButton)" @click.outside="picker.close()">
+          <button
+            type="button"
+            class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-line-strong bg-card pr-2.5 pl-3 text-[14px] font-semibold text-ink shadow-card aria-expanded:border-active aria-expanded:ring-3 aria-expanded:ring-halo"
+            data-testid="project-picker"
+            x-ref="pickerButton"
+            aria-haspopup="listbox"
+            aria-controls="project-listbox"
+            :aria-expanded="picker.isOpen"
+            @click="picker.toggle()"
+          >
+            <span class="icon text-active" aria-hidden="true">folder_open</span>
+            <span class="flex flex-col items-start leading-[1.2]">
+              <span class="text-[11px] font-medium text-faint">Project</span>
+              <span data-testid="project-name" x-text="selectedOption.label"></span>
+            </span>
+            <span class="ml-1.5 rounded-full bg-active-tint px-2 py-px font-mono text-[12px] font-normal text-active-ink" data-testid="project-count" x-text="String(selectedOption.count)"></span>
+            <span class="icon text-faint" aria-hidden="true">unfold_more</span>
+          </button>
+
+          <div
+            class="absolute top-[52px] left-0 z-5 w-[300px] max-w-[86vw] rounded-[14px] border border-line bg-card p-2 shadow-menu"
+            data-testid="project-menu"
+            x-show="picker.isOpen"
+            x-cloak
+            x-effect="picker.isOpen && $nextTick(() => picker.isOpen && $refs.pickerSearch.focus())"
+            @keydown="picker.navigate($event, $el)"
+          >
+            <label class="mb-1.5 flex min-h-10 items-center gap-2 rounded-[9px] bg-bg px-2.5 text-faint">
+              <span class="icon" aria-hidden="true">search</span>
+              <span class="sr-only">Find a project</span>
+              <input type="search" class="min-w-0 flex-1 border-0 bg-transparent text-[14px] text-ink outline-offset-4 placeholder:text-faint" placeholder="Find a project" data-testid="project-search" x-ref="pickerSearch" x-model="picker.query" />
+            </label>
+            <ul id="project-listbox" class="max-h-80 overflow-y-auto" role="listbox" aria-label="Project">
+              <template x-for="option in matchingProjectOptions" :key="option.value">
+                <li
+                  class="project-option flex min-h-11 cursor-pointer items-center gap-2.5 rounded-[9px] px-2.5 text-[14px] hover:bg-hover aria-selected:bg-selected aria-selected:font-semibold"
+                  role="option"
+                  tabindex="-1"
+                  :aria-selected="option.value === selectedProject"
+                  :data-project="option.value"
+                  @click="chooseProject(option.value, $refs.pickerButton)"
+                  @keydown.enter.prevent="chooseProject(option.value, $refs.pickerButton)"
+                  @keydown.space.prevent="chooseProject(option.value, $refs.pickerButton)"
+                >
+                  <span class="icon text-active" :class="option.value !== selectedProject &amp;&amp; 'invisible'" aria-hidden="true">check</span>
+                  <span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap" data-testid="project-option-name" x-text="option.label"></span>
+                  <span class="inline-flex items-center gap-[3px] font-mono text-[12px] font-semibold text-human" data-testid="project-option-waiting" x-show="option.waiting > 0">
+                    <span class="icon text-[15px]" aria-hidden="true">person_raised_hand</span><span x-text="String(option.waiting)"></span><span class="sr-only"> in Needs human</span>
+                  </span>
+                  <span class="min-w-[26px] rounded-full bg-tag px-[7px] py-px text-center font-mono text-[12px] font-medium text-badge-ink" data-testid="project-option-count"><span class="sr-only">Tasks: </span><span x-text="String(option.count)"></span></span>
+                </li>
+              </template>
+            </ul>
+            <p class="px-2.5 py-3 text-[12px] text-faint" data-testid="project-empty" x-show="matchingProjectOptions.length === 0">No project matches.</p>
+          </div>
+        </div>
+
         <p class="group/status ml-auto font-mono text-[12px] text-muted data-[error=true]:text-human narrow:ml-0" :data-error="errorMessage !== null" role="status" aria-live="polite">
-          <span class="mr-1.5 inline-block size-[7px] rounded-full bg-pass align-[1px] group-data-[error=true]/status:bg-human" aria-hidden="true"></span>
+          <span class="mr-1.5 inline-block size-2 rounded-full bg-pass align-[0px] group-data-[error=true]/status:bg-human" aria-hidden="true"></span>
           <span data-testid="status" x-text="status"></span>
           <span data-testid="updated" x-show="updatedLabel !== ''" x-text="'· ' + updatedLabel"></span>
           <span data-testid="status-error" x-show="errorMessage !== null" x-text="'· ' + errorMessage"></span>
         </p>
       </header>
 
-      <p class="mx-6 mt-3 rounded-lg border border-human px-3.5 py-2.5 font-mono text-[12px] text-human narrow:mx-4" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
+      <p class="rounded-lg border border-human px-3.5 py-2.5 font-mono text-[12px] text-human" role="alert" data-testid="error-banner" x-show="errorMessage !== null" x-cloak>
         Last refresh failed: <span x-text="errorMessage"></span>. Showing the last data received<span x-show="lastSuccessAt"> at <span x-text="lastSuccessAt"></span></span>.
       </p>
 
-      <p class="px-6 py-3 text-[12px] text-faint" data-testid="loading" x-show="snapshot === null &amp;&amp; errorMessage === null">Loading the board...</p>
+      <p class="text-[12px] text-faint" data-testid="loading" x-show="snapshot === null &amp;&amp; errorMessage === null">Loading the board...</p>
 
-      <main class="grid grid-cols-[repeat(7,minmax(150px,1fr))] items-start gap-3 overflow-x-auto px-6 pt-5 pb-6 narrow:grid-cols-1 narrow:p-4" aria-label="Board">
-        <template x-for="column in columns" :key="column.name">
-          <section class="col group/col min-w-0" :data-tone="column.tone" :data-column="column.name">
-            <div class="col-head relative mb-3 grid grid-cols-[1fr_auto] border-b border-line px-0.5 pb-2.5 group-data-[tone=human]/col:border-human/55 after:absolute after:-top-0.5 after:-right-2.5 after:text-[16px] after:text-faint after:content-['›'] group-[:nth-last-child(-n+2)]/col:after:hidden narrow:after:hidden">
-              <h2 class="text-[13px] font-semibold group-data-[tone=human]/col:text-human group-data-[tone=merged]/col:text-merged" x-text="column.name"></h2>
-              <span class="font-mono text-[11px] leading-[normal] text-muted" x-text="String(column.cards.length)"></span>
-              <span class="col-span-full overflow-hidden font-mono text-[11px] leading-[normal] text-ellipsis whitespace-nowrap text-faint" x-text="column.who"></span>
-            </div>
-            <p class="empty px-0.5 py-1 text-[12px] text-faint" x-show="column.cards.length === 0">No tasks</p>
-            <template x-for="card in column.cards" :key="card.key">
-              <article
-                class="card mb-2.5 block cursor-pointer rounded-[10px] border border-line bg-card px-3 pt-3 pb-2.5 transition duration-150 [overflow-wrap:anywhere] hover:-translate-y-px hover:bg-hover motion-reduce:transition-none data-[active=true]:border-[color-mix(in_srgb,var(--color-active)_45%,var(--color-line))] data-[dimmed=true]:opacity-80 data-[flagged=true]:border-human data-[flagged=true]:shadow-flagged"
-                :data-flagged="card.flag !== null"
-                :data-dimmed="card.dimmed"
-                :data-active="card.active"
-                :data-task="card.key"
-                tabindex="0"
-                role="button"
-                :aria-label="card.task.title + ', ' + card.task.project + ' ' + card.task.slug"
-                aria-haspopup="dialog"
-                @click="drawer.open(card.task)"
-                @keydown.enter.self.prevent="drawer.open(card.task)"
-                @keydown.space.self.prevent="drawer.open(card.task)"
-              >
-                <div class="mb-1 flex items-center gap-2">
-                  <span class="size-[7px] flex-none animate-agent rounded-full bg-active motion-reduce:animate-none" data-testid="agent-marker" role="img" aria-label="Agent working" x-show="card.active"></span>
-                  <span class="num min-w-0 overflow-hidden font-mono text-[12px] text-ellipsis whitespace-nowrap text-muted" x-text="card.task.project + ' · ' + card.task.slug"></span>
-                  <span class="ml-auto text-[10px] font-semibold tracking-[0.06em] whitespace-nowrap text-human uppercase" data-testid="card-flag" x-show="card.flag !== null" x-text="card.flag"></span>
-                  <span class="rounded-sm bg-human/16 px-1 font-mono text-[10px] text-human" data-testid="card-badge" x-show="card.hasBadge" x-text="card.badge"></span>
+      <section class="flex flex-wrap gap-3" aria-label="Totals">
+        <template x-for="tile in tiles" :key="tile.id">
+          <div class="flex-[1_1_200px] rounded-[14px] border border-line bg-card px-4 py-3.5" :data-tile="tile.id">
+            <p class="text-[12px] text-muted" x-text="tile.label"></p>
+            <p class="mt-0.5 text-[26px] leading-[1.25] font-bold tracking-[-0.02em] data-[tone=active]:text-active data-[tone=human]:text-human" data-testid="tile-value" :data-tone="tile.tone" x-text="tile.value"></p>
+            <p class="font-mono text-[11px] text-faint" data-testid="tile-detail" x-text="tile.detail"></p>
+          </div>
+        </template>
+      </section>
+
+      <template x-if="needsHumanRows.length > 0">
+        <section class="rounded-2xl border border-human-line bg-human-tint px-5 pt-4 pb-[18px] narrow:px-4" data-testid="needs-human" aria-label="Needs human">
+          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2 pb-3.5">
+            <span class="icon text-[22px] text-human" aria-hidden="true">person_raised_hand</span>
+            <h2 class="text-[15px] font-bold text-human-strong">Needs human</h2>
+            <span class="min-w-[22px] rounded-full bg-human px-[7px] py-px text-center font-mono text-[12px] font-semibold text-on-human" data-testid="needs-human-count" x-text="String(needsHumanRows.length)"></span>
+            <p class="ml-auto text-[12px] text-human-ink narrow:ml-0">Tasks that stopped for a decision only you can make · longest wait first</p>
+          </div>
+          <ul>
+            <template x-for="row in needsHumanRows" :key="row.key">
+              <li class="flex flex-wrap items-center gap-x-7 gap-y-3.5 border-t border-human-line py-4 last:pb-0" data-testid="needs-human-row" :data-row="row.key">
+                <div class="min-w-0 flex-[999_1_420px]">
+                  <p class="font-mono text-[11px] text-human-ink">
+                    <span class="rounded-[5px] bg-human-chip px-[7px] py-0.5" data-testid="row-project" x-text="row.task.project"></span>
+                    · <span data-testid="row-reason" x-text="row.reason"></span><span data-testid="row-waiting" x-show="row.waiting !== ''"> · waiting <span x-text="row.waiting"></span></span><span class="font-semibold" data-testid="row-visits" x-show="row.visits !== ''"> · <span x-text="row.visits"></span></span>
+                  </p>
+                  <h3 class="mt-1.5 mb-1 text-[16px] leading-[1.35] font-semibold">
+                    <button type="button" class="cursor-pointer text-left font-semibold text-ink hover:underline" data-testid="row-title" :data-task="row.key" aria-haspopup="dialog" @click="drawer.open(row.task)" x-text="row.task.title"></button>
+                  </h3>
+                  <p class="max-w-[760px] text-[14px] text-human-body" data-testid="row-question" x-show="row.question !== null" x-text="row.question"></p>
                 </div>
-                <h3 class="feature mb-1.5 text-[13px] leading-[1.4] font-medium" x-text="card.task.title"></h3>
-                <p class="flex gap-2.5 font-mono text-[11px]" data-testid="card-links" x-show="card.mrUrl !== null">
-                  <a :href="card.mrUrl" class="text-active hover:underline" target="_blank" rel="noopener noreferrer" @click.stop>MR</a>
-                </p>
-                <div class="mt-2.5 grid gap-[5px]" x-show="card.rounds.length > 0">
-                  <template x-for="round in card.rounds" :key="round.n">
-                    <div class="round flex min-w-0 items-center gap-1">
-                      <span class="w-5 flex-none font-mono text-[10px] text-faint" x-text="round.label"></span>
-                      <template x-for="chip in round.chips" :key="chip.reviewer">
-                        <span class="chip min-w-0 flex-1 overflow-hidden rounded-sm border border-dashed border-faint px-[3px] py-0.5 text-center font-mono text-[10px] text-ellipsis whitespace-nowrap text-faint data-[state=bad]:border-solid data-[state=bad]:border-human data-[state=bad]:text-human data-[state=CHANGES]:border-solid data-[state=CHANGES]:border-transparent data-[state=CHANGES]:bg-changes/16 data-[state=CHANGES]:text-changes data-[state=PASS]:border-solid data-[state=PASS]:border-transparent data-[state=PASS]:bg-pass/14 data-[state=PASS]:text-pass motion-safe:data-[state=wait]:animate-breathe" :data-state="chip.className" :title="chip.reviewer + ': ' + chip.state">
-                          <span x-text="chip.reviewer"></span><span class="sr-only" x-text="': ' + chip.state"></span>
-                        </span>
+                <div class="flex min-w-0 flex-[1_1_380px] items-stretch overflow-hidden rounded-[10px] border border-human-line bg-card">
+                  <code class="min-w-0 flex-1 px-3.5 py-3 font-mono text-[12px] [overflow-wrap:anywhere]" data-testid="row-command" x-text="row.command"></code>
+                  <button type="button" class="min-h-11 min-w-16 cursor-pointer border-l border-human-line bg-human px-3 text-[13px] font-semibold whitespace-nowrap text-on-human" data-testid="row-copy" :aria-label="copier.label(row.key) + ': answer command for ' + row.task.title" @click="copier.copy(row.key, row.command)" x-text="copier.label(row.key)"></button>
+                  <span class="sr-only" role="status" x-text="copier.key === row.key ? copier.label(row.key) : ''"></span>
+                </div>
+              </li>
+            </template>
+          </ul>
+        </section>
+      </template>
+
+      <div class="flex flex-wrap items-start gap-5">
+        <main class="min-w-0 flex-[999_1_720px] overflow-x-auto" aria-label="Pipeline">
+          <div class="grid min-w-[960px] grid-cols-5 gap-3.5 narrow:min-w-0 narrow:grid-cols-1">
+            <template x-for="column in columns" :key="column.name">
+              <section class="col flex min-w-0 flex-col gap-2.5" :data-column="column.name">
+                <div class="col-head flex items-baseline gap-2 border-b-2 border-line-strong px-0.5 pb-2.5">
+                  <span class="font-mono text-[11px] text-faint" data-testid="column-step" x-text="column.step"></span>
+                  <h2 class="text-[14px] font-semibold" x-text="column.name"></h2>
+                  <span class="ml-auto min-w-[22px] rounded-full bg-badge px-[7px] py-px text-center font-mono text-[12px] font-semibold text-badge-ink" data-testid="column-count" :title="column.who" x-text="String(column.cards.length)"></span>
+                </div>
+                <p class="empty rounded-xl border border-dashed border-line-dashed px-3 py-[18px] text-center text-[12px] text-faint" x-show="column.cards.length === 0">Nothing here</p>
+                <template x-for="card in column.cards" :key="card.key">
+                  <article
+                    class="card flex cursor-pointer flex-col gap-2.5 rounded-xl border border-line bg-card p-3.5 shadow-card transition duration-150 [overflow-wrap:anywhere] hover:-translate-y-px hover:bg-hover motion-reduce:transition-none data-[active=true]:border-active-line"
+                    :data-active="card.active"
+                    :data-task="card.key"
+                    tabindex="0"
+                    role="button"
+                    :aria-label="card.task.title + ', ' + card.task.project + ' ' + card.task.slug"
+                    aria-haspopup="dialog"
+                    @click="drawer.open(card.task)"
+                    @keydown.enter.self.prevent="drawer.open(card.task)"
+                    @keydown.space.self.prevent="drawer.open(card.task)"
+                  >
+                    <div class="flex items-center gap-2 font-mono text-[11px]">
+                      <span class="flex-none rounded-[5px] bg-tag px-[7px] py-0.5 text-muted" data-testid="card-project" x-text="card.task.project"></span>
+                      <span class="ml-auto inline-flex flex-none items-center gap-[3px] font-semibold data-[risk=high]:text-human data-[risk=low]:text-pass data-[risk=medium]:text-changes" :data-risk="card.risk" x-show="card.risk !== null">
+                        <span class="icon text-[14px]" aria-hidden="true" x-text="card.riskIcon"></span><span class="sr-only">Risk: </span><span data-testid="card-risk" x-text="card.risk"></span>
+                      </span>
+                    </div>
+                    <div class="-mt-1.5">
+                      <h3 class="feature text-[14px] leading-[1.4] font-semibold" x-text="card.task.title"></h3>
+                      <p class="num mt-0.5 font-mono text-[11px] text-faint" data-testid="card-slug" x-text="card.task.slug"></p>
+                    </div>
+                    <div class="grid gap-1" x-show="card.rounds.length > 0">
+                      <template x-for="round in card.rounds" :key="round.n">
+                        <div class="round flex min-w-0 items-center gap-1">
+                          <span class="w-[22px] flex-none font-mono text-[10px] text-faint" x-text="round.label"></span>
+                          <template x-for="chip in round.chips" :key="chip.reviewer">
+                            <span class="chip flex min-w-0 flex-1 items-center justify-center gap-0.5 overflow-hidden rounded-[5px] border border-dashed border-pending-line bg-card px-0.5 py-[3px] font-mono text-[10px] font-medium text-faint data-[state=bad]:border-solid data-[state=bad]:border-human data-[state=bad]:text-human data-[state=CHANGES]:border-solid data-[state=CHANGES]:border-changes-line data-[state=CHANGES]:bg-changes-tint data-[state=CHANGES]:text-changes-ink data-[state=PASS]:border-solid data-[state=PASS]:border-pass-line data-[state=PASS]:bg-pass-tint data-[state=PASS]:text-pass-ink motion-safe:data-[state=wait]:animate-breathe" :data-state="chip.className" :title="chip.reviewer + ': ' + chip.state">
+                              <span class="icon text-[12px]" aria-hidden="true" x-text="chip.icon"></span><span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" x-text="chip.reviewer"></span><span class="sr-only" x-text="': ' + chip.state"></span>
+                            </span>
+                          </template>
+                        </div>
                       </template>
                     </div>
-                  </template>
-                </div>
-                <div class="mt-2 flex gap-2.5 font-mono text-[10.5px] text-muted">
-                  <span class="data-[risk=high]:text-human data-[risk=low]:text-pass data-[risk=medium]:text-changes" data-testid="card-risk" x-show="card.risk !== null" :data-risk="card.risk" x-text="card.risk"></span>
-                  <span data-testid="card-time" x-show="card.time !== ''" x-text="card.time"></span>
-                  <span data-testid="card-tokens" x-show="card.tokens !== ''" x-text="card.tokens"></span>
-                </div>
-                <p class="mt-2.5 border-t border-line pt-2 font-mono text-[10.5px] leading-[1.6] text-muted" data-testid="card-hint" x-show="card.hint !== null" x-text="card.hint"></p>
-              </article>
+                    <template x-for="agent in card.agents" :key="agent.id">
+                      <p class="flex items-center gap-[7px] rounded-[7px] bg-active-tint px-2 py-1.5 font-mono text-[11px] text-active-ink" data-testid="card-working">
+                        <span class="size-[7px] flex-none animate-agent rounded-full bg-active motion-reduce:animate-none" aria-hidden="true"></span><span class="sr-only">Agent working: </span><span x-text="agent.name + ' · ' + agent.elapsed"></span>
+                      </p>
+                    </template>
+                    <div class="flex flex-wrap gap-x-2.5 gap-y-1 font-mono text-[11px] text-faint" x-show="card.time !== '' || card.tokens !== '' || card.mrUrl !== null">
+                      <span data-testid="card-time" x-show="card.time !== ''" x-text="card.time"></span>
+                      <span data-testid="card-tokens" x-show="card.tokens !== ''" x-text="card.tokens"></span>
+                      <a :href="card.mrUrl" class="ml-auto inline-flex items-center gap-[3px] text-active hover:underline" data-testid="card-mr" target="_blank" rel="noopener noreferrer" x-show="card.mrUrl !== null" @click.stop>MR<span class="icon text-[14px]" aria-hidden="true">open_in_new</span><span class="sr-only"> (opens in a new tab)</span></a>
+                    </div>
+                  </article>
+                </template>
+              </section>
             </template>
-          </section>
-        </template>
-      </main>
+          </div>
+        </main>
 
-      <footer class="flex flex-wrap gap-x-5 gap-y-2 px-6 pb-7 font-mono text-[11px] text-faint narrow:px-4 narrow:pb-6">
-        <span>/argani:board</span>
-        <span>/argani:factory &lt;slug&gt;</span>
-        <span>/argani:factory answer &lt;slug&gt; &lt;answer&gt;</span>
-        <span class="ml-auto text-muted narrow:ml-0" data-testid="totals"><span x-text="String(agentsRunning)"></span> agents running · <span x-text="tokensLabel"></span> tokens · <span x-text="manualLabel"></span> manual ACs · <span x-text="waitingLabel"></span> waiting for you</span>
-      </footer>
+        <aside class="min-w-0 flex-[1_1_260px] rounded-[14px] border border-line bg-card p-4" data-testid="done-rail" aria-label="Done">
+          <div class="mb-1.5 flex items-baseline gap-2">
+            <h2 class="text-[14px] font-semibold text-merged">Done</h2>
+            <span class="ml-auto font-mono text-[11px] text-faint" data-testid="done-count" x-text="String(doneRows.length)"></span>
+          </div>
+          <p class="rounded-xl border border-dashed border-line-dashed px-3 py-[18px] text-center text-[12px] text-faint" x-show="doneRows.length === 0">Nothing here</p>
+          <ul class="max-h-[640px] overflow-y-auto">
+            <template x-for="row in doneRows" :key="row.key">
+              <li class="done-row border-t border-tag py-3" data-testid="done-row">
+                <p class="text-[13px] leading-[1.4]">
+                  <button type="button" class="cursor-pointer text-left font-medium hover:underline data-[cancelled=true]:text-muted data-[cancelled=true]:line-through" data-testid="done-title" :data-cancelled="row.cancelled" :data-task="row.key" aria-haspopup="dialog" @click="drawer.open(row.task)" x-text="row.task.title"></button>
+                </p>
+                <p class="mt-1 font-mono text-[11px] text-faint">
+                  <span class="font-semibold text-merged data-[cancelled=true]:text-muted" data-testid="done-outcome" :data-cancelled="row.cancelled"><span class="icon text-[14px] align-[-3px]" aria-hidden="true" x-text="row.icon"></span> <span x-text="row.outcome"></span></span>
+                  · <span x-text="row.task.project"></span><span data-testid="done-time" x-show="row.time !== ''"> · <span x-text="row.time"></span></span>
+                </p>
+              </li>
+            </template>
+          </ul>
+        </aside>
+      </div>
 
       <div class="drawer-root fixed inset-0 z-10" data-testid="drawer" x-show="drawer.isOpen" x-cloak
            @keydown.escape.window="drawer.close()"

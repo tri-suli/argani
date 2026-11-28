@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import Alpine from 'alpinejs';
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { PollHandlers, Poller } from '@/types/poller';
 import BoardView from '@/board/board-view';
 import createDashboard from '@/components/dashboard';
@@ -40,10 +40,12 @@ let poller: FakePoller;
 
 let taskClient: FakeTaskClient;
 
+let clipboard: { writeText: Mock<(text: string) => Promise<void>> };
+
 const now = () => new Date('2026-11-24T10:00:10Z');
 
 beforeAll(() => {
-  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now }));
+  Alpine.data('dashboard', () => createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now }));
 
   Alpine.start();
 });
@@ -53,6 +55,8 @@ beforeEach(async () => {
 
   taskClient = new FakeTaskClient();
 
+  clipboard = { writeText: vi.fn(async (_text: string) => {}) };
+
   document.body.innerHTML = pageMarkup();
 
   Alpine.initTree(document.body);
@@ -60,18 +64,33 @@ beforeEach(async () => {
   await eventually(() => expect(poller.handlers).toBeDefined());
 });
 
-const deliver = async (snapshot = sampleSnapshot(), expectedCards = 5) => {
+const deliver = async (snapshot = sampleSnapshot(), expectedCards = 3) => {
   poller.handlers.onSnapshot(snapshot, sampleTasks());
 
   await eventually(() => {
     expect(text('[data-testid=status]')).toBe('Connected');
 
-    expect(document.querySelector('footer')?.textContent).toContain('/argani:factory answer <slug> <answer>');
-    expect(document.querySelector('footer')?.textContent).not.toContain('approve');
-
     expect(document.querySelectorAll('.card')).toHaveLength(expectedCards);
   });
 };
+
+const all = (selector: string) => [...document.querySelectorAll(selector)].map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
+
+const click = (selector: string) => (document.querySelector(selector) as HTMLElement).click();
+
+const menuOpen = () => visible('[data-testid=project-menu]');
+
+const openMenu = async () => {
+  click('[data-testid=project-picker]');
+
+  await eventually(() => expect(menuOpen()).toBe(true));
+};
+
+const pressOn = (target: Element, key: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+
+const option = (project: string) => document.querySelector(`[data-project="${project}"]`) as HTMLElement;
+
+const cardKeys = () => [...document.querySelectorAll('.card')].map((element) => element.getAttribute('data-task'));
 
 describe('dashboard board', () => {
   it('shows loading before the first snapshot', () => {
@@ -80,37 +99,138 @@ describe('dashboard board', () => {
     expect(visible('[data-testid=loading]')).toBe(true);
 
     expect(document.querySelectorAll('.col')).toHaveLength(0);
+
+    expect(document.querySelector('[data-testid=needs-human]')).toBeNull();
   });
 
-  it('renders header, columns with who labels, and the footer', async () => {
+  it('renders the header, five numbered columns with count badges, and no footer', async () => {
     await deliver();
 
-    expect(text('[data-testid=status]')).toBe('Connected');
+    expect(text('h1')).toBe('Argani Office');
 
     expect(text('[data-testid=home]')).toBe('/home/user/.argani');
 
     expect(text('[data-testid=updated]')).toBe('· updated 0s ago');
 
-    expect([...document.querySelectorAll('.col-head')].map((head) => head.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Intake 1 intake',
-      'Spec 0 spec-writer',
-      'Build 1 builder · verify',
-      'Review 1 reviewers',
-      'Approve 0 approver · merge',
-      'Needs human 1 you',
-      'Done 1 merged',
-    ]);
+    expect(all('.col-head')).toEqual(['01 Intake 1', '02 Spec 0', '03 Build 1', '04 Review 1', '05 Approve 0']);
 
-    expect(document.querySelector('[data-column="Needs human"]')?.getAttribute('data-tone')).toBe('human');
+    expect([...document.querySelectorAll('[data-testid=column-count]')].map((badge) => badge.getAttribute('title'))).toEqual(['intake', 'spec-writer', 'builder · verify', 'reviewers', 'approver · merge']);
 
-    expect(document.querySelector('[data-column="Done"]')?.getAttribute('data-tone')).toBe('merged');
-
-    expect(text('[data-testid=totals]')).toBe('1 agents running · 1.2M tokens · 3 manual ACs · 35m waiting for you');
+    expect(document.querySelector('footer')).toBeNull();
 
     expect(visible('[data-testid=loading]')).toBe(false);
   });
 
-  it('renders card details: pulse, chips, risk, time, tokens, MR link', async () => {
+  it('renders the four totals tiles', async () => {
+    await deliver();
+
+    expect(all('[data-tile]')).toEqual([
+      'Agents working 1 builder',
+      'Waiting for you 40m 2 tasks',
+      'Tokens 1.2M across 5 open tasks',
+      'Manual acceptance criteria 3 to check by hand before merge',
+    ]);
+
+    expect(document.querySelector('[data-tile=waiting] [data-testid=tile-value]')?.getAttribute('data-tone')).toBe('human');
+  });
+
+  it('lists the tasks in Needs human with reason, wait, visits, question and the answer command', async () => {
+    await deliver();
+
+    expect(text('[data-testid=needs-human-count]')).toBe('2');
+
+    expect(all('[data-testid=needs-human-row]').length).toBe(2);
+
+    const [stuck, blocked] = [...document.querySelectorAll('[data-testid=needs-human-row]')];
+
+    expect(stuck.getAttribute('data-row')).toBe('demo/stuck');
+
+    expect(stuck.querySelector('p')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('demo · manual verification · waiting 40m · 2× you');
+
+    expect(text('[data-row="demo/stuck"] [data-testid=row-title]')).toBe('Stuck task');
+
+    expect(text('[data-row="demo/stuck"] [data-testid=row-question]')).toBe('decide the schema');
+
+    expect(text('[data-row="demo/stuck"] [data-testid=row-command]')).toBe('/argani:factory answer stuck <answer>');
+
+    expect(blocked.getAttribute('data-row')).toBe('other/blocked');
+
+    expect(text('[data-row="other/blocked"] [data-testid=row-question]')).toBe('tasks.json is unreadable');
+
+    expect(showing(blocked.querySelector('[data-testid=row-waiting]'))).toBe(false);
+
+    expect(showing(blocked.querySelector('[data-testid=row-visits]'))).toBe(false);
+  });
+
+  it('removes the Needs human panel when no task waits for you', async () => {
+    await deliver();
+
+    await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }] }), 0);
+
+    await eventually(() => expect(document.querySelector('[data-testid=needs-human]')).toBeNull());
+  });
+
+  it('copies the answer command and says Copied, then Copy failed when the clipboard refuses', async () => {
+    await deliver();
+
+    const copy = '[data-row="demo/stuck"] [data-testid=row-copy]';
+
+    expect(text(copy)).toBe('Copy');
+
+    click(copy);
+
+    await eventually(() => expect(text(copy)).toBe('Copied'));
+
+    expect(clipboard.writeText).toHaveBeenCalledWith('/argani:factory answer stuck <answer>');
+
+    expect(text('[data-row="other/blocked"] [data-testid=row-copy]')).toBe('Copy');
+
+    clipboard.writeText.mockRejectedValueOnce(new Error('denied'));
+
+    click(copy);
+
+    await eventually(() => expect(text(copy)).toBe('Copy failed'));
+  });
+
+  it('opens the task drawer from the title of a Needs human row and returns the focus to it', async () => {
+    await deliver();
+
+    click('[data-row="demo/stuck"] [data-testid=row-title]');
+
+    await eventually(() => expect(visible('[data-testid=drawer]')).toBe(true));
+
+    expect(text('[data-testid=drawer-title]')).toBe('Stuck task');
+
+    pressOn(document.body, 'Escape');
+
+    await eventually(() => expect(document.activeElement).toBe(document.querySelector('[data-row="demo/stuck"] [data-testid=row-title]')));
+  });
+
+  it('lists the Done tasks newest first, with cancelled ones struck through', async () => {
+    await deliver();
+
+    expect(text('[data-testid=done-count]')).toBe('2');
+
+    expect(all('[data-testid=done-title]')).toEqual(['Dropped idea', 'Ship it']);
+
+    expect(all('[data-testid=done-outcome]')).toEqual(['block cancelled', 'merge merged']);
+
+    expect(all('[data-testid=done-time]')[1]).toBe('· 1h05m');
+
+    const [dropped, shipped] = [...document.querySelectorAll('[data-testid=done-row]')];
+
+    expect(dropped.querySelector('[data-testid=done-title]')?.getAttribute('data-cancelled')).toBe('true');
+
+    expect(shipped.querySelector('[data-testid=done-title]')?.hasAttribute('data-cancelled')).toBe(false);
+
+    expect(showing(dropped.querySelector('[data-testid=done-time]'))).toBe(false);
+
+    (shipped.querySelector('[data-testid=done-title]') as HTMLElement).click();
+
+    await eventually(() => expect(text('[data-testid=drawer-title]')).toBe('Ship it'));
+  });
+
+  it('renders card details: working row, chips with icons, risk, time, tokens, MR link', async () => {
     await deliver();
 
     await eventually(() => {
@@ -118,21 +238,26 @@ describe('dashboard board', () => {
 
       expect(card('demo/fix-export').getAttribute('data-active')).toBe('true');
 
-      expect(showing(within('demo/fix-export', '[data-testid=agent-marker]'))).toBe(true);
+      expect(all(`${fix} [data-testid=card-working]`)).toEqual(['Agent working: builder · 10s']);
 
-      expect(showing(within('demo/add-login', '[data-testid=agent-marker]'))).toBe(false);
+      expect(document.querySelectorAll('[data-testid=card-working]')).toHaveLength(1);
 
-      expect(text(`${fix} .num`)).toBe('demo · fix-export');
+      expect(text(`${fix} [data-testid=card-project]`)).toBe('demo');
+
+      expect(text(`${fix} [data-testid=card-slug]`)).toBe('fix-export');
 
       expect(text(`${fix} .feature`)).toBe('Fix export');
 
       expect(text(`${fix} .round`)).toContain('R1');
 
-      expect([...card('demo/fix-export').querySelectorAll('.chip')].map((chip) => chip.getAttribute('data-state'))).toEqual(['PASS', 'wait']);
+      expect([...card('demo/fix-export').querySelectorAll('.chip')].map((chip) => [chip.getAttribute('data-state'), chip.textContent?.replace(/\s+/g, ' ').trim()])).toEqual([
+        ['PASS', 'checkcode: PASS'],
+        ['wait', 'hourglass_topcompliance: pending'],
+      ]);
 
       expect(text(`${fix} [data-testid=card-risk]`)).toBe('medium');
 
-      expect(within('demo/fix-export', '[data-testid=card-risk]').getAttribute('data-risk')).toBe('medium');
+      expect(within('demo/fix-export', '[data-testid=card-risk]').parentElement?.getAttribute('data-risk')).toBe('medium');
 
       expect(text(`${fix} [data-testid=card-time]`)).toBe('2m');
 
@@ -146,8 +271,11 @@ describe('dashboard board', () => {
 
       expect(showing(within('demo/add-login', '[data-testid=card-time]'))).toBe(false);
 
-      expect(showing(within('demo/add-login', '[data-testid=card-links]'))).toBe(false);
-    
+      expect(showing(within('demo/add-login', '[data-testid=card-mr]'))).toBe(false);
+
+      expect(showing(within('demo/add-login', '[data-testid=card-risk]').parentElement)).toBe(false);
+
+      expect(card('demo/add-login').querySelectorAll('[data-testid=card-working]')).toHaveLength(0);
     });
   });
 
@@ -161,68 +289,187 @@ describe('dashboard board', () => {
     });
   });
 
-  it('flags the Needs human cards with their reason, question and badge, dims Done cards, sorts newest first', async () => {
+  it('keeps Needs human and Done tasks out of the pipeline', async () => {
     await deliver();
 
-    expect(text('[data-task="demo/stuck"] [data-testid=card-flag]')).toBe('manual-verification');
-
-    expect(text('[data-task="demo/stuck"] [data-testid=card-hint]')).toBe('decide the schema');
-
-    expect(text('[data-task="demo/stuck"] [data-testid=card-badge]')).toBe('2× you');
-
-    expect(card('demo/stuck').getAttribute('data-flagged')).toBe('true');
-
-    expect(card('demo/fix-export').hasAttribute('data-flagged')).toBe(false);
-
-    expect(showing(within('demo/add-login', '[data-testid=card-flag]'))).toBe(false);
-
-    expect(showing(within('demo/add-login', '[data-testid=card-hint]'))).toBe(false);
-
-    expect(showing(within('demo/fix-export', '[data-testid=card-badge]'))).toBe(false);
-
-    expect(card('other/ship').getAttribute('data-dimmed')).toBe('true');
+    expect(cardKeys()).toEqual(['demo/add-login', 'demo/fix-export', 'demo/older']);
 
     expect([...document.querySelectorAll('[data-column="Build"] .card')].map((element) => element.getAttribute('data-task'))).toEqual(['demo/fix-export']);
   });
 
-  it('shows empty states and agents running as zero', async () => {
+  it('shows empty states and zero tiles', async () => {
     await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }], agents: [] }), 0);
 
     await eventually(() => {
-      expect(document.querySelectorAll('.col .empty:not([style*="none"])')).toHaveLength(7);
+      expect(document.querySelectorAll('.col .empty:not([style*="none"])')).toHaveLength(5);
 
-      expect(text('[data-testid=totals]')).toContain('0 agents running');
+      expect(text('[data-testid=done-rail]')).toContain('Nothing here');
+
+      expect(text('[data-tile=agents]')).toBe('Agents working 0 —');
+
+      expect(text('[data-tile=waiting]')).toBe('Waiting for you — 0 tasks');
     });
   });
 
-  it('filters by project', async () => {
+  it('opens and closes the project picker, listing every project with its counts', async () => {
     await deliver();
 
-    expect([...document.querySelectorAll('[data-testid=project-filter] option')].map((option) => option.textContent)).toEqual(['All projects', 'demo', 'other']);
+    expect(menuOpen()).toBe(false);
 
-    const select = document.querySelector('[data-testid=project-filter]') as HTMLSelectElement;
+    expect(text('[data-testid=project-name]')).toBe('All projects');
 
-    select.value = 'other';
+    expect(text('[data-testid=project-count]')).toBe('7');
 
-    select.dispatchEvent(new Event('change'));
+    const picker = document.querySelector('[data-testid=project-picker]') as HTMLElement;
 
-    await eventually(() => expect([...document.querySelectorAll('.card')].map((element) => element.getAttribute('data-task'))).toEqual(['other/ship']));
+    expect([picker.getAttribute('aria-haspopup'), picker.getAttribute('aria-expanded')]).toEqual(['listbox', 'false']);
+
+    await openMenu();
+
+    expect(picker.getAttribute('aria-expanded')).toBe('true');
+
+    expect(all('[data-testid=project-option-name]')).toEqual(['All projects', 'demo', 'other']);
+
+    expect(all('[data-testid=project-option-count]')).toEqual(['Tasks: 7', 'Tasks: 4', 'Tasks: 3']);
+
+    expect([...document.querySelectorAll('[role=option]')].map((element) => element.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+
+    expect(all('[data-testid=project-option-waiting]')).toEqual(['person_raised_hand2 in Needs human', 'person_raised_hand1 in Needs human', 'person_raised_hand1 in Needs human']);
+
+    await eventually(() => expect(document.activeElement).toBe(document.querySelector('[data-testid=project-search]')));
+  });
+
+  it('hides the waiting count of a project with nothing in Needs human', async () => {
+    await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: sampleSnapshot().projects[0].tasks.slice(0, 2) }] }), 2);
+
+    await openMenu();
+
+    expect([...document.querySelectorAll('[data-testid=project-option-waiting]')].map((element) => showing(element))).toEqual([false, false]);
+  });
+
+  it('filters the board to the picked project and closes the picker with the focus on its button', async () => {
+    await deliver();
+
+    await openMenu();
+
+    option('other').click();
+
+    await eventually(() => {
+      expect(cardKeys()).toEqual([]);
+
+      expect(menuOpen()).toBe(false);
+
+      expect(text('[data-testid=project-name]')).toBe('other');
+
+      expect(text('[data-testid=project-count]')).toBe('3');
+
+      expect(document.querySelectorAll('[data-testid=done-row]')).toHaveLength(2);
+
+      expect(text('[data-tile=agents]')).toBe('Agents working 0 —');
+
+      expect(document.activeElement).toBe(document.querySelector('[data-testid=project-picker]'));
+    });
+
+    await openMenu();
+
+    option('demo').click();
+
+    await eventually(() => expect(cardKeys()).toEqual(['demo/add-login', 'demo/fix-export', 'demo/older']));
+  });
+
+  it('searches the project list by name, ignoring case', async () => {
+    await deliver();
+
+    await openMenu();
+
+    const search = document.querySelector('[data-testid=project-search]') as HTMLInputElement;
+
+    search.value = 'OTH';
+
+    search.dispatchEvent(new Event('input'));
+
+    await eventually(() => expect(all('[data-testid=project-option-name]')).toEqual(['other']));
+
+    expect(visible('[data-testid=project-empty]')).toBe(false);
+
+    search.value = 'nothing';
+
+    search.dispatchEvent(new Event('input'));
+
+    await eventually(() => {
+      expect(document.querySelectorAll('[role=option]')).toHaveLength(0);
+
+      expect(visible('[data-testid=project-empty]')).toBe(true);
+    });
+  });
+
+  it('closes on Escape back to the button, and on a click outside', async () => {
+    await deliver();
+
+    await openMenu();
+
+    pressOn(document.querySelector('[data-testid=project-search]') as Element, 'Escape');
+
+    await eventually(() => {
+      expect(menuOpen()).toBe(false);
+
+      expect(document.activeElement).toBe(document.querySelector('[data-testid=project-picker]'));
+    });
+
+    await openMenu();
+
+    // Alpine's .outside ignores an element without layout, and happy-dom has none
+    Object.defineProperty((document.querySelector('[data-testid=project-picker]') as HTMLElement).parentElement, 'offsetWidth', { value: 300 });
+
+    document.body.click();
+
+    await eventually(() => expect(menuOpen()).toBe(false));
+  });
+
+  it('moves between the options with the arrow keys and picks with Enter and Space', async () => {
+    await deliver();
+
+    await openMenu();
+
+    const search = document.querySelector('[data-testid=project-search]') as HTMLElement;
+
+    search.focus();
+
+    pressOn(search, 'ArrowDown');
+
+    expect(document.activeElement).toBe(option(''));
+
+    pressOn(document.activeElement as Element, 'ArrowDown');
+
+    expect(document.activeElement).toBe(option('demo'));
+
+    pressOn(document.activeElement as Element, 'Enter');
+
+    await eventually(() => {
+      expect(text('[data-testid=project-name]')).toBe('demo');
+
+      expect(menuOpen()).toBe(false);
+    });
+
+    await openMenu();
+
+    pressOn(option('other'), ' ');
+
+    await eventually(() => expect(text('[data-testid=project-name]')).toBe('other'));
   });
 
   it('resets the project filter when the selected project disappears', async () => {
     await deliver();
 
-    const select = document.querySelector('[data-testid=project-filter]') as HTMLSelectElement;
+    await openMenu();
 
-    select.value = 'other';
+    option('other').click();
 
-    select.dispatchEvent(new Event('change'));
-
-    await eventually(() => expect(document.querySelectorAll('.card')).toHaveLength(1));
+    await eventually(() => expect(text('[data-testid=project-name]')).toBe('other'));
 
     await deliver(sampleSnapshot({ projects: [{ name: 'demo', tasks: [] }] }), 0);
 
-    await eventually(() => expect(select.value).toBe(''));
+    await eventually(() => expect(text('[data-testid=project-name]')).toBe('All projects'));
   });
 
   it('keeps the last data and shows a banner when a poll fails, then recovers', async () => {
@@ -241,7 +488,7 @@ describe('dashboard board', () => {
 
       expect(text('[data-testid=status-error]')).toBe('· backend down');
 
-      expect(document.querySelectorAll('.card')).toHaveLength(5);
+      expect(document.querySelectorAll('.card')).toHaveLength(3);
     });
 
     await deliver();
@@ -267,7 +514,7 @@ describe('dashboard board', () => {
 
       const handlers: PollHandlers[] = [];
 
-      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), markdownRenderer, now: () => new Date(clock) });
+      const ticking = createDashboard({ poller: { start: (h) => handlers.push(h), stop: () => {} }, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now: () => new Date(clock) });
 
       ticking.init();
 
@@ -304,13 +551,15 @@ describe('dashboard board', () => {
   });
 
   it('stops polling when destroyed and has empty derived state before data', () => {
-    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, now: vi.fn() });
+    const dashboard = createDashboard({ poller, taskClient, boardView: new BoardView(), markdownRenderer, clipboard, now: vi.fn() });
 
-    expect(dashboard.projects).toEqual([]);
+    expect(dashboard.projectOptions).toEqual([]);
+
+    expect(dashboard.selectedOption.label).toBe('All projects');
 
     expect(dashboard.columns).toEqual([]);
 
-    expect(dashboard.agentsRunning).toBe(0);
+    expect([dashboard.tiles, dashboard.needsHumanRows, dashboard.doneRows]).toEqual([[], [], []]);
 
     expect(dashboard.updatedLabel).toBe('');
 
@@ -351,15 +600,5 @@ describe('drawer history and metrics', () => {
 
       expect(text('[data-testid=drawer-metrics]')).toBe('0 manual ACs 0× in Needs human 0m waiting for you');
     });
-  });
-
-  it('shows totals of the selected project only', async () => {
-    await deliver();
-
-    (document.querySelector('[data-testid=project-filter]') as HTMLSelectElement).value = 'other';
-
-    document.querySelector('[data-testid=project-filter]')?.dispatchEvent(new Event('change'));
-
-    await eventually(() => expect(text('[data-testid=totals]')).toContain('1 manual ACs · 10m waiting for you'));
   });
 });

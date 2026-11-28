@@ -60,7 +60,12 @@ function sampleSnapshot(overrides: Partial<BoardSnapshot> = {}): BoardSnapshot {
       },
       {
         name: 'other',
-        tasks: [sampleTask({ project: 'other', slug: 'ship', title: 'Ship it', stage: 'done', column: 'Done', merged: true, metrics: { ...noMetrics, manualAcceptanceCriteria: 1, needsHumanMilliseconds: 600_000 } })],
+        tasks: [
+          sampleTask({ project: 'other', slug: 'ship', title: 'Ship it', stage: 'done', column: 'Done', merged: true, metrics: { ...noMetrics, manualAcceptanceCriteria: 1, needsHumanMilliseconds: 600_000 } }),
+          sampleTask({ project: 'other', slug: 'dropped', title: 'Dropped idea', stage: 'cancelled', column: 'Done', merged: false }),
+          // a column that is not a pipeline column (an unreadable task of a broken project) is shown as Needs human, with its message
+          sampleTask({ project: 'other', slug: 'blocked', title: 'Blocked task', stage: 'error', column: 'Unreadable', question: 'tasks.json is unreadable' }),
+        ],
       },
     ],
     agents: [sampleAgent],
@@ -90,6 +95,7 @@ function sampleTasks(): TaskSummary[] {
     sampleSummary({ project: 'demo', slug: 'older', updatedAt: '2026-11-23T09:00:00Z', rounds: [{ n: 1, reviews: { code: 'CHANGES', compliance: 'invalid' } }] }),
     sampleSummary({ project: 'demo', slug: 'stuck', risk: 'high', updatedAt: '2026-11-24T08:00:00Z' }),
     sampleSummary({ project: 'other', slug: 'ship', risk: 'low', updatedAt: '2026-11-20T08:00:00Z', agentMilliseconds: 3900000, tokens: { ...noTokens, total: 1_200_000 } }),
+    sampleSummary({ project: 'other', slug: 'dropped', stage: 'cancelled', updatedAt: '2026-11-21T08:00:00Z' }),
   ];
 }
 

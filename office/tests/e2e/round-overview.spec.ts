@@ -389,6 +389,59 @@ test.describe('review round overview', () => {
     expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
   });
 
+  test('scrolls a long code block or table inside its own box, in a finding and in the notes', async ({ page }) => {
+    const wide = 'x'.repeat(400);
+
+    const text = [
+      'CHANGES long output',
+      `- [Important] a.sh:1 - What: the log shows a long line:`,
+      '```',
+      `${wide} end`,
+      '```',
+      'Why: it hides the failure. Fix: wrap it.',
+      '',
+      'A table in the notes:',
+      '',
+      `| key | value |`,
+      `| --- | --- |`,
+      `| ${wide} | b |`,
+      '',
+      '```',
+      `${wide} notes`,
+      '```',
+      '=== END OF REVIEW ===',
+      '',
+    ].join('\n');
+
+    await page.unroute('**/api/tasks/demo/ship-report');
+
+    await mockRounds(page, [{ round: 1, reviews: { code: 'CHANGES' }, texts: { code: text } }]);
+
+    await page.goto(taskUrl('/round/1'));
+
+    await expect(page.getByTestId('finding')).toHaveCount(1);
+
+    for (const scope of [page.getByTestId('finding'), page.getByTestId('reviewer-notes')]) {
+      const pre = scope.locator('pre').first();
+
+      await expect(pre).toHaveCSS('overflow-x', 'auto');
+
+      const box = await pre.evaluate((element) => ({ scroll: element.scrollWidth, client: element.clientWidth, right: element.getBoundingClientRect().right }));
+
+      expect(box.scroll).toBeGreaterThan(box.client);
+
+      const outer = (await scope.boundingBox())!;
+
+      expect(box.right).toBeLessThanOrEqual(outer.x + outer.width);
+    }
+
+    const table = page.getByTestId('reviewer-notes').locator('table');
+
+    await expect(table).toHaveCSS('overflow-x', 'auto');
+
+    expect(await hasNoSidewaysScroll(page)).toBe(true);
+  });
+
   test('takes a long unbreakable text without sideways scroll', async ({ page }) => {
     const long: RoundSpec = { round: 1, reviews: { code: 'CHANGES' }, texts: { code: `CHANGES ${'x'.repeat(200)}\n- [Important] ${'a/'.repeat(120)}file.ts:1 - What: ${'y'.repeat(300)} \`${'z'.repeat(200)}\`. Why: w. Fix: f.\n=== END OF REVIEW ===\n` } };
 

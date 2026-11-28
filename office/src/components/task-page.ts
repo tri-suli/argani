@@ -88,15 +88,28 @@ function createTaskPage(taskClient: TaskClient, markdownRenderer: MarkdownRender
         return;
       }
 
+      const detail = this.detail;
+
+      // the task is still loading: what the address names is the selection, and load() checks it against the task once it has arrived
+      if (detail === null) {
+        if (route.round !== undefined) {
+          Object.assign(this, { selectedPath: null, selectedRound: route.round, findingFilter: FILTER_ALL });
+        } else if (route.path !== null) {
+          Object.assign(this, { selectedPath: route.path, selectedRound: null });
+        }
+
+        return;
+      }
+
       if (route.round !== undefined) {
-        if (route.round !== this.selectedRound && this.detail !== null && fileTree.roundNumbers(this.detail.files).includes(route.round)) {
+        if (route.round !== this.selectedRound && fileTree.roundNumbers(detail.files).includes(route.round)) {
           await this.selectRound(route.round);
         }
 
         return;
       }
 
-      if (route.path !== null && route.path !== this.selectedPath && this.detail?.files.some((file) => file.path === route.path)) {
+      if (route.path !== null && route.path !== this.selectedPath && detail.files.some((file) => file.path === route.path)) {
         await this.select(route.path);
       }
     },

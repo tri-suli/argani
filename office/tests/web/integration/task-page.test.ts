@@ -350,6 +350,20 @@ describe('task page', () => {
     await eventually(() => expect(isShown('[data-testid=board]')).toBe(true));
   });
 
+  it('replaces the address by the real selection when a link names a file the task does not list', async () => {
+    await mount('#/task/demo/fix-export/nope.md');
+
+    await eventually(() => expect(navigation.hash()).toBe('#/task/demo/fix-export/spec.md'));
+
+    expect(navigation.entries).toHaveLength(1);
+
+    expect(fileButtons()[0].getAttribute('aria-current')).toBe('true');
+
+    navigation.edit('#/task/demo/fix-export/also-nope.md');
+
+    await eventually(() => expect(navigation.hash()).toBe('#/task/demo/fix-export/spec.md'));
+  });
+
   it('puts the selected file in the address without adding a history entry, and a link to a file selects it', async () => {
     await openTask();
 

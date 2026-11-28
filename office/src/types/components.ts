@@ -80,6 +80,8 @@ interface Dashboard {
   selectFile(path: string): Promise<void>;
   /** Shows the task or the board the address names. */
   applyRoute(): void;
+  /** Puts the file really shown in the address when the route named one the task does not list. */
+  correctAddress(route: TaskRoute, hash: string): void;
   /** The task open on the task page, read from the latest board so its title and history stay current. */
   readonly taskPageTask: BoardTask | null;
   /** The summary of the open task: the detail once it is loaded, the board's list until then. */

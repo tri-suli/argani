@@ -462,6 +462,36 @@ test.describe('review round overview', () => {
     await expect(page.getByTestId('board')).toBeHidden();
   });
 
+  test('opens the task, not the board, for a link to round 0, and the address names the file shown', async ({ page }) => {
+    await page.goto(taskUrl('/round/0'));
+
+    await expect(page.getByTestId('task-title')).toBeVisible();
+
+    await expect(page.getByTestId('board')).toBeHidden();
+
+    await expect(page.getByTestId('reader-file')).toBeVisible();
+
+    await expect(page).not.toHaveURL(/round\/0/);
+  });
+
+  test('closes the Round menu when the overview is left and does not reopen it', async ({ page }) => {
+    await page.goto(taskUrl('/round/1'));
+
+    await page.getByTestId('round-picker').click();
+
+    await expect(page.getByTestId('round-menu')).toBeVisible();
+
+    await page.getByRole('button', { name: 'review-code.md' }).click();
+
+    await expect(page.getByTestId('round-overview')).toBeHidden();
+
+    await overviewRow(page, 1).click();
+
+    await expect(page.getByTestId('round-title')).toHaveText('Round 1');
+
+    await expect(page.getByTestId('round-menu')).toBeHidden();
+  });
+
   test('takes a long unbreakable text without sideways scroll', async ({ page }) => {
     const long: RoundSpec = { round: 1, reviews: { code: 'CHANGES' }, texts: { code: `CHANGES ${'x'.repeat(200)}\n- [Important] ${'a/'.repeat(120)}file.ts:1 - What: ${'y'.repeat(300)} \`${'z'.repeat(200)}\`. Why: w. Fix: f.\n=== END OF REVIEW ===\n` } };
 

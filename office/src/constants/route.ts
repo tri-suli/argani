@@ -16,6 +16,9 @@ const ROUND_SEGMENT_COUNT = 4;
 
 const ROUND_SEGMENT = 'round';
 
+/** The round of a route whose number is no round number ("round/0", "round/x"): no round has it, so the task opens at its first file. */
+const NO_SUCH_ROUND = 0;
+
 /** A round number as written by the address: no sign, no leading zero. */
 const ROUND_NUMBER_PATTERN = /^[1-9]\d*$/;
 
@@ -33,6 +36,7 @@ export {
   ROUND_SEGMENT_COUNT,
   ROUND_SEGMENT,
   ROUND_NUMBER_PATTERN,
+  NO_SUCH_ROUND,
   POP_STATE_EVENT,
   FROM_BOARD_KEY,
 };

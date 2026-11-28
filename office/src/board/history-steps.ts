@@ -1,27 +1,11 @@
 import { formatDuration, formatElapsed } from '@/board/format';
 import roundOutcome from '@/board/review-outcome';
 import { NO_COUNT, REASON_WORD_SEPARATOR } from '@/constants/dashboard';
-import { NOTE_SEPARATOR, OUTCOME_CHANGES_NOTE, OUTCOME_PASS_NOTE, REVIEW_ROUND_PREFIX, RUNNING_NOTE, STEP_AGENT, STEP_CANCELLED, STEP_CHANGES, STEP_HUMAN, STEP_NOW, STEP_PASS } from '@/constants/history';
+import { NOTE_SEPARATOR, OUTCOME_KINDS, OUTCOME_NOTES, REVIEW_ROUND_PREFIX, RUNNING_NOTE, STEP_AGENT, STEP_CANCELLED, STEP_HUMAN, STEP_NOW, STEP_PASS } from '@/constants/history';
 import { COLUMN_REVIEW, DONE, NEEDS_HUMAN, OUTCOME_CANCELLED, OUTCOME_MERGED, STAGE_CANCELLED } from '@/constants/pipeline';
-import { REVIEW_OUTCOME_CHANGES, REVIEW_OUTCOME_PASS } from '@/constants/review';
 import type { BoardTask } from '@/types/board';
-import type { HistoryStep, StepKind } from '@/types/history';
-import type { ReviewOutcome, TaskSummary } from '@/types/task';
-
-/** The entries of one column, back to back in the task's history. */
-interface Run {
-  column: string;
-  startedAt: string;
-  /** The first reason of the run: the one a past wait is shown with. */
-  reason: string | null;
-  /** The latest reason of the run: the one the wait going on now is shown with, as on the board row. */
-  latestReason: string | null;
-  milliseconds: number;
-}
-
-const OUTCOME_KINDS: Record<ReviewOutcome, StepKind> = { [REVIEW_OUTCOME_CHANGES]: STEP_CHANGES, [REVIEW_OUTCOME_PASS]: STEP_PASS };
-
-const OUTCOME_NOTES: Record<ReviewOutcome, string> = { [REVIEW_OUTCOME_CHANGES]: OUTCOME_CHANGES_NOTE, [REVIEW_OUTCOME_PASS]: OUTCOME_PASS_NOTE };
+import type { HistoryStep, Run } from '@/types/history';
+import type { TaskSummary } from '@/types/task';
 
 /** The stages a task has been through, from the history entries the board records; nothing is shown that the data does not state. */
 class HistorySteps {
